@@ -52,6 +52,17 @@ Built VideoNote MVP — a web app that takes video URLs (YouTube/Bilibili) or lo
 
 Removed Redis/ARQ dependencies. Task queue replaced by asyncio.create_task in-process. Task state migrated from Redis Hash to SQLite (WAL mode, aiosqlite). Sync blocking calls wrapped with asyncio.to_thread(). File cleanup moved to finally block. Deleted worker.py.
 
+
+## Session 3: Support custom ASR/LLM providers
+
+**Date**: 2026-05-17
+**Task**: Support custom ASR/LLM providers
+**Branch**: `feat/llm-provider`
+
+### Summary
+
+Add independent ASR_API_KEY/ASR_API_BASE/ASR_MODEL and LLM_API_KEY env vars with backward-compatible fallback to OPENAI_API_KEY/OpenAI defaults
+
 ### Main Changes
 
 (Add details)
@@ -60,7 +71,7 @@ Removed Redis/ARQ dependencies. Task queue replaced by asyncio.create_task in-pr
 
 | Hash | Message |
 |------|---------|
-| `5f44a68` | (see git log) |
+| `bb993fc` | (see git log) |
 
 ### Testing
 

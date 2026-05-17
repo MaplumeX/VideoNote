@@ -7,7 +7,7 @@ import tempfile
 
 from openai import OpenAI
 
-from app.config import OPENAI_API_KEY
+from app.config import ASR_API_BASE, ASR_API_KEY, ASR_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def transcribe_audio(audio_path: str, language: str = "zh") -> str:
     Handles the 25MB limit by splitting large files.
     Returns the full transcript text.
     """
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(api_key=ASR_API_KEY, base_url=ASR_API_BASE)
 
     audio_size = os.path.getsize(audio_path)
 
@@ -38,7 +38,7 @@ def _transcribe_file(client: OpenAI, audio_path: str, language: str) -> str:
     """Transcribe a single file via Whisper API."""
     with open(audio_path, "rb") as f:
         transcript = client.audio.transcriptions.create(
-            model="whisper-1",
+            model=ASR_MODEL,
             file=f,
             language=language,
             response_format="verbose_json",

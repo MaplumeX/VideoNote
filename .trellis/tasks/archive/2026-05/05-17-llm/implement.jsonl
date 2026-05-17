@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/05-17-llm/prd.md", "reason": "PRD: environment variable design, backward-compat fallback logic, acceptance criteria"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error handling conventions for API call failures in services"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality bar for config changes and service refactoring"}
