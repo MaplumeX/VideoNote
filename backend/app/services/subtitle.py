@@ -6,7 +6,16 @@ from pathlib import Path
 
 import yt_dlp
 
+from app.config import YT_DLP_PROXY
+
 logger = logging.getLogger(__name__)
+
+
+def _ydl_opts(**extra: object) -> dict:
+    opts: dict = {"quiet": True, "no_warnings": True, **extra}
+    if YT_DLP_PROXY:
+        opts["proxy"] = YT_DLP_PROXY
+    return opts
 
 
 def extract_subtitles(url: str, languages: list[str] | None = None) -> str | None:
@@ -18,15 +27,13 @@ def extract_subtitles(url: str, languages: list[str] | None = None) -> str | Non
     if languages is None:
         languages = ["en", "zh-Hans", "zh", "ja"]
 
-    ydl_opts = {
-        "writesubtitles": True,
-        "writeautomaticsub": True,
-        "subtitleslangs": languages,
-        "subtitlesformat": "srt",
-        "convertsubs": "srt",
-        "quiet": True,
-        "no_warnings": True,
-    }
+    ydl_opts = _ydl_opts(
+        writesubtitles=True,
+        writeautomaticsub=True,
+        subtitleslangs=languages,
+        subtitlesformat="srt",
+        convertsubs="srt",
+    )
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -68,17 +75,15 @@ def _download_and_read_subtitle(
 ) -> str | None:
     """Download subtitle file via yt-dlp and read its content."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        ydl_opts = {
-            "writesubtitles": not auto,
-            "writeautomaticsub": auto,
-            "subtitleslangs": [lang],
-            "subtitlesformat": "srt",
-            "convertsubs": "srt",
-            "quiet": True,
-            "no_warnings": True,
-            "outtmpl": str(Path(tmpdir) / "%(id)s"),
-            "skip_download": True,
-        }
+        ydl_opts = _ydl_opts(
+            writesubtitles=not auto,
+            writeautomaticsub=auto,
+            subtitleslangs=[lang],
+            subtitlesformat="srt",
+            convertsubs="srt",
+            outtmpl=str(Path(tmpdir) / "%(id)s"),
+            skip_download=True,
+        )
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -111,10 +116,7 @@ def detect_video_platform(url: str) -> str:
 
 def get_video_title(url: str) -> str | None:
     """Get the title of a video from its URL using yt-dlp."""
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-    }
+    ydl_opts = _ydl_opts()
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
