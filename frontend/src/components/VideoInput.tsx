@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useDropzone } from "react-dropzone";
 import { Upload, Link, FileVideo } from "lucide-react";
 import { cn } from "../lib/utils";
@@ -10,6 +11,7 @@ interface VideoInputProps {
 }
 
 export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputProps) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState("");
   const [tab, setTab] = useState<"url" | "upload">("url");
 
@@ -46,7 +48,7 @@ export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputPr
           )}
         >
           <Link size={16} />
-          Video URL
+          {t("input.tabUrl")}
         </button>
         <button
           type="button"
@@ -59,7 +61,7 @@ export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputPr
           )}
         >
           <Upload size={16} />
-          Upload File
+          {t("input.tabUpload")}
         </button>
       </div>
 
@@ -70,7 +72,7 @@ export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputPr
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste YouTube or Bilibili URL..."
+            placeholder={t("input.urlPlaceholder")}
             disabled={disabled}
             className="flex-1 rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors disabled:opacity-50"
           />
@@ -79,7 +81,7 @@ export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputPr
             disabled={disabled || !url.trim()}
             className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Process
+            {t("input.process")}
           </button>
         </form>
       )}
@@ -99,9 +101,9 @@ export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputPr
           <input {...getInputProps()} />
           <FileVideo size={40} className="text-muted-foreground mb-3" />
           <p className="text-sm text-muted-foreground">
-            {isDragActive ? "Drop video here..." : "Drag & drop a video file, or click to browse"}
+            {isDragActive ? t("input.dropHere") : t("input.dragOrBrowse")}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">MP4, WebM, MKV, etc.</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("input.supportedFormats")}</p>
         </div>
       )}
     </div>

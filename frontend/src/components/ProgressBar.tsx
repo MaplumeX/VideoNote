@@ -1,32 +1,36 @@
-import type { TaskProgress } from "../types";
+import { useTranslation } from "react-i18next";
+import type { TaskProgress, TaskStage } from "../types";
 import { cn } from "../lib/utils";
 
 interface ProgressBarProps {
   progress: TaskProgress | null;
 }
 
-const STAGE_LABELS: Record<string, string> = {
-  pending: "Queued",
-  downloading: "Downloading video",
-  extracting_subtitles: "Extracting subtitles",
-  transcribing: "Transcribing audio",
-  generating_notes: "Generating notes",
-  complete: "Complete",
-  failed: "Failed",
+const STAGE_KEY: Record<TaskStage, string> = {
+  pending: "progress.pending",
+  downloading: "progress.downloading",
+  extracting_subtitles: "progress.extracting_subtitles",
+  transcribing: "progress.transcribing",
+  generating_notes: "progress.generating_notes",
+  complete: "progress.complete",
+  failed: "progress.failed",
 };
 
 export function ProgressBar({ progress }: ProgressBarProps) {
+  const { t } = useTranslation();
+
   if (!progress) return null;
 
   const percentage = Math.round(progress.progress * 100);
   const isFailed = progress.stage === "failed";
   const isComplete = progress.stage === "complete";
+  const stageKey = STAGE_KEY[progress.stage];
 
   return (
     <div className="w-full max-w-xl mx-auto">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium">
-          {STAGE_LABELS[progress.stage] || progress.stage}
+          {t(stageKey)}
         </span>
         <span className={cn("text-sm", isFailed ? "text-destructive" : "text-muted-foreground")}>
           {isFailed ? "" : `${percentage}%`}
@@ -42,12 +46,6 @@ export function ProgressBar({ progress }: ProgressBarProps) {
           style={{ width: `${percentage}%` }}
         />
       </div>
-
-      {progress.message && (
-        <p className={cn("text-xs mt-2", isFailed ? "text-destructive" : "text-muted-foreground")}>
-          {progress.message}
-        </p>
-      )}
     </div>
   );
 }

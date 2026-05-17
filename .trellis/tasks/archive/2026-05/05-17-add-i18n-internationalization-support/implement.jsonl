@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "前端目录结构约定，i18n 文件放置位置需遵循"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件开发规范，语言切换组件需遵循"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "状态管理约定，i18n 语言状态需与现有模式一致"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript 类型规范，翻译 key 类型安全需遵循"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "后端目录结构约定，prompt 模板文件放置位置需遵循"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "后端错误处理规范，language 参数校验需遵循"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "前后端跨层协作，language 参数传递需遵循跨层约定"}
+{"file": ".trellis/tasks/05-17-add-i18n-internationalization-support/research/react-i18n-libraries.md", "reason": "i18n 库选型研究结果，实施细节参考"}

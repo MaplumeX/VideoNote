@@ -11,6 +11,7 @@ class VideoSource(StrEnum):
 
 class VideoRequest(BaseModel):
     url: HttpUrl
+    language: str = "en"
 
 
 class TaskStage(StrEnum):

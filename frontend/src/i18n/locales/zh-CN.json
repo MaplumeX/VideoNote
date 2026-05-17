@@ -1,0 +1,38 @@
+{
+  "app": {
+    "title": "VideoNote",
+    "subtitle": "AI 驱动的带时间戳视频笔记"
+  },
+  "input": {
+    "tabUrl": "视频链接",
+    "tabUpload": "上传文件",
+    "urlPlaceholder": "粘贴 YouTube 或 Bilibili 链接...",
+    "process": "处理",
+    "dropHere": "拖放视频到这里...",
+    "dragOrBrowse": "拖放视频文件，或点击选择",
+    "supportedFormats": "MP4、WebM、MKV 等"
+  },
+  "progress": {
+    "uploading": "正在上传视频... {{percent}}%",
+    "pending": "排队中",
+    "downloading": "正在下载视频",
+    "extracting_subtitles": "正在提取字幕",
+    "transcribing": "正在转录音频",
+    "generating_notes": "正在生成笔记",
+    "complete": "完成",
+    "failed": "失败"
+  },
+  "result": {
+    "downloadMarkdown": "下载 Markdown",
+    "newVideo": "新视频"
+  },
+  "error": {
+    "submitUrlFailed": "提交链接失败",
+    "uploadFailed": "上传失败",
+    "processingFailed": "处理失败"
+  },
+  "lang": {
+    "switch": "English",
+    "label": "语言"
+  }
+}

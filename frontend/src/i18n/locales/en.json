@@ -1,0 +1,38 @@
+{
+  "app": {
+    "title": "VideoNote",
+    "subtitle": "AI-powered video notes with timestamps"
+  },
+  "input": {
+    "tabUrl": "Video URL",
+    "tabUpload": "Upload File",
+    "urlPlaceholder": "Paste YouTube or Bilibili URL...",
+    "process": "Process",
+    "dropHere": "Drop video here...",
+    "dragOrBrowse": "Drag & drop a video file, or click to browse",
+    "supportedFormats": "MP4, WebM, MKV, etc."
+  },
+  "progress": {
+    "uploading": "Uploading video... {{percent}}%",
+    "pending": "Queued",
+    "downloading": "Downloading video",
+    "extracting_subtitles": "Extracting subtitles",
+    "transcribing": "Transcribing audio",
+    "generating_notes": "Generating notes",
+    "complete": "Complete",
+    "failed": "Failed"
+  },
+  "result": {
+    "downloadMarkdown": "Download Markdown",
+    "newVideo": "New Video"
+  },
+  "error": {
+    "submitUrlFailed": "Failed to submit URL",
+    "uploadFailed": "Upload failed",
+    "processingFailed": "Processing failed"
+  },
+  "lang": {
+    "switch": "中文",
+    "label": "Language"
+  }
+}

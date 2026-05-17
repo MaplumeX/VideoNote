@@ -22,8 +22,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+SUPPORTED_LANGUAGES = {"en", "zh-CN"}
 
-async def _process_video_url(job_id: str, url: str) -> None:
+
+def _normalize_language(lang: str) -> str:
+    """Normalize language code, fallback to 'en' if unsupported."""
+    if lang in SUPPORTED_LANGUAGES:
+        return lang
+    # Map zh-* variants to zh-CN
+    if lang.startswith("zh"):
+        return "zh-CN"
+    return "en"
+
+
+async def _process_video_url(job_id: str, url: str, language: str = "en") -> None:
     """Process a video URL: extract subtitles or transcribe, then generate notes."""
     try:
         video_title = await asyncio.to_thread(get_video_title, url)
@@ -70,7 +82,7 @@ async def _process_video_url(job_id: str, url: str) -> None:
             job_id, TaskStage.generating_notes, 0.7, "Generating notes..."
         )
         markdown = await asyncio.to_thread(
-            generate_notes, transcript, video_title=video_title
+            generate_notes, transcript, video_title=video_title, language=language
         )
 
         await update_progress(
@@ -87,7 +99,7 @@ async def _process_video_url(job_id: str, url: str) -> None:
         )
 
 
-async def _process_video_file(job_id: str, file_path: str) -> None:
+async def _process_video_file(job_id: str, file_path: str, language: str = "en") -> None:
     """Process an uploaded video file: extract audio, transcribe, generate notes."""
     try:
         await update_progress(
@@ -113,7 +125,9 @@ async def _process_video_file(job_id: str, file_path: str) -> None:
         await update_progress(
             job_id, TaskStage.generating_notes, 0.7, "Generating notes..."
         )
-        markdown = await asyncio.to_thread(generate_notes, transcript)
+        markdown = await asyncio.to_thread(
+            generate_notes, transcript, language=language
+        )
 
         await update_progress(
             job_id, TaskStage.generating_notes, 0.9, "Notes generated"
@@ -143,9 +157,10 @@ async def process_video(request: VideoRequest):
             detail="Unsupported video platform. Only YouTube and Bilibili URLs are supported.",
         )
 
+    language = _normalize_language(request.language)
     job_id = str(uuid.uuid4())
     await create_task(job_id)
-    asyncio.create_task(_process_video_url(job_id, url))
+    asyncio.create_task(_process_video_url(job_id, url, language=language))
 
     return {"job_id": job_id}
 
@@ -162,7 +177,7 @@ ALLOWED_EXTENSIONS = {
 
 
 @router.post("/upload")
-async def upload_video(file: UploadFile):
+async def upload_video(file: UploadFile, language: str = "en"):
     """Upload a local video file for processing. Returns a job_id."""
     # Validate content type or extension
     content_type = file.content_type or ""
@@ -176,6 +191,7 @@ async def upload_video(file: UploadFile):
             detail=f"Unsupported file type: {content_type or ext}. Only video files are accepted.",
         )
 
+    language = _normalize_language(language)
     job_id = str(uuid.uuid4())
 
     # Sanitize filename to prevent path traversal
@@ -201,7 +217,7 @@ async def upload_video(file: UploadFile):
             f.write(chunk)
 
     await create_task(job_id, message="Uploaded, queued")
-    asyncio.create_task(_process_video_file(job_id, str(file_path)))
+    asyncio.create_task(_process_video_file(job_id, str(file_path), language=language))
 
     return {"job_id": job_id}
 
