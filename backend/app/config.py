@@ -8,7 +8,13 @@ load_dotenv()
 # API Keys
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
-# LLM Configuration
+# ASR Configuration (fallback to OPENAI_API_KEY / OpenAI defaults)
+ASR_API_KEY: str = os.getenv("ASR_API_KEY", "") or OPENAI_API_KEY
+ASR_API_BASE: str = os.getenv("ASR_API_BASE", "https://api.openai.com/v1")
+ASR_MODEL: str = os.getenv("ASR_MODEL", "whisper-1")
+
+# LLM Configuration (fallback to OPENAI_API_KEY / OpenAI defaults)
+LLM_API_KEY: str = os.getenv("LLM_API_KEY", "") or OPENAI_API_KEY
 LLM_API_BASE: str = os.getenv("LLM_API_BASE", "https://api.openai.com/v1")
 LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o")
 

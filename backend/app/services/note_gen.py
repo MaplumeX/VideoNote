@@ -4,7 +4,7 @@ import logging
 
 from openai import OpenAI
 
-from app.config import LLM_API_BASE, LLM_MODEL, OPENAI_API_KEY
+from app.config import LLM_API_BASE, LLM_API_KEY, LLM_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def generate_notes(transcript: str, video_title: str | None = None) -> str:
     Returns:
         Markdown-formatted notes.
     """
-    client = OpenAI(api_key=OPENAI_API_KEY, base_url=LLM_API_BASE)
+    client = OpenAI(api_key=LLM_API_KEY, base_url=LLM_API_BASE)
 
     title_context = f"\n\nVideo title: {video_title}" if video_title else ""
 
