@@ -8,7 +8,7 @@
 
 - **Tool**: `ruff` (replaces flake8, isort, pyupgrade)
 - **Config**: In `pyproject.toml` `[tool.ruff]`
-- **Run**: `ruff check app/ worker.py`
+- **Run from `backend/` directory**: `cd backend/ && uv run ruff check app/`
 
 ---
 
@@ -45,6 +45,31 @@ All credentials in `.env`, loaded via `app/config.py`.
 ---
 
 ## Required Patterns
+
+### Annotated type alias for FastAPI Depends
+
+Use `Annotated` type aliases instead of `Depends()` in parameter defaults (avoids B008 ruff violation):
+
+```python
+from typing import Annotated
+from fastapi import Depends
+
+CurrentUser = Annotated[TokenData, Depends(get_current_user)]
+AuthCredentials = Annotated[HTTPAuthorizationCredentials, Depends(security)]
+
+@router.get("/me")
+async def get_me(user: CurrentUser):
+    ...
+```
+
+### Exception chaining
+
+Always use `raise ... from exc` when re-raising caught exceptions:
+
+```python
+except jwt.InvalidTokenError as exc:
+    raise HTTPException(status_code=401, detail="Invalid token") from exc
+```
 
 ### Async task delegation
 
