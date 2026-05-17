@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify error handling follows project patterns — RuntimeError with descriptive messages for ASR failures"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify type hints, no hardcoded API keys, lint passes with ruff"}

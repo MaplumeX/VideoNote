@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error handling patterns for service layer — raising RuntimeError on ASR failure"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality standards — type hints on all function signatures, env vars via config.py, no hardcoded values"}
