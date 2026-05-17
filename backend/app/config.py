@@ -9,6 +9,7 @@ load_dotenv()
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
 # ASR Configuration (fallback to OPENAI_API_KEY / OpenAI defaults)
+ASR_PROVIDER: str = os.getenv("ASR_PROVIDER", "openai")
 ASR_API_KEY: str = os.getenv("ASR_API_KEY", "") or OPENAI_API_KEY
 ASR_API_BASE: str = os.getenv("ASR_API_BASE", "https://api.openai.com/v1")
 ASR_MODEL: str = os.getenv("ASR_MODEL", "whisper-1")
