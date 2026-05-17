@@ -16,6 +16,7 @@ export default function App() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [noteMarkdown, setNoteMarkdown] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const appLanguage = i18n.resolvedLanguage === "zh-CN" ? "zh-CN" : "en";
 
   const { progress, result, error: sseError } = useSSE(jobId);
   const { uploading, progress: uploadProgress, jobId: uploadJobId, error: uploadError, upload } = useVideoUpload();
@@ -44,7 +45,7 @@ export default function App() {
     setError(null);
     setStep("processing");
     try {
-      const res = await submitUrl(url, i18n.language);
+      const res = await submitUrl(url, appLanguage);
       setJobId(res.job_id);
     } catch {
       setError(t("error.submitUrlFailed"));
@@ -55,7 +56,7 @@ export default function App() {
   const handleFileUpload = async (file: File) => {
     setError(null);
     setStep("processing");
-    const id = await upload(file, i18n.language);
+    const id = await upload(file, appLanguage);
     if (id) {
       setJobId(id);
     } else {
@@ -83,8 +84,8 @@ export default function App() {
   };
 
   const toggleLang = () => {
-    const next = i18n.language === "zh-CN" ? "en" : "zh-CN";
-    i18n.changeLanguage(next);
+    const next = appLanguage === "zh-CN" ? "en" : "zh-CN";
+    void i18n.changeLanguage(next);
   };
 
   return (

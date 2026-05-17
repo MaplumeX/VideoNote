@@ -41,6 +41,22 @@ Fetch API lacks `upload.onprogress`. Use XHR instead.
 - API calls: through `@/api/client.ts`, not inline fetch
 - Types: defined in `@/types/index.ts`, kept in sync with backend Pydantic schemas
 
+### i18next Region-Specific Locales
+
+When resources are keyed by exact region codes such as `zh-CN`, keep `supportedLngs`
+to those exact app languages and do not enable `nonExplicitSupportedLngs`.
+
+```ts
+// Bad: zh-CN can resolve to fallback English while i18n.language still says zh-CN.
+nonExplicitSupportedLngs: true;
+
+// Good: zh, zh-Hans-CN, and zh-CN normalize to the zh-CN resource.
+supportedLngs: ["en", "zh-CN"];
+```
+
+Use `i18n.resolvedLanguage` for UI decisions and normalize outbound API language
+values to the app contract (`"en"` or `"zh-CN"`).
+
 ---
 
 ## Testing Requirements
