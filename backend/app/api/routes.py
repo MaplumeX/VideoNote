@@ -3,37 +3,133 @@
 import asyncio
 import json
 import logging
+import tempfile
 import uuid
 from pathlib import Path
-from urllib.parse import urlparse
 
-import redis.asyncio as aioredis
-from arq import create_pool
-from arq.connections import RedisSettings
 from fastapi import APIRouter, HTTPException, UploadFile
 from sse_starlette.sse import EventSourceResponse
 
-from app.config import MAX_UPLOAD_SIZE_MB, REDIS_URL, UPLOAD_DIR
+from app.config import MAX_UPLOAD_SIZE_MB, UPLOAD_DIR
+from app.db import create_task, get_task, set_result, update_progress
 from app.schemas import NoteResponse, TaskStage, VideoRequest
-from app.services.subtitle import detect_video_platform
+from app.services.audio import download_audio_via_ytdlp, extract_audio
+from app.services.note_gen import generate_notes
+from app.services.subtitle import detect_video_platform, extract_subtitles, get_video_title
+from app.services.transcribe import transcribe_audio
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def _get_redis_settings() -> RedisSettings:
-    parsed = urlparse(REDIS_URL)
-    return RedisSettings(
-        host=parsed.hostname or "localhost",
-        port=parsed.port or 6379,
-        database=int(parsed.path.lstrip("/") or 0),
-        password=parsed.password,
-    )
+async def _process_video_url(job_id: str, url: str) -> None:
+    """Process a video URL: extract subtitles or transcribe, then generate notes."""
+    try:
+        video_title = await asyncio.to_thread(get_video_title, url)
+
+        # Stage 1: Try subtitle extraction
+        await update_progress(
+            job_id, TaskStage.extracting_subtitles, 0.1,
+            "Extracting subtitles..."
+        )
+
+        subtitle_text = await asyncio.to_thread(extract_subtitles, url)
+
+        if subtitle_text:
+            transcript = subtitle_text
+            await update_progress(
+                job_id, TaskStage.extracting_subtitles, 0.5,
+                "Subtitles found"
+            )
+        else:
+            # Fallback: download audio and transcribe
+            await update_progress(
+                job_id, TaskStage.downloading, 0.2,
+                "No subtitles, downloading audio..."
+            )
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                audio_path = await asyncio.to_thread(
+                    download_audio_via_ytdlp, url, tmpdir
+                )
+
+                await update_progress(
+                    job_id, TaskStage.transcribing, 0.4,
+                    "Transcribing audio..."
+                )
+                transcript = await asyncio.to_thread(transcribe_audio, audio_path)
+
+            await update_progress(
+                job_id, TaskStage.transcribing, 0.6,
+                "Transcription complete"
+            )
+
+        # Stage 2: Generate notes
+        await update_progress(
+            job_id, TaskStage.generating_notes, 0.7, "Generating notes..."
+        )
+        markdown = await asyncio.to_thread(
+            generate_notes, transcript, video_title=video_title
+        )
+
+        await update_progress(
+            job_id, TaskStage.generating_notes, 0.9, "Notes generated"
+        )
+
+        # Store result
+        await set_result(job_id, markdown, title=video_title)
+
+    except Exception as e:
+        logger.exception(f"Task {job_id} failed: {e}")
+        await update_progress(
+            job_id, TaskStage.failed, 0.0, f"Error: {str(e)}"
+        )
 
 
-async def _get_arq_pool():
-    return await create_pool(_get_redis_settings())
+async def _process_video_file(job_id: str, file_path: str) -> None:
+    """Process an uploaded video file: extract audio, transcribe, generate notes."""
+    try:
+        await update_progress(
+            job_id, TaskStage.transcribing, 0.1,
+            "Extracting audio from video..."
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_path = str(Path(tmpdir) / "audio.wav")
+            await asyncio.to_thread(extract_audio, file_path, audio_path)
+
+            await update_progress(
+                job_id, TaskStage.transcribing, 0.3,
+                "Transcribing audio..."
+            )
+            transcript = await asyncio.to_thread(transcribe_audio, audio_path)
+
+        await update_progress(
+            job_id, TaskStage.transcribing, 0.6, "Transcription complete"
+        )
+
+        # Generate notes
+        await update_progress(
+            job_id, TaskStage.generating_notes, 0.7, "Generating notes..."
+        )
+        markdown = await asyncio.to_thread(generate_notes, transcript)
+
+        await update_progress(
+            job_id, TaskStage.generating_notes, 0.9, "Notes generated"
+        )
+
+        # Store result
+        await set_result(job_id, markdown)
+
+    except Exception as e:
+        logger.exception(f"Task {job_id} failed: {e}")
+        await update_progress(
+            job_id, TaskStage.failed, 0.0, f"Error: {str(e)}"
+        )
+    finally:
+        # Clean up uploaded file even on error
+        Path(file_path).unlink(missing_ok=True)
 
 
 @router.post("/process")
@@ -48,26 +144,8 @@ async def process_video(request: VideoRequest):
         )
 
     job_id = str(uuid.uuid4())
-
-    # Initialize task in Redis
-    r = aioredis.from_url(REDIS_URL, decode_responses=True)
-    try:
-        await r.hset(
-            f"videonote:task:{job_id}",
-            mapping={
-                "progress": json.dumps({
-                    "stage": TaskStage.pending.value,
-                    "progress": 0.0,
-                    "message": "Queued",
-                }),
-            },
-        )
-    finally:
-        await r.aclose()
-
-    # Enqueue ARQ task
-    pool = await _get_arq_pool()
-    await pool.enqueue_job("process_video_url", job_id, url)
+    await create_task(job_id)
+    asyncio.create_task(_process_video_url(job_id, url))
 
     return {"job_id": job_id}
 
@@ -122,25 +200,8 @@ async def upload_video(file: UploadFile):
                 )
             f.write(chunk)
 
-    # Initialize task in Redis
-    r = aioredis.from_url(REDIS_URL, decode_responses=True)
-    try:
-        await r.hset(
-            f"videonote:task:{job_id}",
-            mapping={
-                "progress": json.dumps({
-                    "stage": TaskStage.pending.value,
-                    "progress": 0.0,
-                    "message": "Uploaded, queued",
-                }),
-            },
-        )
-    finally:
-        await r.aclose()
-
-    # Enqueue ARQ task
-    pool = await _get_arq_pool()
-    await pool.enqueue_job("process_video_file", job_id, str(file_path))
+    await create_task(job_id, message="Uploaded, queued")
+    asyncio.create_task(_process_video_file(job_id, str(file_path)))
 
     return {"job_id": job_id}
 
@@ -149,33 +210,32 @@ async def upload_video(file: UploadFile):
 async def task_progress(job_id: str):
     """SSE endpoint for real-time task progress updates."""
     async def event_generator():
-        r = aioredis.from_url(REDIS_URL, decode_responses=True)
-        try:
-            while True:
-                raw = await r.hget(f"videonote:task:{job_id}", "progress")
-                if raw:
-                    data = json.loads(raw)
+        while True:
+            task = await get_task(job_id)
+            if not task:
+                yield {"event": "progress", "data": json.dumps({"error": "Task not found"})}
+                break
+            data = {
+                "stage": task["stage"],
+                "progress": task["progress"],
+                "message": task["message"],
+            }
+            yield {
+                "event": "progress",
+                "data": json.dumps(data),
+            }
+            if task["stage"] in (
+                TaskStage.complete.value,
+                TaskStage.failed.value,
+            ):
+                result_raw = task.get("result_json")
+                if result_raw:
                     yield {
-                        "event": "progress",
-                        "data": json.dumps(data),
+                        "event": "complete",
+                        "data": result_raw,
                     }
-                    if data.get("stage") in (
-                        TaskStage.complete.value,
-                        TaskStage.failed.value,
-                    ):
-                        # Send final result if available
-                        result_raw = await r.hget(
-                            f"videonote:task:{job_id}", "result"
-                        )
-                        if result_raw:
-                            yield {
-                                "event": "complete",
-                                "data": result_raw,
-                            }
-                        break
-                await asyncio.sleep(1)
-        finally:
-            await r.aclose()
+                break
+            await asyncio.sleep(1)
 
     return EventSourceResponse(event_generator())
 
@@ -183,29 +243,22 @@ async def task_progress(job_id: str):
 @router.get("/tasks/{job_id}/result", response_model=NoteResponse)
 async def task_result(job_id: str):
     """Get the final note result for a completed task."""
-    r = aioredis.from_url(REDIS_URL, decode_responses=True)
-    try:
-        raw = await r.hget(f"videonote:task:{job_id}", "result")
-        if not raw:
-            # Check if task exists at all
-            progress_raw = await r.hget(
-                f"videonote:task:{job_id}", "progress"
-            )
-            if not progress_raw:
-                raise HTTPException(status_code=404, detail="Task not found")
-            progress = json.loads(progress_raw)
-            if progress.get("stage") == TaskStage.failed.value:
-                raise HTTPException(
-                    status_code=500,
-                    detail=progress.get("message", "Task failed"),
-                )
-            raise HTTPException(status_code=202, detail="Task still processing")
+    task = await get_task(job_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
 
-        result = json.loads(raw)
-        return NoteResponse(
-            job_id=job_id,
-            markdown=result.get("markdown", ""),
-            title=result.get("title"),
-        )
-    finally:
-        await r.aclose()
+    result_raw = task.get("result_json")
+    if not result_raw:
+        if task["stage"] == TaskStage.failed.value:
+            raise HTTPException(
+                status_code=500,
+                detail=task.get("message", "Task failed"),
+            )
+        raise HTTPException(status_code=202, detail="Task still processing")
+
+    result = json.loads(result_raw)
+    return NoteResponse(
+        job_id=job_id,
+        markdown=result.get("markdown", ""),
+        title=result.get("title"),
+    )

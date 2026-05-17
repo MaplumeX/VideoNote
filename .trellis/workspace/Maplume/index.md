@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
+- **Total Sessions**: 2
 - **Last Active**: 2026-05-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~42 | Active |
+| `journal-1.md` | ~75 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 2 | 2026-05-17 | Remove Redis: replace ARQ+Redis with SQLite+asyncio | `5f44a68` | `feat/remove-redis` |
 | 1 | 2026-05-17 | VideoNote MVP: AI video note summarizer (backend + frontend) | `0f7a55a`, `e33562b`, `60411d1` | `main` |
 <!-- @@@/auto:session-history -->
 

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite schema design and DB access patterns"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error handling conventions for task failures"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Coding standards and patterns to follow"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Where to place new db.py module"}
+{"file": ".trellis/tasks/05-17-redis-sqlite-arq/prd.md", "reason": "Full requirements and technical approach"}

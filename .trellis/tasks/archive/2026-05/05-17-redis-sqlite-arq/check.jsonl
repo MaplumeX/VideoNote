@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify SQLite usage follows DB guidelines"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify task failure handling follows conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify code quality and no Redis remnants"}
+{"file": ".trellis/tasks/05-17-redis-sqlite-arq/prd.md", "reason": "Verify all acceptance criteria met"}
