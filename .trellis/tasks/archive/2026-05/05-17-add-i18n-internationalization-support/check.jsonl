@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端质量检查标准，i18n 实现需满足"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript 类型安全检查，翻译 key 类型需正确"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端质量检查标准，prompt 模板和 API 变更需满足"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误处理规范检查，language 参数校验需合规"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨层一致性检查，前后端 language 参数传递需一致"}
