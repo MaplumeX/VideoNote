@@ -40,3 +40,36 @@ Built VideoNote MVP — a web app that takes video URLs (YouTube/Bilibili) or lo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: Support custom ASR/LLM providers
+
+**Date**: 2026-05-17
+**Task**: Support custom ASR/LLM providers
+**Branch**: `feat/llm-provider`
+
+### Summary
+
+Add independent ASR_API_KEY/ASR_API_BASE/ASR_MODEL and LLM_API_KEY env vars with backward-compatible fallback to OPENAI_API_KEY/OpenAI defaults
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bb993fc` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
