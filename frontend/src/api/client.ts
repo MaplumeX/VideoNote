@@ -2,11 +2,11 @@ import type { NoteResult, ProcessResponse } from "../types";
 
 const API_BASE = "/api";
 
-export async function submitUrl(url: string): Promise<ProcessResponse> {
+export async function submitUrl(url: string, language: string): Promise<ProcessResponse> {
   const res = await fetch(`${API_BASE}/process`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, language }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
