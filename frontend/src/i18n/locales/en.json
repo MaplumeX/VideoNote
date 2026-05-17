@@ -34,5 +34,27 @@
   "lang": {
     "switch": "中文",
     "label": "Language"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "register": "Create Account",
+    "signOut": "Sign Out",
+    "history": "History",
+    "newVideo": "New Video",
+    "signInSubtitle": "Sign in to your account",
+    "registerSubtitle": "Create your account",
+    "signingIn": "Signing in...",
+    "creatingAccount": "Creating account...",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "email": "Email",
+    "password": "Password",
+    "displayName": "Display Name"
+  },
+  "history": {
+    "loading": "Loading...",
+    "empty": "No tasks yet",
+    "processVideo": "Process a video",
+    "loadFailed": "Failed to load task history"
   }
 }

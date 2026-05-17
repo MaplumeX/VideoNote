@@ -15,7 +15,7 @@ export function useVideoUpload() {
     error: null,
   });
 
-  const upload = useCallback((file: File, language: string): Promise<string> => {
+  const upload = useCallback((file: File, language: string, accessToken?: string | null): Promise<string> => {
     return new Promise((resolve) => {
       setState({ uploading: true, progress: 0, jobId: null, error: null });
 
@@ -65,6 +65,9 @@ export function useVideoUpload() {
       };
 
       xhr.open("POST", "/api/upload");
+      if (accessToken) {
+        xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+      }
       xhr.send(formData);
     });
   }, []);

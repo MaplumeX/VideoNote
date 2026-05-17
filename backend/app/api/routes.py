@@ -6,17 +6,21 @@ import logging
 import tempfile
 import uuid
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sse_starlette.sse import EventSourceResponse
 
+from app.auth import TokenData, get_current_user
 from app.config import MAX_UPLOAD_SIZE_MB, UPLOAD_DIR
-from app.db import create_task, get_task, set_result, update_progress
-from app.schemas import NoteResponse, TaskStage, VideoRequest
+from app.db import create_task, get_task, get_user_tasks, set_result, update_progress
+from app.schemas import NoteResponse, TaskListItem, TaskStage, VideoRequest
 from app.services.audio import download_audio_via_ytdlp, extract_audio
 from app.services.note_gen import generate_notes
 from app.services.subtitle import detect_video_platform, extract_subtitles, get_video_title
 from app.services.transcribe import transcribe_audio
+
+CurrentUser = Annotated[TokenData, Depends(get_current_user)]
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +33,6 @@ def _normalize_language(lang: str) -> str:
     """Normalize language code, fallback to 'en' if unsupported."""
     if lang in SUPPORTED_LANGUAGES:
         return lang
-    # Map zh-* variants to zh-CN
     if lang.startswith("zh"):
         return "zh-CN"
     return "en"
@@ -40,7 +43,6 @@ async def _process_video_url(job_id: str, url: str, language: str = "en") -> Non
     try:
         video_title = await asyncio.to_thread(get_video_title, url)
 
-        # Stage 1: Try subtitle extraction
         await update_progress(
             job_id, TaskStage.extracting_subtitles, 0.1,
             "Extracting subtitles..."
@@ -55,7 +57,6 @@ async def _process_video_url(job_id: str, url: str, language: str = "en") -> Non
                 "Subtitles found"
             )
         else:
-            # Fallback: download audio and transcribe
             await update_progress(
                 job_id, TaskStage.downloading, 0.2,
                 "No subtitles, downloading audio..."
@@ -77,7 +78,6 @@ async def _process_video_url(job_id: str, url: str, language: str = "en") -> Non
                 "Transcription complete"
             )
 
-        # Stage 2: Generate notes
         await update_progress(
             job_id, TaskStage.generating_notes, 0.7, "Generating notes..."
         )
@@ -89,7 +89,6 @@ async def _process_video_url(job_id: str, url: str, language: str = "en") -> Non
             job_id, TaskStage.generating_notes, 0.9, "Notes generated"
         )
 
-        # Store result
         await set_result(job_id, markdown, title=video_title)
 
     except Exception as e:
@@ -121,7 +120,6 @@ async def _process_video_file(job_id: str, file_path: str, language: str = "en")
             job_id, TaskStage.transcribing, 0.6, "Transcription complete"
         )
 
-        # Generate notes
         await update_progress(
             job_id, TaskStage.generating_notes, 0.7, "Generating notes..."
         )
@@ -133,7 +131,6 @@ async def _process_video_file(job_id: str, file_path: str, language: str = "en")
             job_id, TaskStage.generating_notes, 0.9, "Notes generated"
         )
 
-        # Store result
         await set_result(job_id, markdown)
 
     except Exception as e:
@@ -142,12 +139,14 @@ async def _process_video_file(job_id: str, file_path: str, language: str = "en")
             job_id, TaskStage.failed, 0.0, f"Error: {str(e)}"
         )
     finally:
-        # Clean up uploaded file even on error
         Path(file_path).unlink(missing_ok=True)
 
 
 @router.post("/process")
-async def process_video(request: VideoRequest):
+async def process_video(
+    request: VideoRequest,
+    user: CurrentUser,
+):
     """Submit a video URL for processing. Returns a job_id."""
     url = str(request.url)
     platform = detect_video_platform(url)
@@ -159,7 +158,7 @@ async def process_video(request: VideoRequest):
 
     language = _normalize_language(request.language)
     job_id = str(uuid.uuid4())
-    await create_task(job_id)
+    await create_task(job_id, user_id=user.user_id)
     asyncio.create_task(_process_video_url(job_id, url, language=language))
 
     return {"job_id": job_id}
@@ -177,9 +176,12 @@ ALLOWED_EXTENSIONS = {
 
 
 @router.post("/upload")
-async def upload_video(file: UploadFile, language: str = "en"):
+async def upload_video(
+    file: UploadFile,
+    user: CurrentUser,
+    language: str = "en",
+):
     """Upload a local video file for processing. Returns a job_id."""
-    # Validate content type or extension
     content_type = file.content_type or ""
     ext = Path(file.filename).suffix.lower() if file.filename else ""
     if (
@@ -194,13 +196,11 @@ async def upload_video(file: UploadFile, language: str = "en"):
     language = _normalize_language(language)
     job_id = str(uuid.uuid4())
 
-    # Sanitize filename to prevent path traversal
     safe_name = Path(file.filename).name if file.filename else "upload"
     safe_name = safe_name.replace("..", "")
     if not safe_name:
         safe_name = "upload"
 
-    # Read file in chunks to check size
     max_bytes = MAX_UPLOAD_SIZE_MB * 1024 * 1024
     file_path = UPLOAD_DIR / f"{job_id}_{safe_name}"
 
@@ -216,15 +216,22 @@ async def upload_video(file: UploadFile, language: str = "en"):
                 )
             f.write(chunk)
 
-    await create_task(job_id, message="Uploaded, queued")
+    await create_task(job_id, message="Uploaded, queued", user_id=user.user_id)
     asyncio.create_task(_process_video_file(job_id, str(file_path), language=language))
 
     return {"job_id": job_id}
 
 
 @router.get("/tasks/{job_id}/progress")
-async def task_progress(job_id: str):
+async def task_progress(
+    job_id: str,
+    user: CurrentUser,
+):
     """SSE endpoint for real-time task progress updates."""
+    task = await get_task(job_id)
+    if not task or task.get("user_id") != user.user_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+
     async def event_generator():
         while True:
             task = await get_task(job_id)
@@ -257,10 +264,13 @@ async def task_progress(job_id: str):
 
 
 @router.get("/tasks/{job_id}/result", response_model=NoteResponse)
-async def task_result(job_id: str):
+async def task_result(
+    job_id: str,
+    user: CurrentUser,
+):
     """Get the final note result for a completed task."""
     task = await get_task(job_id)
-    if not task:
+    if not task or task.get("user_id") != user.user_id:
         raise HTTPException(status_code=404, detail="Task not found")
 
     result_raw = task.get("result_json")
@@ -278,3 +288,10 @@ async def task_result(job_id: str):
         markdown=result.get("markdown", ""),
         title=result.get("title"),
     )
+
+
+@router.get("/tasks", response_model=list[TaskListItem])
+async def list_tasks(user: CurrentUser):
+    """List all tasks for the current user."""
+    tasks = await get_user_tasks(user.user_id)
+    return [TaskListItem(**t) for t in tasks]

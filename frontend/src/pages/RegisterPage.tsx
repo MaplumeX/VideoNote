@@ -1,0 +1,119 @@
+import { Form, useActionData, useNavigation, useSearchParams } from "react-router";
+import { useTranslation } from "react-i18next";
+import { setAccessToken } from "@/auth/token";
+
+interface ActionError {
+  error: string;
+}
+
+export async function registerAction({ request }: { request: Request }) {
+  const formData = await request.formData();
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
+  const display_name = formData.get("display_name") as string;
+
+  const res = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email, password, display_name }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ detail: "Registration failed" }));
+    return { error: data.detail || "Registration failed" };
+  }
+
+  const data = await res.json();
+  setAccessToken(data.access_token);
+
+  const url = new URL(request.url);
+  const redirectTo = url.searchParams.get("redirect") || "/app";
+  return new Response(null, {
+    status: 302,
+    headers: { Location: redirectTo },
+  });
+}
+
+export function RegisterPage() {
+  const { t } = useTranslation();
+  const actionData = useActionData() as ActionError | undefined;
+  const navigation = useNavigation();
+  const [searchParams] = useSearchParams();
+  const isSubmitting = navigation.state === "submitting";
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="w-full max-w-md space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">VideoNote</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t("auth.registerSubtitle")}</p>
+        </div>
+
+        {actionData?.error && (
+          <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+            {actionData.error}
+          </div>
+        )}
+
+        <Form method="post" className="space-y-4">
+          <div>
+            <label htmlFor="display_name" className="block text-sm font-medium mb-1.5">
+              {t("auth.displayName")}
+            </label>
+            <input
+              id="display_name"
+              name="display_name"
+              type="text"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium mb-1.5">
+              {t("auth.email")}
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium mb-1.5">
+              {t("auth.password")}
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {isSubmitting ? t("auth.creatingAccount") : t("auth.register")}
+          </button>
+        </Form>
+
+        <p className="text-center text-sm text-muted-foreground">
+          {t("auth.hasAccount")}{" "}
+          <a
+            href={`/auth/login${searchParams.get("redirect") ? "?redirect=" + searchParams.get("redirect") : ""}`}
+            className="text-primary hover:underline"
+          >
+            {t("auth.signIn")}
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}

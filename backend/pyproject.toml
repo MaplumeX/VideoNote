@@ -11,9 +11,11 @@ dependencies = [
     "sse-starlette>=2.0.0",
     "python-dotenv>=1.0.0",
     "httpx>=0.28.0",
-    "pydantic>=2.10.0",
+    "pydantic[email]>=2.10.0",
     "python-multipart>=0.0.18",
     "aiosqlite>=0.20.0",
+    "pyjwt>=2.12.1",
+    "bcrypt>=5.0.0",
 ]
 
 [project.optional-dependencies]
