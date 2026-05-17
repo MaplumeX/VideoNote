@@ -183,3 +183,36 @@ Added YT_DLP_PROXY env var to config.py; created _ydl_opts() helper in subtitle.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: Implement user authentication system
+
+**Date**: 2026-05-18
+**Task**: Implement user authentication system
+**Branch**: `feat/user-system`
+
+### Summary
+
+Full user-system implementation: JWT + bcrypt auth with refresh token rotation, reuse detection, protected API routes, frontend login/register/history pages, route guards, authFetch with 401 auto-refresh, i18n for auth pages, CORS tightening. Quality check: fixed duplicate security declaration, unused vars, hardcoded strings, delayed imports; updated backend/frontend specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `71de18e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
