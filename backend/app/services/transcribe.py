@@ -1,4 +1,4 @@
-"""Transcription via OpenAI Whisper API."""
+"""Transcription via OpenAI Whisper API or SiliconFlow API."""
 
 import logging
 import os
@@ -7,36 +7,47 @@ import tempfile
 
 from openai import OpenAI
 
-from app.config import ASR_API_BASE, ASR_API_KEY, ASR_MODEL
+from app.config import ASR_API_BASE, ASR_API_KEY, ASR_MODEL, ASR_PROVIDER
 
 logger = logging.getLogger(__name__)
 
-# Whisper API has a 25MB file size limit
-MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+MAX_FILE_SIZE_BYTES_OPENAI = 25 * 1024 * 1024
+MAX_FILE_SIZE_BYTES_SILICONFLOW = 50 * 1024 * 1024
 
 
 def transcribe_audio(audio_path: str, language: str = "zh") -> str:
-    """Transcribe an audio file using OpenAI Whisper API.
+    """Transcribe an audio file using configured ASR provider.
 
-    Handles the 25MB limit by splitting large files.
+    Handles the file size limit by splitting large files when needed.
     Returns the full transcript text.
     """
     client = OpenAI(api_key=ASR_API_KEY, base_url=ASR_API_BASE)
 
+    max_size = (
+        MAX_FILE_SIZE_BYTES_SILICONFLOW
+        if ASR_PROVIDER == "siliconflow"
+        else MAX_FILE_SIZE_BYTES_OPENAI
+    )
     audio_size = os.path.getsize(audio_path)
 
-    if audio_size <= MAX_FILE_SIZE_BYTES:
+    if audio_size <= max_size:
         return _transcribe_file(client, audio_path, language)
 
-    # Split large audio into chunks
     size_mb = audio_size / 1024 / 1024
     logger.info(f"Audio file {audio_path} is {size_mb:.1f}MB, splitting")
     return _transcribe_large_file(client, audio_path, language)
 
 
 def _transcribe_file(client: OpenAI, audio_path: str, language: str) -> str:
-    """Transcribe a single file via Whisper API."""
+    """Transcribe a single file via the configured ASR provider."""
     with open(audio_path, "rb") as f:
+        if ASR_PROVIDER == "siliconflow":
+            transcript = client.audio.transcriptions.create(
+                model=ASR_MODEL,
+                file=f,
+            )
+            return getattr(transcript, "text", "")
+
         transcript = client.audio.transcriptions.create(
             model=ASR_MODEL,
             file=f,
@@ -45,7 +56,6 @@ def _transcribe_file(client: OpenAI, audio_path: str, language: str) -> str:
             timestamp_granularities=["segment"],
         )
 
-    # Build text with timestamps
     segments = getattr(transcript, "segments", [])
     if segments:
         lines = []
@@ -63,7 +73,6 @@ def _transcribe_large_file(
     client: OpenAI, audio_path: str, language: str
 ) -> str:
     """Split a large audio file into chunks and transcribe each."""
-    # Get audio duration
     probe_cmd = [
         "ffprobe",
         "-v", "quiet",
@@ -74,9 +83,13 @@ def _transcribe_large_file(
     result = subprocess.run(probe_cmd, capture_output=True, text=True)
     total_seconds = float(result.stdout.strip())
 
-    # Calculate chunk duration based on file size ratio
-    ratio = MAX_FILE_SIZE_BYTES / os.path.getsize(audio_path) * 0.9
-    chunk_duration = min(total_seconds * ratio, 600)  # Max 10 min
+    max_size = (
+        MAX_FILE_SIZE_BYTES_SILICONFLOW
+        if ASR_PROVIDER == "siliconflow"
+        else MAX_FILE_SIZE_BYTES_OPENAI
+    )
+    ratio = max_size / os.path.getsize(audio_path) * 0.9
+    chunk_duration = min(total_seconds * ratio, 600)
 
     full_transcript_parts = []
 

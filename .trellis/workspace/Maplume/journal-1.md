@@ -84,3 +84,36 @@ Add independent ASR_API_KEY/ASR_API_BASE/ASR_MODEL and LLM_API_KEY env vars with
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Support SiliconFlow as ASR Provider
+
+**Date**: 2026-05-17
+**Task**: Support SiliconFlow as ASR Provider
+**Branch**: `feat/siliconflow-transcription`
+
+### Summary
+
+Added ASR_PROVIDER env var (openai/siliconflow). SiliconFlow mode sends only file+model params, uses 50MB limit, returns plain text. OpenAI mode unchanged.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6ca7a27` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
