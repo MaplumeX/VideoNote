@@ -42,7 +42,18 @@ Built VideoNote MVP — a web app that takes video URLs (YouTube/Bilibili) or lo
 - None - task complete
 
 
-## Session 2: Support custom ASR/LLM providers
+## Session 2: Remove Redis: replace ARQ+Redis with SQLite+asyncio
+
+**Date**: 2026-05-17
+**Task**: Remove Redis: replace ARQ+Redis with SQLite+asyncio
+**Branch**: `feat/remove-redis`
+
+### Summary
+
+Removed Redis/ARQ dependencies. Task queue replaced by asyncio.create_task in-process. Task state migrated from Redis Hash to SQLite (WAL mode, aiosqlite). Sync blocking calls wrapped with asyncio.to_thread(). File cleanup moved to finally block. Deleted worker.py.
+
+
+## Session 3: Support custom ASR/LLM providers
 
 **Date**: 2026-05-17
 **Task**: Support custom ASR/LLM providers
