@@ -39,18 +39,18 @@ def download_audio_via_ytdlp(url: str, output_dir: str) -> str:
     """
     import yt_dlp
 
+    from app.services.subtitle import _ydl_opts
+
     output_path = str(Path(output_dir) / "audio")
 
-    ydl_opts = {
-        "format": "bestaudio/best",
-        "postprocessors": [{
+    ydl_opts = _ydl_opts(
+        format="bestaudio/best",
+        postprocessors=[{
             "key": "FFmpegExtractAudio",
             "preferredcodec": "wav",
         }],
-        "outtmpl": output_path,
-        "quiet": True,
-        "no_warnings": True,
-    }
+        outtmpl=output_path,
+    )
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])

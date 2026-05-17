@@ -150,3 +150,36 @@ Added ASR_PROVIDER env var (openai/siliconflow). SiliconFlow mode sends only fil
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Add yt-dlp proxy support
+
+**Date**: 2026-05-17
+**Task**: Add yt-dlp proxy support
+**Branch**: `main`
+
+### Summary
+
+Added YT_DLP_PROXY env var to config.py; created _ydl_opts() helper in subtitle.py for unified proxy injection; updated audio.py to reuse _ydl_opts; added proxy example to .env.example
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `25960ef` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
