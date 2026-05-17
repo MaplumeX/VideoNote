@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index — quality guidelines for FastAPI"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality standards and lint rules"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Backend error handling patterns to verify"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec index — quality guidelines for React"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality standards and lint rules"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript type safety checks"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify cross-layer data flow consistency"}
