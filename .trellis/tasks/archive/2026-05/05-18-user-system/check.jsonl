@@ -1,0 +1,8 @@
+{"file": ".trellis/tasks/05-18-user-system/prd.md", "reason": "Verify implementation matches requirements and acceptance criteria"}
+{"file": ".trellis/tasks/05-18-user-system/research/jwt-refresh-fastapi.md", "reason": "Verify JWT/bcrypt/refresh token implementation follows researched patterns"}
+{"file": ".trellis/tasks/05-18-user-system/research/react-router-v7-auth.md", "reason": "Verify frontend auth flow matches React Router v7 Data mode patterns"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Check DB layer follows aiosqlite raw SQL conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check bcrypt is wrapped with asyncio.to_thread, no blocking calls in async context"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Check auth UI components follow naming and styling conventions"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check TypeScript types for auth are properly defined"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check frontend-backend auth contract consistency (token format, error codes, CORS)"}

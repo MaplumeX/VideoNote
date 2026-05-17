@@ -1,0 +1,9 @@
+{"file": ".trellis/tasks/05-18-user-system/prd.md", "reason": "Full requirements and technical approach for user system"}
+{"file": ".trellis/tasks/05-18-user-system/research/jwt-refresh-fastapi.md", "reason": "PyJWT + bcrypt patterns, refresh token rotation, SQLite schema, FastAPI auth dependencies"}
+{"file": ".trellis/tasks/05-18-user-system/research/react-router-v7-auth.md", "reason": "React Router v7 Data mode setup, protected routes, token refresh flow, login/register patterns"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite + aiosqlite raw SQL conventions for new users/refresh_tokens tables"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error handling patterns for auth 401/403 responses"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Async best practices (asyncio.to_thread for bcrypt), type hints"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component naming, Tailwind-only styling, cn() utility for login/register pages"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Custom hook patterns for auth state and token management"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript patterns for auth types and API client"}
