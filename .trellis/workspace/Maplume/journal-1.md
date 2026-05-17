@@ -119,7 +119,40 @@ Added ASR_PROVIDER env var (openai/siliconflow). SiliconFlow mode sends only fil
 - None - task complete
 
 
-## Session 5: Add yt-dlp proxy support
+## Session 5: Add i18n internationalization support (en + zh-CN)
+
+**Date**: 2026-05-17
+**Task**: Add i18n internationalization support (en + zh-CN)
+**Branch**: `feat/add-i18n`
+
+### Summary
+
+为 VideoNote 添加 i18n 支持：前端 react-i18next + 浏览器语言检测 + Header 切换按钮；后端 language 参数 + prompt 模板按语言组织。初始支持 en/zh-CN。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `85cb9be` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 6: Add yt-dlp proxy support
 
 **Date**: 2026-05-17
 **Task**: Add yt-dlp proxy support

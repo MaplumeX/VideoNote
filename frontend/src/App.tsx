@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { VideoInput } from "./components/VideoInput";
 import { ProgressBar } from "./components/ProgressBar";
 import { NoteView } from "./components/NoteView";
 import { useSSE } from "./hooks/useSSE";
 import { useVideoUpload } from "./hooks/useVideoUpload";
 import { submitUrl } from "./api/client";
-import { Download, RotateCcw } from "lucide-react";
+import { Download, RotateCcw, Globe } from "lucide-react";
 
 type AppStep = "input" | "processing" | "result";
 
 export default function App() {
+  const { t, i18n } = useTranslation();
   const [step, setStep] = useState<AppStep>("input");
   const [jobId, setJobId] = useState<string | null>(null);
   const [noteMarkdown, setNoteMarkdown] = useState("");
@@ -18,7 +20,6 @@ export default function App() {
   const { progress, result, error: sseError } = useSSE(jobId);
   const { uploading, progress: uploadProgress, jobId: uploadJobId, error: uploadError, upload } = useVideoUpload();
 
-  // When SSE delivers the final result
   useEffect(() => {
     if (result && step === "processing") {
       setNoteMarkdown(result);
@@ -26,15 +27,13 @@ export default function App() {
     }
   }, [result, step]);
 
-  // When SSE reports a processing failure
   useEffect(() => {
     if (sseError && step === "processing") {
-      setError(sseError);
+      setError(t("error.processingFailed"));
       setStep("input");
     }
-  }, [sseError, step]);
+  }, [sseError, step, t]);
 
-  // When upload completes and we have a job ID
   useEffect(() => {
     if (uploadJobId && !jobId && step === "processing") {
       setJobId(uploadJobId);
@@ -45,10 +44,10 @@ export default function App() {
     setError(null);
     setStep("processing");
     try {
-      const res = await submitUrl(url);
+      const res = await submitUrl(url, i18n.language);
       setJobId(res.job_id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to submit URL");
+    } catch {
+      setError(t("error.submitUrlFailed"));
       setStep("input");
     }
   };
@@ -56,11 +55,12 @@ export default function App() {
   const handleFileUpload = async (file: File) => {
     setError(null);
     setStep("processing");
-    const id = await upload(file);
+    const id = await upload(file, i18n.language);
     if (id) {
       setJobId(id);
     } else {
-      setError(uploadError || "Upload failed");
+      if (uploadError) console.error("Upload error:", uploadError);
+      setError(t("error.uploadFailed"));
       setStep("input");
     }
   };
@@ -82,12 +82,27 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  const toggleLang = () => {
+    const next = i18n.language === "zh-CN" ? "en" : "zh-CN";
+    i18n.changeLanguage(next);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border">
-        <div className="max-w-5xl mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold">VideoNote</h1>
-          <p className="text-sm text-muted-foreground">AI-powered video notes with timestamps</p>
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">{t("app.title")}</h1>
+            <p className="text-sm text-muted-foreground">{t("app.subtitle")}</p>
+          </div>
+          <button
+            onClick={toggleLang}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+            aria-label={t("lang.label")}
+          >
+            <Globe size={14} />
+            {t("lang.switch")}
+          </button>
         </div>
       </header>
 
@@ -106,7 +121,9 @@ export default function App() {
           <div className="space-y-6">
             {uploading ? (
               <div className="space-y-2">
-                <p className="text-sm font-medium">Uploading video... {Math.round(uploadProgress * 100)}%</p>
+                <p className="text-sm font-medium">
+                  {t("progress.uploading", { percent: Math.round(uploadProgress * 100) })}
+                </p>
                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                   <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${uploadProgress * 100}%` }} />
                 </div>
@@ -125,14 +142,14 @@ export default function App() {
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
               >
                 <Download size={16} />
-                Download Markdown
+                {t("result.downloadMarkdown")}
               </button>
               <button
                 onClick={handleReset}
                 className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
               >
                 <RotateCcw size={16} />
-                New Video
+                {t("result.newVideo")}
               </button>
             </div>
             <NoteView markdown={noteMarkdown} />

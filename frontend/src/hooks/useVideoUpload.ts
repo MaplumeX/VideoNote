@@ -15,12 +15,13 @@ export function useVideoUpload() {
     error: null,
   });
 
-  const upload = useCallback((file: File): Promise<string> => {
+  const upload = useCallback((file: File, language: string): Promise<string> => {
     return new Promise((resolve) => {
       setState({ uploading: true, progress: 0, jobId: null, error: null });
 
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("language", language);
 
       const xhr = new XMLHttpRequest();
 
@@ -58,7 +59,7 @@ export function useVideoUpload() {
           uploading: false,
           progress: 0,
           jobId: null,
-          error: "Upload failed",
+          error: null,
         });
         resolve("");
       };
