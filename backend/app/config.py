@@ -1,4 +1,5 @@
 import os
+import secrets
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -25,6 +26,12 @@ YT_DLP_PROXY: str = os.getenv("YT_DLP_PROXY", "")
 # Upload
 UPLOAD_DIR: Path = Path(os.getenv("UPLOAD_DIR", "/tmp/videonote_uploads"))
 MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "500"))
+
+# Auth
+SECRET_KEY: str = os.getenv("SECRET_KEY", "") or secrets.token_urlsafe(32)
+ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
+REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 # Ensure upload directory exists
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

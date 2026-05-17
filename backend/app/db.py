@@ -1,7 +1,7 @@
 """SQLite database management for task storage."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import aiosqlite
@@ -14,6 +14,7 @@ DB_PATH = Path(str(UPLOAD_DIR)) / "videonote.db"
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS tasks (
     job_id TEXT PRIMARY KEY,
+    user_id TEXT,
     stage TEXT NOT NULL DEFAULT 'pending',
     progress REAL NOT NULL DEFAULT 0.0,
     message TEXT NOT NULL DEFAULT '',
@@ -21,24 +22,52 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    token_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    revoked_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
 """
 
 
 async def init_db() -> None:
-    """Initialize database and create tasks table."""
+    """Initialize database and create all tables."""
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(str(DB_PATH)) as db:
         await db.execute("PRAGMA journal_mode=WAL")
+        # Add user_id column to tasks if it doesn't exist (migration)
+        try:
+            await db.execute("ALTER TABLE tasks ADD COLUMN user_id TEXT REFERENCES users(id)")
+        except aiosqlite.OperationalError:
+            pass  # Column already exists
         await db.executescript(_CREATE_TABLE_SQL)
         await db.commit()
+    await _cleanup_expired_tokens()
 
 
-async def create_task(job_id: str, message: str = "Queued") -> None:
+async def create_task(job_id: str, message: str = "Queued", user_id: str | None = None) -> None:
     """Create a new task record with pending status."""
     async with aiosqlite.connect(str(DB_PATH)) as db:
         await db.execute(
-            "INSERT INTO tasks (job_id, stage, progress, message) VALUES (?, ?, ?, ?)",
-            (job_id, TaskStage.pending.value, 0.0, message),
+            "INSERT INTO tasks (job_id, user_id, stage, progress, message) VALUES (?, ?, ?, ?, ?)",
+            (job_id, user_id, TaskStage.pending.value, 0.0, message),
         )
         await db.commit()
 
@@ -54,6 +83,19 @@ async def get_task(job_id: str) -> dict | None:
         if row is None:
             return None
         return dict(row)
+
+
+async def get_user_tasks(user_id: str) -> list[dict]:
+    """Get all tasks for a user, newest first."""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT job_id, stage, progress, message, created_at, updated_at "
+            "FROM tasks WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
 
 
 async def update_progress(
@@ -79,4 +121,91 @@ async def set_result(job_id: str, markdown: str, title: str | None = None) -> No
             "result_json=?, updated_at=? WHERE job_id=?",
             (TaskStage.complete.value, 1.0, "Done", result_json, now, job_id),
         )
+        await db.commit()
+
+
+# --- User operations ---
+
+async def create_user(user_id: str, email: str, password_hash: str) -> None:
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute(
+            "INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)",
+            (user_id, email, password_hash),
+        )
+        await db.commit()
+
+
+async def get_user_by_email(email: str) -> dict | None:
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM users WHERE email = ?", (email,))
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+
+async def get_user_by_id(user_id: str) -> dict | None:
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+
+# --- Refresh token operations ---
+
+async def create_refresh_token(
+    token_id: str, user_id: str, token_hash: str, expires_at: str
+) -> None:
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute(
+            "INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)",
+            (token_id, user_id, token_hash, expires_at),
+        )
+        await db.commit()
+
+
+async def get_refresh_token_by_hash(token_hash: str) -> dict | None:
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM refresh_tokens WHERE token_hash = ?", (token_hash,)
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+
+async def revoke_refresh_token(token_hash: str) -> bool:
+    """Revoke a refresh token. Returns True if revoked, False if already revoked."""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        now = datetime.now(UTC).isoformat()
+        cursor = await db.execute(
+            "UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
+            (now, token_hash),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def revoke_all_user_tokens(user_id: str) -> None:
+    """Revoke all refresh tokens for a user (reuse detection)."""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        now = datetime.now(UTC).isoformat()
+        await db.execute(
+            "UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+            (now, user_id),
+        )
+        await db.commit()
+
+
+async def _cleanup_expired_tokens() -> None:
+    """Delete refresh tokens that expired more than 30 days ago."""
+    cutoff = (datetime.now(UTC) - timedelta(days=30)).isoformat()
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute("DELETE FROM refresh_tokens WHERE expires_at < ?", (cutoff,))
         await db.commit()

@@ -35,6 +35,8 @@ Fetch API lacks `upload.onprogress`. Use XHR instead.
 
 ## Required Patterns
 
+- All user-visible strings must use i18n `t()` — including auth pages, labels, buttons, error messages, and link text
+- Auth page actions (loginAction, registerAction) use `new Response(null, {status: 302, headers: {Location: url}})` for redirects — don't import or redefine `redirect` from react-router inside actions
 - All components: named exports
 - All hooks: `use` prefix, return object (not tuple)
 - Styling: Tailwind only via `cn()` utility

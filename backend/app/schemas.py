@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, EmailStr, HttpUrl
 
 
 class VideoSource(StrEnum):
@@ -35,3 +35,35 @@ class NoteResponse(BaseModel):
     job_id: str
     markdown: str
     title: str | None = None
+
+
+# Auth schemas
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    display_name: str = ""
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    display_name: str
+
+
+class TaskListItem(BaseModel):
+    job_id: str
+    stage: str
+    progress: float
+    message: str
+    created_at: str
