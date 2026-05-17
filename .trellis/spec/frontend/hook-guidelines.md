@@ -4,48 +4,122 @@
 
 ---
 
-## Overview
-
-<!--
-Document your project's hook conventions here.
-
-Questions to answer:
-- What custom hooks do you have?
-- How do you handle data fetching?
-- What are the naming conventions?
-- How do you share stateful logic?
--->
-
-(To be filled by the team)
-
----
-
 ## Custom Hook Patterns
 
-<!-- How to create and structure custom hooks -->
+### SSE Hook (useSSE)
 
-(To be filled by the team)
+Consumes Server-Sent Events for real-time task progress.
 
----
+**Key gotcha**: `EventSource` callbacks capture stale closures. Use a ref to track the latest state.
 
-## Data Fetching
+```tsx
+export function useSSE(url: string | null) {
+  const [progress, setProgress] = useState<TaskProgress | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const stageRef = useRef<string | null>(null);
 
-<!-- How data fetching is handled (React Query, SWR, etc.) -->
+  useEffect(() => {
+    if (!url) return;
+    const source = new EventSource(url);
 
-(To be filled by the team)
+    source.addEventListener("progress", (e) => {
+      const data = JSON.parse(e.data);
+      stageRef.current = data.stage;
+      setProgress(data);
+    });
+
+    source.addEventListener("complete", (e) => {
+      setProgress(JSON.parse(e.data));
+      source.close();
+    });
+
+    source.onerror = () => {
+      if (stageRef.current !== "complete") {
+        setError("Connection lost. Task may still be processing.");
+      }
+      source.close();
+    };
+
+    return () => source.close();
+  }, [url]);
+
+  return { progress, error };
+}
+```
+
+### Upload Hook (useVideoUpload)
+
+Uploads files via XHR (not fetch) for progress tracking.
+
+**Why XHR, not fetch**: The Fetch API does not support upload progress events. XHR's `upload.onprogress` is the only standard way.
+
+```tsx
+export function useVideoUpload() {
+  const [progress, setProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
+
+  const upload = useCallback(async (file: File): Promise<string> => {
+    setUploading(true);
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append("video", file);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setProgress((e.loaded / e.total) * 100);
+      };
+
+      xhr.onload = () => {
+        const { task_id } = JSON.parse(xhr.responseText);
+        resolve(task_id);
+      };
+      xhr.onerror = () => reject(new Error("Upload failed"));
+
+      xhr.open("POST", "/api/upload");
+      xhr.send(formData);
+    });
+  }, []);
+
+  return { upload, progress, uploading };
+}
+```
 
 ---
 
 ## Naming Conventions
 
-<!-- Hook naming rules (use*, etc.) -->
-
-(To be filled by the team)
+- `use` prefix: `useSSE`, `useVideoUpload`
+- Return object with named fields, not tuple
+- State variables: `const [value, setValue] = useState()`
 
 ---
 
 ## Common Mistakes
 
-<!-- Hook-related mistakes your team has made -->
+### Don't: Read stale state in event callbacks
 
-(To be filled by the team)
+```tsx
+// BAD — progress is captured at callback creation time
+source.onerror = () => {
+  if (progress?.stage !== "complete") { /* stale! */ }
+};
+
+// GOOD — use a ref
+const stageRef = useRef<string | null>(null);
+source.addEventListener("progress", (e) => {
+  stageRef.current = JSON.parse(e.data).stage;
+});
+source.onerror = () => {
+  if (stageRef.current !== "complete") { /* current value */ }
+};
+```
+
+### Don't: Use fetch for file uploads with progress
+
+```tsx
+// BAD — no upload progress with fetch
+await fetch("/api/upload", { method: "POST", body: formData });
+
+// GOOD — XHR for upload progress
+xhr.upload.onprogress = (e) => setProgress(e.loaded / e.total * 100);
+```

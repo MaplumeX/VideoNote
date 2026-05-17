@@ -4,48 +4,48 @@
 
 ---
 
-## Overview
+## Linting & Type Checking
 
-<!--
-Document your project's quality standards here.
-
-Questions to answer:
-- What patterns are forbidden?
-- What linting rules do you enforce?
-- What are your testing requirements?
-- What code review standards apply?
--->
-
-(To be filled by the team)
+- **TypeScript**: `tsc --noEmit` — zero errors
+- **ESLint**: `eslint src/` — zero warnings
+- **Build**: `vite build` — must succeed
+- **Run from `frontend/` directory**: `tsc` and `vite` require CWD to be the frontend project root
 
 ---
 
 ## Forbidden Patterns
 
-<!-- Patterns that should never be used and why -->
+### Don't: Call setState during render
 
-(To be filled by the team)
+React StrictMode renders twice. setState in render body = infinite loop.
+
+### Don't: Spread unknown props to native DOM elements
+
+react-markdown, Radix, etc. pass extra props (`node`, `index`, `asChild`) that are not valid HTML attributes. Destructure only what you need.
+
+### Don't: Use `any` type
+
+Use proper types from `@/types/`. If a library lacks types, create a `.d.ts` declaration.
+
+### Don't: Use fetch for file uploads that need progress
+
+Fetch API lacks `upload.onprogress`. Use XHR instead.
 
 ---
 
 ## Required Patterns
 
-<!-- Patterns that must always be used -->
-
-(To be filled by the team)
+- All components: named exports
+- All hooks: `use` prefix, return object (not tuple)
+- Styling: Tailwind only via `cn()` utility
+- API calls: through `@/api/client.ts`, not inline fetch
+- Types: defined in `@/types/index.ts`, kept in sync with backend Pydantic schemas
 
 ---
 
 ## Testing Requirements
 
-<!-- What level of testing is expected -->
-
-(To be filled by the team)
-
----
-
-## Code Review Checklist
-
-<!-- What reviewers should check -->
-
-(To be filled by the team)
+- Vitest for unit tests
+- React Testing Library for component tests
+- Test SSE hook with mock EventSource
+- Test upload hook with mock XHR

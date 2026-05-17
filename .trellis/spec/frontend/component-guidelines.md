@@ -4,56 +4,99 @@
 
 ---
 
-## Overview
-
-<!--
-Document your project's component conventions here.
-
-Questions to answer:
-- What component patterns do you use?
-- How are props defined?
-- How do you handle composition?
-- What accessibility standards apply?
--->
-
-(To be filled by the team)
-
----
-
 ## Component Structure
 
-<!-- Standard structure of a component file -->
+Named exports, no default exports. Props interface above the component.
 
-(To be filled by the team)
+```tsx
+interface VideoInputProps {
+  onSubmit: (data: { url?: string; file?: File }) => void;
+  disabled?: boolean;
+}
 
----
-
-## Props Conventions
-
-<!-- How props should be defined and typed -->
-
-(To be filled by the team)
+export function VideoInput({ onSubmit, disabled }: VideoInputProps) {
+  // ...
+}
+```
 
 ---
 
 ## Styling Patterns
 
-<!-- How styles are applied (CSS modules, styled-components, Tailwind, etc.) -->
+**Tailwind CSS only.** No CSS modules, no styled-components, no inline styles.
 
-(To be filled by the team)
+Use `cn()` for conditional class merging:
+
+```tsx
+import { cn } from "@/lib/utils";
+
+<div className={cn("rounded-lg border p-4", isActive && "border-blue-500")} />
+```
+
+shadcn/ui components in `components/ui/` — install via CLI, don't hand-write.
 
 ---
 
-## Accessibility
+## react-markdown with Custom Components
 
-<!-- A11y requirements and patterns -->
+### Pattern: TimestampBadge for video timestamps
 
-(To be filled by the team)
+The LLM generates Markdown with `[HH:MM:SS](#t=SECONDS)` links. Override `a` component in react-markdown to render these as clickable badges:
+
+```tsx
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+<Markdown
+  remarkPlugins={[remarkGfm]}
+  components={{
+    a({ href, children }) {
+      if (href?.startsWith("#t=")) {
+        const seconds = parseInt(href.slice(3));
+        return <TimestampBadge seconds={seconds}>{children}</TimestampBadge>;
+      }
+      return <a href={href}>{children}</a>;
+    },
+  }}
+>
+  {markdownContent}
+</Markdown>
+```
+
+> **Warning**: Do NOT spread `...rest` from react-markdown's component props to native elements. react-markdown passes extra props (`node`, `index`, etc.) that are not valid HTML attributes and cause React warnings.
 
 ---
 
 ## Common Mistakes
 
-<!-- Component-related mistakes your team has made -->
+### Don't: Call setState during render
 
-(To be filled by the team)
+```tsx
+// BAD — causes infinite re-renders in StrictMode
+function App() {
+  if (progress?.stage === "complete") {
+    setNoteMarkdown(progress.result); // called during render!
+  }
+}
+
+// GOOD — use useEffect
+useEffect(() => {
+  if (progress?.stage === "complete") {
+    setNoteMarkdown(progress.result);
+  }
+}, [progress?.stage, progress?.result]);
+```
+
+### Don't: Spread unknown props to native elements
+
+```tsx
+// BAD — react-markdown passes node, index, etc.
+a({ node, href, children, ...rest }) {
+  return <a href={href} {...rest}>{children}</a>; // React warning
+}
+
+// GOOD — only pass what's needed
+a({ href, children }) {
+  return <a href={href}>{children}</a>;
+}
+```
