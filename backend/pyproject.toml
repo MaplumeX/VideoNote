@@ -1,12 +1,11 @@
 [project]
 name = "videonote-backend"
 version = "0.1.0"
-description = "VideoNote backend — FastAPI + ARQ task queue for AI video note generation"
+description = "VideoNote backend — FastAPI + asyncio for AI video note generation"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
-    "arq>=0.26.0",
     "yt-dlp>=2025.1.0",
     "openai>=1.60.0",
     "sse-starlette>=2.0.0",
@@ -14,7 +13,7 @@ dependencies = [
     "httpx>=0.28.0",
     "pydantic>=2.10.0",
     "python-multipart>=0.0.18",
-    "redis>=5.0.0",
+    "aiosqlite>=0.20.0",
 ]
 
 [project.optional-dependencies]
