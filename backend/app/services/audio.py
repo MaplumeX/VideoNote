@@ -43,26 +43,27 @@ def download_audio_via_ytdlp(url: str, output_dir: str) -> str:
 
     output_path = str(Path(output_dir) / "audio")
 
+    # Download best audio without FFmpegExtractAudio postprocessor.
+    # That postprocessor uses ffprobe to detect the codec and fails on
+    # some formats. We convert to WAV separately via extract_audio().
     ydl_opts = _ydl_opts(
         format="bestaudio/best",
-        postprocessors=[{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "wav",
-        }],
         outtmpl=output_path,
     )
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
 
-    # yt-dlp appends the extension
-    wav_path = output_path + ".wav"
-    if Path(wav_path).exists():
-        return wav_path
-
-    # Fallback: search for any audio file
+    # Find the downloaded file (yt-dlp appends the actual extension)
     audio_files = list(Path(output_dir).glob("audio.*"))
-    if audio_files:
-        return str(audio_files[0])
+    if not audio_files:
+        raise FileNotFoundError(f"Audio file not found after yt-dlp download in {output_dir}")
 
-    raise FileNotFoundError(f"Audio file not found after yt-dlp download in {output_dir}")
+    downloaded = str(audio_files[0])
+    if downloaded.endswith(".wav"):
+        return downloaded
+
+    # Convert to WAV using ffmpeg directly (more reliable than yt-dlp's postprocessor)
+    wav_path = str(Path(output_dir) / "audio.wav")
+    extract_audio(downloaded, wav_path)
+    return wav_path
