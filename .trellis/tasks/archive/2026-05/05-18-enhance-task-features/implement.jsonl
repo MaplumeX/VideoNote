@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "DB schema migration patterns (ALTER TABLE + try/except), query conventions, aiosqlite usage — needed for adding metadata columns and new CRUD functions"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "API error response patterns and status codes — needed for new delete/retry/cancel endpoints"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component structure, Tailwind styling, shadcn/ui patterns — needed for HistoryPage UI changes"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript type conventions and backend↔frontend sync patterns — needed for updating TaskStage, TaskItem, pagination types"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer data flow checklist — this feature spans DB→API→SSE→Frontend, need to verify contracts at each boundary"}
