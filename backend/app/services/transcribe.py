@@ -15,41 +15,56 @@ MAX_FILE_SIZE_BYTES_OPENAI = 25 * 1024 * 1024
 MAX_FILE_SIZE_BYTES_SILICONFLOW = 50 * 1024 * 1024
 
 
-def transcribe_audio(audio_path: str, language: str = "zh") -> str:
+def transcribe_audio(
+    audio_path: str,
+    language: str = "zh",
+    api_key: str | None = None,
+    api_base: str | None = None,
+    model: str | None = None,
+    provider: str | None = None,
+) -> str:
     """Transcribe an audio file using configured ASR provider.
 
     Handles the file size limit by splitting large files when needed.
     Returns the full transcript text.
+
+    Optional runtime parameters override the module-level config defaults.
     """
-    client = OpenAI(api_key=ASR_API_KEY, base_url=ASR_API_BASE)
+    _api_key = api_key or ASR_API_KEY
+    _api_base = api_base or ASR_API_BASE
+    _model = model or ASR_MODEL
+    _provider = provider or ASR_PROVIDER
+    client = OpenAI(api_key=_api_key, base_url=_api_base)
 
     max_size = (
         MAX_FILE_SIZE_BYTES_SILICONFLOW
-        if ASR_PROVIDER == "siliconflow"
+        if _provider == "siliconflow"
         else MAX_FILE_SIZE_BYTES_OPENAI
     )
     audio_size = os.path.getsize(audio_path)
 
     if audio_size <= max_size:
-        return _transcribe_file(client, audio_path, language)
+        return _transcribe_file(client, audio_path, language, _model, _provider)
 
     size_mb = audio_size / 1024 / 1024
     logger.info(f"Audio file {audio_path} is {size_mb:.1f}MB, splitting")
-    return _transcribe_large_file(client, audio_path, language)
+    return _transcribe_large_file(client, audio_path, language, _model, _provider)
 
 
-def _transcribe_file(client: OpenAI, audio_path: str, language: str) -> str:
+def _transcribe_file(
+    client: OpenAI, audio_path: str, language: str, model: str, provider: str
+) -> str:
     """Transcribe a single file via the configured ASR provider."""
     with open(audio_path, "rb") as f:
-        if ASR_PROVIDER == "siliconflow":
+        if provider == "siliconflow":
             transcript = client.audio.transcriptions.create(
-                model=ASR_MODEL,
+                model=model,
                 file=f,
             )
             return getattr(transcript, "text", "")
 
         transcript = client.audio.transcriptions.create(
-            model=ASR_MODEL,
+            model=model,
             file=f,
             language=language,
             response_format="verbose_json",
@@ -70,23 +85,24 @@ def _transcribe_file(client: OpenAI, audio_path: str, language: str) -> str:
 
 
 def _transcribe_large_file(
-    client: OpenAI, audio_path: str, language: str
+    client: OpenAI, audio_path: str, language: str, model: str, provider: str
 ) -> str:
     """Split a large audio file into chunks and transcribe each."""
     probe_cmd = [
         "ffprobe",
-        "-v", "quiet",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
+        "-v",
+        "quiet",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
         audio_path,
     ]
     result = subprocess.run(probe_cmd, capture_output=True, text=True)
     total_seconds = float(result.stdout.strip())
 
     max_size = (
-        MAX_FILE_SIZE_BYTES_SILICONFLOW
-        if ASR_PROVIDER == "siliconflow"
-        else MAX_FILE_SIZE_BYTES_OPENAI
+        MAX_FILE_SIZE_BYTES_SILICONFLOW if provider == "siliconflow" else MAX_FILE_SIZE_BYTES_OPENAI
     )
     ratio = max_size / os.path.getsize(audio_path) * 0.9
     chunk_duration = min(total_seconds * ratio, 600)
@@ -100,18 +116,25 @@ def _transcribe_large_file(
             chunk_path = os.path.join(tmpdir, f"chunk_{chunk_idx}.wav")
             split_cmd = [
                 "ffmpeg",
-                "-i", audio_path,
-                "-ss", str(start),
-                "-t", str(chunk_duration),
+                "-i",
+                audio_path,
+                "-ss",
+                str(start),
+                "-t",
+                str(chunk_duration),
                 "-vn",
-                "-acodec", "pcm_s16le",
-                "-ar", "16000",
-                "-ac", "1",
-                "-y", chunk_path,
+                "-acodec",
+                "pcm_s16le",
+                "-ar",
+                "16000",
+                "-ac",
+                "1",
+                "-y",
+                chunk_path,
             ]
             subprocess.run(split_cmd, capture_output=True, check=True)
 
-            text = _transcribe_file(client, chunk_path, language)
+            text = _transcribe_file(client, chunk_path, language, model, provider)
             if text:
                 full_transcript_parts.append(text)
 

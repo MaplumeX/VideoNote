@@ -56,5 +56,21 @@
     "empty": "暂无任务",
     "processVideo": "处理视频",
     "loadFailed": "加载历史记录失败"
+  },
+  "settings": {
+    "title": "设置",
+    "asrConfig": "语音转写 (ASR)",
+    "llmConfig": "笔记生成 (LLM)",
+    "provider": "服务商",
+    "model": "模型",
+    "apiKey": "API 密钥",
+    "apiBase": "API 基础地址",
+    "custom": "自定义",
+    "customProvider": "服务商名称",
+    "save": "保存",
+    "saved": "设置已保存",
+    "saveFailed": "保存设置失败",
+    "keyMasked": "当前：••••{{last4}}",
+    "keyPlaceholder": "输入 API 密钥"
   }
 }

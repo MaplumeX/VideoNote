@@ -39,6 +39,7 @@ class NoteResponse(BaseModel):
 
 # Auth schemas
 
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
@@ -67,3 +68,41 @@ class TaskListItem(BaseModel):
     progress: float
     message: str
     created_at: str
+
+
+# Provider / Settings schemas
+
+
+class ProviderPreset(BaseModel):
+    provider: str
+    models: list[str]
+    api_base: str
+
+
+class ProvidersResponse(BaseModel):
+    asr: list[ProviderPreset]
+    llm: list[ProviderPreset]
+
+
+class ProviderConfig(BaseModel):
+    provider: str = ""
+    model: str = ""
+    api_key: str = ""
+    api_base: str = ""
+
+
+class SettingsRequest(BaseModel):
+    asr: ProviderConfig | None = None
+    llm: ProviderConfig | None = None
+
+
+class ProviderConfigResponse(BaseModel):
+    provider: str
+    model: str
+    api_key_masked: str
+    api_base: str
+
+
+class SettingsResponse(BaseModel):
+    asr: ProviderConfigResponse | None = None
+    llm: ProviderConfigResponse | None = None

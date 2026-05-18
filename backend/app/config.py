@@ -35,3 +35,31 @@ FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 # Ensure upload directory exists
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# Preset provider/model lists for frontend selection
+PROVIDER_PRESETS: dict = {
+    "asr": [
+        {
+            "provider": "openai",
+            "models": ["whisper-1"],
+            "api_base": "https://api.openai.com/v1",
+        },
+        {
+            "provider": "siliconflow",
+            "models": ["FunAudioLLM/SenseVoiceSmall"],
+            "api_base": "https://api.siliconflow.cn/v1",
+        },
+    ],
+    "llm": [
+        {
+            "provider": "openai",
+            "models": ["gpt-4o", "gpt-4o-mini"],
+            "api_base": "https://api.openai.com/v1",
+        },
+        {
+            "provider": "deepseek",
+            "models": ["deepseek-chat", "deepseek-reasoner"],
+            "api_base": "https://api.deepseek.com/v1",
+        },
+    ],
+}
