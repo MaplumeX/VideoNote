@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify migrations follow ALTER TABLE + try/except pattern, parameterized queries, commit after writes"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify new endpoints use correct HTTP status codes, proper error chaining with from exc"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify new UI follows named exports, Tailwind-only styling, no setState during render"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify TaskStage/frontend types stay in sync with backend Pydantic schemas, no any types"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify data flow consistency: DB columns ↔ Pydantic schemas ↔ API responses ↔ TypeScript types"}

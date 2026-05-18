@@ -14,6 +14,7 @@ const STAGE_KEY: Record<TaskStage, string> = {
   generating_notes: "progress.generating_notes",
   complete: "progress.complete",
   failed: "progress.failed",
+  cancelled: "progress.cancelled",
 };
 
 export function ProgressBar({ progress }: ProgressBarProps) {
@@ -23,6 +24,7 @@ export function ProgressBar({ progress }: ProgressBarProps) {
 
   const percentage = Math.round(progress.progress * 100);
   const isFailed = progress.stage === "failed";
+  const isCancelled = progress.stage === "cancelled";
   const isComplete = progress.stage === "complete";
   const stageKey = STAGE_KEY[progress.stage];
 
@@ -32,8 +34,8 @@ export function ProgressBar({ progress }: ProgressBarProps) {
         <span className="text-sm font-medium">
           {t(stageKey)}
         </span>
-        <span className={cn("text-sm", isFailed ? "text-destructive" : "text-muted-foreground")}>
-          {isFailed ? "" : `${percentage}%`}
+        <span className={cn("text-sm", isFailed || isCancelled ? "text-destructive" : "text-muted-foreground")}>
+          {isFailed || isCancelled ? "" : `${percentage}%`}
         </span>
       </div>
 
@@ -41,9 +43,9 @@ export function ProgressBar({ progress }: ProgressBarProps) {
         <div
           className={cn(
             "h-full rounded-full transition-all duration-500",
-            isFailed ? "bg-destructive" : isComplete ? "bg-green-500" : "bg-primary"
+            isFailed || isCancelled ? "bg-destructive" : isComplete ? "bg-green-500" : "bg-primary"
           )}
-          style={{ width: `${percentage}%` }}
+          style={{ width: isFailed || isCancelled ? "100%" : `${percentage}%` }}
         />
       </div>
     </div>

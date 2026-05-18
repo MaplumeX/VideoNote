@@ -284,7 +284,40 @@ Populated all spec files under .trellis/spec/ with real codebase patterns. Fille
 - None - task complete
 
 
-## Session 10: Fix SSE CRLF parsing causing white screen
+## Session 10: Enhance task features: delete, retry, cancel, pagination, metadata
+
+**Date**: 2026-05-18
+**Task**: Enhance task features: delete, retry, cancel, pagination, metadata
+**Branch**: `Feat/enhance-task-feature`
+
+### Summary
+
+Added 5 enhancements to the task system: hard delete (DELETE /api/tasks/{id}), retry for failed URL tasks (POST /tasks/{id}/retry), cancel with mark-cancel approach (POST /tasks/{id}/cancel), offset pagination (GET /api/tasks?page=N&limit=N), and metadata storage (video_url, file_name, platform, language, source_type). Backend: schemas, db migrations, 3 new endpoints. Frontend: HistoryPage rewrite with action buttons, metadata display, pagination, i18n for en/zh-CN. Check fixes: cancelled state overwrite protection, delete_task user_id defense-in-depth, cross-layer type consistency, progress bar visualization.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f2bc5ac` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 11: Fix SSE CRLF parsing causing white screen
 
 **Date**: 2026-05-18
 **Task**: Fix SSE CRLF parsing causing white screen

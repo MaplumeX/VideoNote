@@ -69,17 +69,42 @@ async def init_db() -> None:
             await db.execute("ALTER TABLE tasks ADD COLUMN user_id TEXT REFERENCES users(id)")
         except aiosqlite.OperationalError:
             pass  # Column already exists
+        # Add metadata columns to tasks
+        for col_def in [
+            "ALTER TABLE tasks ADD COLUMN video_url TEXT",
+            "ALTER TABLE tasks ADD COLUMN file_name TEXT",
+            "ALTER TABLE tasks ADD COLUMN platform TEXT",
+            "ALTER TABLE tasks ADD COLUMN language TEXT",
+            "ALTER TABLE tasks ADD COLUMN source_type TEXT",
+        ]:
+            try:
+                await db.execute(col_def)
+            except aiosqlite.OperationalError:
+                pass
         await db.executescript(_CREATE_TABLE_SQL)
         await db.commit()
     await _cleanup_expired_tokens()
 
 
-async def create_task(job_id: str, message: str = "Queued", user_id: str | None = None) -> None:
+async def create_task(
+    job_id: str,
+    message: str = "Queued",
+    user_id: str | None = None,
+    *,
+    video_url: str | None = None,
+    file_name: str | None = None,
+    platform: str | None = None,
+    language: str | None = None,
+    source_type: str | None = None,
+) -> None:
     """Create a new task record with pending status."""
     async with aiosqlite.connect(str(DB_PATH)) as db:
         await db.execute(
-            "INSERT INTO tasks (job_id, user_id, stage, progress, message) VALUES (?, ?, ?, ?, ?)",
-            (job_id, user_id, TaskStage.pending.value, 0.0, message),
+            "INSERT INTO tasks (job_id, user_id, stage, progress, message, "
+            "video_url, file_name, platform, language, source_type) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (job_id, user_id, TaskStage.pending.value, 0.0, message,
+             video_url, file_name, platform, language, source_type),
         )
         await db.commit()
 
@@ -95,24 +120,61 @@ async def get_task(job_id: str) -> dict | None:
         return dict(row)
 
 
-async def get_user_tasks(user_id: str) -> list[dict]:
-    """Get all tasks for a user, newest first."""
+async def get_user_tasks(user_id: str, limit: int = 20, offset: int = 0) -> list[dict]:
+    """Get tasks for a user with pagination, newest first."""
     async with aiosqlite.connect(str(DB_PATH)) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT job_id, stage, progress, message, created_at, updated_at "
-            "FROM tasks WHERE user_id = ? ORDER BY created_at DESC",
-            (user_id,),
+            "SELECT job_id, stage, progress, message, created_at, updated_at, "
+            "video_url, file_name, platform, language, source_type "
+            "FROM tasks WHERE user_id = ? ORDER BY created_at DESC "
+            "LIMIT ? OFFSET ?",
+            (user_id, limit, offset),
         )
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
 
+async def count_user_tasks(user_id: str) -> int:
+    """Count total tasks for a user."""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM tasks WHERE user_id = ?",
+            (user_id,),
+        )
+        row = await cursor.fetchone()
+        return row[0]
+
+
+async def delete_task(job_id: str, user_id: str | None = None) -> bool:
+    """Delete a task record. Returns True if deleted, False if not found."""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        if user_id:
+            cursor = await db.execute(
+                "DELETE FROM tasks WHERE job_id = ? AND user_id = ?", (job_id, user_id)
+            )
+        else:
+            cursor = await db.execute("DELETE FROM tasks WHERE job_id = ?", (job_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
 async def update_progress(
     job_id: str, stage: TaskStage, progress: float, message: str = ""
 ) -> None:
-    """Update task progress in SQLite."""
+    """Update task progress in SQLite. Skips if task is already in a terminal state."""
     async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT stage FROM tasks WHERE job_id = ?", (job_id,)
+        )
+        row = await cursor.fetchone()
+        if row and row["stage"] in (
+            TaskStage.complete.value,
+            TaskStage.failed.value,
+            TaskStage.cancelled.value,
+        ):
+            return  # Already in terminal state, skip update
         now = datetime.now(UTC).isoformat()
         await db.execute(
             "UPDATE tasks SET stage=?, progress=?, message=?, updated_at=? WHERE job_id=?",
@@ -122,8 +184,15 @@ async def update_progress(
 
 
 async def set_result(job_id: str, markdown: str, title: str | None = None) -> None:
-    """Store final note result and mark task complete."""
+    """Store final note result and mark task complete. Skips if task is cancelled."""
     async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT stage FROM tasks WHERE job_id = ?", (job_id,)
+        )
+        row = await cursor.fetchone()
+        if row and row["stage"] == TaskStage.cancelled.value:
+            return  # Task was cancelled, discard result
         now = datetime.now(UTC).isoformat()
         result_json = json.dumps({"markdown": markdown, "title": title})
         await db.execute(
