@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
+
+CREATE TABLE IF NOT EXISTS user_providers (
+    user_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    provider TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    api_key_encrypted TEXT NOT NULL DEFAULT '',
+    api_base TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, category),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 """
 
 
@@ -76,9 +88,7 @@ async def get_task(job_id: str) -> dict | None:
     """Get a task record by job_id. Returns dict or None."""
     async with aiosqlite.connect(str(DB_PATH)) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT * FROM tasks WHERE job_id = ?", (job_id,)
-        )
+        cursor = await db.execute("SELECT * FROM tasks WHERE job_id = ?", (job_id,))
         row = await cursor.fetchone()
         if row is None:
             return None
@@ -126,6 +136,7 @@ async def set_result(job_id: str, markdown: str, title: str | None = None) -> No
 
 # --- User operations ---
 
+
 async def create_user(user_id: str, email: str, password_hash: str) -> None:
     async with aiosqlite.connect(str(DB_PATH)) as db:
         await db.execute(
@@ -156,6 +167,7 @@ async def get_user_by_id(user_id: str) -> dict | None:
 
 
 # --- Refresh token operations ---
+
 
 async def create_refresh_token(
     token_id: str, user_id: str, token_hash: str, expires_at: str
@@ -209,3 +221,59 @@ async def _cleanup_expired_tokens() -> None:
     async with aiosqlite.connect(str(DB_PATH)) as db:
         await db.execute("DELETE FROM refresh_tokens WHERE expires_at < ?", (cutoff,))
         await db.commit()
+
+
+# --- Provider config operations ---
+
+
+async def save_provider_config(
+    user_id: str,
+    category: str,
+    provider: str,
+    model: str,
+    api_key_encrypted: str,
+    api_base: str,
+) -> None:
+    """UPSERT a user's provider config for a given category (asr/llm)."""
+    now = datetime.now(UTC).isoformat()
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute(
+            "INSERT INTO user_providers (user_id, category, provider, model, "
+            "api_key_encrypted, api_base, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(user_id, category) DO UPDATE SET "
+            "provider=excluded.provider, model=excluded.model, "
+            "api_key_encrypted=excluded.api_key_encrypted, "
+            "api_base=excluded.api_base, updated_at=excluded.updated_at",
+            (user_id, category, provider, model, api_key_encrypted, api_base, now),
+        )
+        await db.commit()
+
+
+async def get_provider_config(user_id: str, category: str) -> dict | None:
+    """Get a user's provider config for a given category. Returns dict or None."""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM user_providers WHERE user_id = ? AND category = ?",
+            (user_id, category),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+
+async def get_all_provider_configs(user_id: str) -> dict:
+    """Get all provider configs for a user. Returns {"asr": {...}, "llm": {...}}."""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM user_providers WHERE user_id = ?",
+            (user_id,),
+        )
+        rows = await cursor.fetchall()
+        result: dict = {}
+        for row in rows:
+            result[row["category"]] = dict(row)
+        return result

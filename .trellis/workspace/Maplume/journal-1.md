@@ -216,3 +216,36 @@ Full user-system implementation: JWT + bcrypt auth with refresh token rotation, 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Add provider/model selection settings page
+
+**Date**: 2026-05-18
+**Task**: Add provider/model selection settings page
+**Branch**: `Feat/provider-model-selector`
+
+### Summary
+
+Full-stack provider/model selection feature: settings page (/app/settings) with ASR+LLM provider dropdown (presets + custom), API key stored encrypted in DB with Fernet, key masking in response, fallback to env vars, runtime params for transcribe/generate services.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5e76601` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

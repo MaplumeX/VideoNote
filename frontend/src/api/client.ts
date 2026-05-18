@@ -1,4 +1,4 @@
-import type { NoteResult, ProcessResponse } from "../types";
+import type { NoteResult, ProcessResponse, ProvidersResponse, SettingsResponse, SettingsRequest } from "../types";
 import { authFetch } from "../auth/api";
 
 const API_BASE = "/api";
@@ -28,4 +28,34 @@ export async function fetchResult(jobId: string): Promise<NoteResult> {
 
 export function getProgressUrl(jobId: string): string {
   return `${API_BASE}/tasks/${jobId}/progress`;
+}
+
+export async function fetchProviders(): Promise<ProvidersResponse> {
+  const res = await authFetch(`${API_BASE}/providers`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchSettings(): Promise<SettingsResponse> {
+  const res = await authFetch(`${API_BASE}/settings`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function saveSettings(settings: SettingsRequest): Promise<void> {
+  const res = await authFetch(`${API_BASE}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
 }

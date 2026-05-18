@@ -53,6 +53,9 @@ def generate_notes(
     transcript: str,
     video_title: str | None = None,
     language: str = "en",
+    api_key: str | None = None,
+    api_base: str | None = None,
+    model: str | None = None,
 ) -> str:
     """Generate structured Markdown notes from a transcript using LLM.
 
@@ -60,17 +63,25 @@ def generate_notes(
         transcript: The transcript text, optionally with timestamps.
         video_title: Optional video title to include in the notes.
         language: Language code for prompt selection ("en" or "zh-CN").
+        api_key: Optional runtime API key (overrides config default).
+        api_base: Optional runtime API base URL (overrides config default).
+        model: Optional runtime model name (overrides config default).
 
     Returns:
         Markdown-formatted notes.
     """
-    client = OpenAI(api_key=LLM_API_KEY, base_url=LLM_API_BASE)
+    _api_key = api_key or LLM_API_KEY
+    _api_base = api_base or LLM_API_BASE
+    _model = model or LLM_MODEL
+    client = OpenAI(api_key=_api_key, base_url=_api_base)
 
     prompts = PROMPTS.get(language, PROMPTS["en"])
 
     title_context = (
-        f"\n\nVideo title: {video_title}" if language == "en" and video_title
-        else f"\n\n视频标题：{video_title}" if video_title
+        f"\n\nVideo title: {video_title}"
+        if language == "en" and video_title
+        else f"\n\n视频标题：{video_title}"
+        if video_title
         else ""
     )
 
@@ -78,7 +89,7 @@ def generate_notes(
     user_content = f"{prompts['user']}{title_context}\n\n{transcript_label}:\n{transcript}"
 
     response = client.chat.completions.create(
-        model=LLM_MODEL,
+        model=_model,
         messages=[
             {"role": "system", "content": prompts["system"]},
             {"role": "user", "content": user_content},

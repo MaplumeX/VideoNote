@@ -56,5 +56,21 @@
     "empty": "No tasks yet",
     "processVideo": "Process a video",
     "loadFailed": "Failed to load task history"
+  },
+  "settings": {
+    "title": "Settings",
+    "asrConfig": "Speech-to-Text (ASR)",
+    "llmConfig": "Note Generation (LLM)",
+    "provider": "Provider",
+    "model": "Model",
+    "apiKey": "API Key",
+    "apiBase": "API Base URL",
+    "custom": "Custom",
+    "customProvider": "Provider Name",
+    "save": "Save",
+    "saved": "Settings saved",
+    "saveFailed": "Failed to save settings",
+    "keyMasked": "Current: ••••{{last4}}",
+    "keyPlaceholder": "Enter API key"
   }
 }

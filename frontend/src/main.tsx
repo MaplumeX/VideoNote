@@ -9,6 +9,7 @@ import { AppLayout, authLoader } from "./components/AppLayout";
 import { LoginPage, loginAction } from "./pages/LoginPage";
 import { RegisterPage, registerAction } from "./pages/RegisterPage";
 import { HistoryPage } from "./pages/HistoryPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { getAccessToken } from "./auth/token";
 
 const router = createBrowserRouter([
@@ -37,6 +38,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, Component: VideoNoteApp },
       { path: "history", Component: HistoryPage },
+      { path: "settings", Component: SettingsPage },
     ],
   },
   {

@@ -1,0 +1,8 @@
+{"file": ".trellis/tasks/05-18-provider/prd.md", "reason": "PRD: all decisions, requirements, acceptance criteria for provider/model selection"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "DB conventions for new user_providers table and migrations"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error handling patterns for new provider config endpoints"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Backend file organization for new routes and services"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component patterns for new SettingsPage and provider selector components"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Frontend file organization for new settings page and API client"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "State management patterns for provider config"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript conventions for new provider/model types and API schemas"}

@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { getAccessToken, clearAuth } from "@/auth/token";
-import { Globe, LogOut, FileText, Plus } from "lucide-react";
+import { Globe, LogOut, FileText, Plus, Settings } from "lucide-react";
 
 export function AppLayout() {
   const { t, i18n } = useTranslation();
@@ -47,6 +47,15 @@ export function AppLayout() {
             >
               <FileText size={14} />
               {t("auth.history")}
+            </button>
+            <button
+              onClick={() => navigate("/app/settings")}
+              className={`inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors ${
+                location.pathname === "/app/settings" ? "bg-muted" : ""
+              }`}
+            >
+              <Settings size={14} />
+              {t("settings.title")}
             </button>
             <button
               onClick={toggleLang}
