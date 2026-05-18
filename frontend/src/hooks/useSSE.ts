@@ -50,7 +50,7 @@ export function useSSE(jobId: string | null) {
               currentEvent = line.slice(6).trim();
             } else if (line.startsWith("data:")) {
               currentData = line.slice(5).trim();
-            } else if (line === "" && currentData) {
+            } else if (line.trim() === "" && currentData) {
               // End of event
               if (currentEvent === "progress") {
                 const data: TaskProgress = JSON.parse(currentData);
