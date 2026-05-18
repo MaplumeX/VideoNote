@@ -5,7 +5,8 @@ export type TaskStage =
   | "transcribing"
   | "generating_notes"
   | "complete"
-  | "failed";
+  | "failed"
+  | "cancelled";
 
 export interface TaskProgress {
   stage: TaskStage;
@@ -56,4 +57,24 @@ export interface SettingsResponse {
 export interface SettingsRequest {
   asr?: ProviderConfig | null;
   llm?: ProviderConfig | null;
+}
+
+export interface TaskItem {
+  job_id: string;
+  stage: TaskStage;
+  progress: number;
+  message: string;
+  created_at: string;
+  video_url: string | null;
+  file_name: string | null;
+  platform: string | null;
+  language: string | null;
+  source_type: string | null;
+}
+
+export interface TaskListResponse {
+  items: TaskItem[];
+  total: number;
+  page: number;
+  limit: number;
 }

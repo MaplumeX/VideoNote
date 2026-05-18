@@ -20,7 +20,8 @@
     "transcribing": "Transcribing audio",
     "generating_notes": "Generating notes",
     "complete": "Complete",
-    "failed": "Failed"
+    "failed": "Failed",
+    "cancelled": "Cancelled"
   },
   "result": {
     "downloadMarkdown": "Download Markdown",
@@ -55,7 +56,17 @@
     "loading": "Loading...",
     "empty": "No tasks yet",
     "processVideo": "Process a video",
-    "loadFailed": "Failed to load task history"
+    "loadFailed": "Failed to load task history",
+    "delete": "Delete",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "deleteConfirm": "Delete this task?",
+    "deleteFailed": "Failed to delete task",
+    "retryFailed": "Failed to retry task",
+    "cancelFailed": "Failed to cancel task",
+    "previous": "Previous",
+    "next": "Next",
+    "pageInfo": "Page {{page}} of {{totalPages}}"
   },
   "settings": {
     "title": "Settings",

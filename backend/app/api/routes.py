@@ -26,7 +26,9 @@ from app.config import (
 )
 from app.crypto import decrypt_api_key, encrypt_api_key
 from app.db import (
+    count_user_tasks,
     create_task,
+    delete_task,
     get_all_provider_configs,
     get_task,
     get_user_tasks,
@@ -42,6 +44,7 @@ from app.schemas import (
     SettingsRequest,
     SettingsResponse,
     TaskListItem,
+    TaskListResponse,
     TaskStage,
     VideoRequest,
 )
@@ -237,7 +240,10 @@ async def process_video(
 
     language = _normalize_language(request.language)
     job_id = str(uuid.uuid4())
-    await create_task(job_id, user_id=user.user_id)
+    await create_task(
+        job_id, user_id=user.user_id,
+        video_url=url, platform=platform, language=language, source_type="url",
+    )
     asyncio.create_task(_process_video_url(job_id, url, language=language, user_id=user.user_id))
 
     return {"job_id": job_id}
@@ -306,7 +312,10 @@ async def upload_video(
                 )
             f.write(chunk)
 
-    await create_task(job_id, message="Uploaded, queued", user_id=user.user_id)
+    await create_task(
+        job_id, message="Uploaded, queued", user_id=user.user_id,
+        file_name=safe_name, language=language, source_type="upload",
+    )
     asyncio.create_task(
         _process_video_file(job_id, str(file_path), language=language, user_id=user.user_id)
     )
@@ -342,6 +351,7 @@ async def task_progress(
             if task["stage"] in (
                 TaskStage.complete.value,
                 TaskStage.failed.value,
+                TaskStage.cancelled.value,
             ):
                 result_raw = task.get("result_json")
                 if result_raw:
@@ -382,11 +392,102 @@ async def task_result(
     )
 
 
-@router.get("/tasks", response_model=list[TaskListItem])
-async def list_tasks(user: CurrentUser):
-    """List all tasks for the current user."""
-    tasks = await get_user_tasks(user.user_id)
-    return [TaskListItem(**t) for t in tasks]
+@router.get("/tasks", response_model=TaskListResponse)
+async def list_tasks(
+    user: CurrentUser,
+    page: int = 1,
+    limit: int = 20,
+):
+    """List tasks for the current user with pagination."""
+    if page < 1:
+        page = 1
+    if limit < 1 or limit > 100:
+        limit = 20
+    offset = (page - 1) * limit
+    tasks = await get_user_tasks(user.user_id, limit=limit, offset=offset)
+    total = await count_user_tasks(user.user_id)
+    return TaskListResponse(
+        items=[TaskListItem(**t) for t in tasks],
+        total=total,
+        page=page,
+        limit=limit,
+    )
+
+
+@router.delete("/tasks/{job_id}")
+async def cancel_or_delete_task(
+    job_id: str,
+    user: CurrentUser,
+):
+    """Delete a task. Also cancels if in progress."""
+    task = await get_task(job_id)
+    if not task or task.get("user_id") != user.user_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    terminal_stages = (
+        TaskStage.complete.value, TaskStage.failed.value, TaskStage.cancelled.value,
+    )
+    if task["stage"] not in terminal_stages:
+        await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+
+    deleted = await delete_task(job_id, user_id=user.user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"detail": "Task deleted"}
+
+
+@router.post("/tasks/{job_id}/retry")
+async def retry_task(
+    job_id: str,
+    user: CurrentUser,
+):
+    """Retry a failed URL-type task. Creates a new task with the same input."""
+    task = await get_task(job_id)
+    if not task or task.get("user_id") != user.user_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if task["stage"] != TaskStage.failed.value:
+        raise HTTPException(status_code=409, detail="Only failed tasks can be retried")
+
+    if task.get("source_type") != "url" or not task.get("video_url"):
+        raise HTTPException(
+            status_code=422,
+            detail="Only URL-type tasks can be retried (uploaded files are not retained)",
+        )
+
+    video_url = task["video_url"]
+    language = task.get("language") or "en"
+    platform = task.get("platform") or detect_video_platform(video_url)
+
+    new_job_id = str(uuid.uuid4())
+    await create_task(
+        new_job_id, user_id=user.user_id,
+        video_url=video_url, platform=platform, language=language, source_type="url",
+    )
+    asyncio.create_task(
+        _process_video_url(new_job_id, video_url, language=language, user_id=user.user_id)
+    )
+    return {"job_id": new_job_id}
+
+
+@router.post("/tasks/{job_id}/cancel")
+async def cancel_task(
+    job_id: str,
+    user: CurrentUser,
+):
+    """Cancel an in-progress task by marking it as cancelled."""
+    task = await get_task(job_id)
+    if not task or task.get("user_id") != user.user_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    finished_stages = (
+        TaskStage.complete.value, TaskStage.failed.value, TaskStage.cancelled.value,
+    )
+    if task["stage"] in finished_stages:
+        raise HTTPException(status_code=409, detail="Task already finished")
+
+    await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+    return {"detail": "Task cancelled"}
 
 
 # --- Provider / Settings endpoints ---

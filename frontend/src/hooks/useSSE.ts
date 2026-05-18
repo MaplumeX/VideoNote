@@ -60,6 +60,10 @@ export function useSSE(jobId: string | null) {
                   setError(data.message || "Processing failed");
                   return;
                 }
+                if (data.stage === "cancelled") {
+                  setError("Task cancelled");
+                  return;
+                }
               } else if (currentEvent === "complete") {
                 const data = JSON.parse(currentData);
                 setResult(data.markdown);
@@ -73,7 +77,7 @@ export function useSSE(jobId: string | null) {
         }
       } catch {
         if (abortController.signal.aborted) return;
-        if (stageRef.current === "failed" || stageRef.current === "complete") return;
+        if (stageRef.current === "failed" || stageRef.current === "complete" || stageRef.current === "cancelled") return;
         setError("Connection to server lost");
       }
     })();

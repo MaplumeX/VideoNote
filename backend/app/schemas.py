@@ -22,6 +22,7 @@ class TaskStage(StrEnum):
     generating_notes = "generating_notes"
     complete = "complete"
     failed = "failed"
+    cancelled = "cancelled"
 
 
 class TaskProgress(BaseModel):
@@ -64,10 +65,22 @@ class UserResponse(BaseModel):
 
 class TaskListItem(BaseModel):
     job_id: str
-    stage: str
+    stage: TaskStage
     progress: float
     message: str
     created_at: str
+    video_url: str | None = None
+    file_name: str | None = None
+    platform: str | None = None
+    language: str | None = None
+    source_type: str | None = None
+
+
+class TaskListResponse(BaseModel):
+    items: list[TaskListItem]
+    total: int
+    page: int
+    limit: int
 
 
 # Provider / Settings schemas
