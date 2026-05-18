@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
+- **Total Sessions**: 9
 - **Last Active**: 2026-05-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~251 | Active |
+| `journal-1.md` | ~284 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-05-18 | Bootstrap Guidelines: fill .trellis/spec with project conventions | `4f7614b` | `main` |
 | 8 | 2026-05-18 | Add provider/model selection settings page | `5e76601` | `Feat/provider-model-selector` |
 | 7 | 2026-05-18 | Implement user authentication system | `71de18e` | `feat/user-system` |
 | 5 | 2026-05-17 | Add i18n internationalization support (en + zh-CN) | `85cb9be` | `feat/add-i18n` |

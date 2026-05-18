@@ -249,3 +249,36 @@ Full-stack provider/model selection feature: settings page (/app/settings) with 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: Bootstrap Guidelines: fill .trellis/spec with project conventions
+
+**Date**: 2026-05-18
+**Task**: Bootstrap Guidelines: fill .trellis/spec with project conventions
+**Branch**: `main`
+
+### Summary
+
+Populated all spec files under .trellis/spec/ with real codebase patterns. Filled 3 blank files (backend database-guidelines, logging-guidelines; frontend state-management). Updated 6 existing specs to remove stale ARQ/Redis references and add missing modules (auth, crypto, auth_routes, pages, i18n, auth). All index files updated from 'To fill' to 'Active'. Archived bootstrap task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4f7614b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
