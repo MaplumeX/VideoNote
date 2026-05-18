@@ -15,10 +15,10 @@ This directory contains guidelines for backend development. Fill in each file wi
 | Guide | Description | Status |
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | Active |
-| [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
+| [Database Guidelines](./database-guidelines.md) | SQLite + aiosqlite patterns, migrations, naming | Active |
 | [Error Handling](./error-handling.md) | Error types, handling strategies | Active |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | Active |
-| [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+| [Logging Guidelines](./logging-guidelines.md) | Log levels, what to log, what not to log | Active |
 
 ---
 

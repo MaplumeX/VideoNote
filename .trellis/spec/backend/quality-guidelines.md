@@ -8,6 +8,8 @@
 
 - **Tool**: `ruff` (replaces flake8, isort, pyupgrade)
 - **Config**: In `pyproject.toml` `[tool.ruff]`
+- **Target**: Python 3.11+, line-length 100
+- **Rules**: `E`, `F`, `I`, `UP`, `B`
 - **Run from `backend/` directory**: `cd backend/ && uv run ruff check app/`
 
 ---
@@ -17,6 +19,7 @@
 - Python type hints on all function signatures
 - Pydantic models for all API boundaries
 - No `Any` in public interfaces
+- Use `str | None` (not `Optional[str]`) for modern union syntax
 
 ---
 
@@ -27,20 +30,34 @@
 ```python
 # BAD — command injection
 subprocess.run(["ffmpeg", "-i", user_url, ...])
-```
 
-```python
 # GOOD — yt-dlp handles URL safety; for local files, validate path first
 subprocess.run(["ffmpeg", "-i", validated_path, ...], check=True, capture_output=True)
 ```
 
 ### Don't: Blocking calls in async context
 
-yt-dlp and ffmpeg are sync — always run them with `asyncio.to_thread()` or `loop.run_in_executor()` inside async handlers.
+yt-dlp and ffmpeg are sync — always run them with `asyncio.to_thread()` inside async handlers.
+
+```python
+# GOOD
+subtitle_text = await asyncio.to_thread(extract_subtitles, url)
+transcript = await asyncio.to_thread(transcribe_audio, audio_path, api_key=..., ...)
+```
 
 ### Don't: Hardcode API keys
 
 All credentials in `.env`, loaded via `app/config.py`.
+
+### Don't: Use bcrypt directly in async context
+
+bcrypt is CPU-intensive and blocks the event loop. Always wrap with `asyncio.to_thread()`:
+
+```python
+async def hash_password(password: str) -> str:
+    hashed = await _run_bcrypt(bcrypt.hashpw, password.encode("utf-8"), bcrypt.gensalt(rounds=12))
+    return hashed.decode("utf-8")
+```
 
 ---
 
@@ -73,32 +90,54 @@ except jwt.InvalidTokenError as exc:
 
 ### Async task delegation
 
-All video processing (1-10 min tasks) goes through ARQ, never FastAPI BackgroundTasks.
+Long-running video processing tasks are launched via `asyncio.create_task`:
 
 ```python
-job = await redis.enqueue_job("process_video_url", url, platform)
+asyncio.create_task(_process_video_url(job_id, url, language=language, user_id=user.user_id))
 ```
 
 ### Progress reporting
 
-All long-running tasks report progress to Redis for SSE consumption:
+All long-running tasks report progress to SQLite for SSE consumption:
 
 ```python
-await set_progress(job_id, TaskProgress(
-    stage="transcribing",
-    progress=50,
-    message="Transcribing audio via Whisper API..."
-))
+await update_progress(job_id, TaskStage.transcribing, 0.4, "Transcribing audio...")
 ```
 
 ### File cleanup
 
-Temp files (downloaded videos, extracted audio) must be cleaned up after processing, even on error. Use `try/finally`.
+Temp files (downloaded videos, extracted audio) must be cleaned up after processing, even on error. Use `try/finally` or `tempfile.TemporaryDirectory`:
+
+```python
+with tempfile.TemporaryDirectory() as tmpdir:
+    audio_path = await asyncio.to_thread(download_audio_via_ytdlp, url, tmpdir)
+    # process...
+# tmpdir auto-cleaned on exit
+```
+
+For uploaded files, delete in `finally`:
+
+```python
+try:
+    # process file_path
+    ...
+finally:
+    Path(file_path).unlink(missing_ok=True)
+```
+
+### Provider config with encrypted keys
+
+User API keys must be encrypted before storing, decrypted when reading:
+
+```python
+encrypted = encrypt_api_key(plaintext_key)
+decrypted = decrypt_api_key(encrypted)
+```
 
 ---
 
 ## Testing Requirements
 
-- Pytest for backend tests
+- Pytest for backend tests (with `pytest-asyncio`, `asyncio_mode = "auto"`)
 - Test service functions with mocked external APIs (OpenAI, yt-dlp)
 - Test API endpoints with FastAPI `TestClient`
