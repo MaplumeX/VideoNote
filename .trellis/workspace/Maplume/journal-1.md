@@ -315,3 +315,36 @@ Added 5 enhancements to the task system: hard delete (DELETE /api/tasks/{id}), r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: Fix SSE CRLF parsing causing white screen
+
+**Date**: 2026-05-18
+**Task**: Fix SSE CRLF parsing causing white screen
+**Branch**: `fix/fix-white-screen-after-video-submit`
+
+### Summary
+
+Fixed white screen after video submit: useSSE.ts used line === '' to detect SSE event boundaries, but sse-starlette sends \r\n line endings, making empty lines become '\r' instead of ''. Changed to line.trim() === '' for cross-line-ending compatibility. Updated frontend hook-guidelines spec with the gotcha.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9f77489` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

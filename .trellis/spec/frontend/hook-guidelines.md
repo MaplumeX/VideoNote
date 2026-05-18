@@ -8,9 +8,11 @@
 
 ### SSE Hook (useSSE)
 
-Consumes Server-Sent Events for real-time task progress.
+Consumes Server-Sent Events for real-time task progress via manual `ReadableStream` parsing (not `EventSource`, which doesn't support auth headers).
 
-**Key gotcha**: `EventSource` callbacks capture stale closures. Use a ref to track the latest state.
+**Key gotcha**: `sse-starlette` uses `\r\n` as the default line separator. When parsing SSE with `buffer.split("\n")`, empty event-boundary lines become `"\r"` instead of `""`. Always use `line.trim() === ""` to detect event boundaries, not `line === ""`.
+
+**Key gotcha**: EventSource callbacks capture stale closures. Use a ref to track the latest state.
 
 ```tsx
 export function useSSE(url: string | null) {
@@ -122,4 +124,16 @@ await fetch("/api/upload", { method: "POST", body: formData });
 
 // GOOD — XHR for upload progress
 xhr.upload.onprogress = (e) => setProgress(e.loaded / e.total * 100);
+```
+
+### Don't: Use strict `===` for SSE empty-line detection
+
+`sse-starlette` sends `\r\n` line endings. `split("\n")` produces `"\r"` for empty lines, not `""`.
+
+```tsx
+// BAD — never matches CRLF empty lines; events silently dropped → white screen
+} else if (line === "" && currentData) {
+
+// GOOD — handles \r\n, \n, and \r line endings
+} else if (line.trim() === "" && currentData) {
 ```
