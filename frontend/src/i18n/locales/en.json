@@ -10,7 +10,8 @@
     "process": "Process",
     "dropHere": "Drop video here...",
     "dragOrBrowse": "Drag & drop a video file, or click to browse",
-    "supportedFormats": "MP4, WebM, MKV, etc."
+    "supportedFormats": "MP4, WebM, MKV, etc.",
+    "orDivider": "or"
   },
   "progress": {
     "uploading": "Uploading video... {{percent}}%",
@@ -159,5 +160,11 @@
   "mermaid": {
     "loading": "Loading diagram...",
     "error": "Diagram rendering failed"
+  },
+  "steps": {
+    "download": "Download",
+    "transcribe": "Transcribe",
+    "generate": "Generate Notes",
+    "inProgress": "Processing {{percent}}%"
   }
 }

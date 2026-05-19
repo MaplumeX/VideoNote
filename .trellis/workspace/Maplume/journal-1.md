@@ -562,3 +562,36 @@ Implemented 4 PRs: (1) backend tags/folders/favorites CRUD API + DB schema, (2) 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: Optimize new note page UI
+
+**Date**: 2026-05-19
+**Task**: Optimize new note page UI
+**Branch**: `style/optimize-new-note-ui`
+
+### Summary
+
+Optimized new note page: added hero section, merged URL+upload into single view, enriched drag zone visuals, replaced progress bar with 3-step indicator, synced NoteDetailPage progress display.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a6404fc` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

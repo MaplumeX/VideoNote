@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "UI 组件规范，Hero/拖拽区/步骤指示器需遵循"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端质量标准，确保改动符合 lint/typecheck 要求"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "新增 StepIndicator 组件需放在正确位置"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TaskStage 到 3 阶段的映射需类型安全"}
