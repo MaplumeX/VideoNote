@@ -7,12 +7,18 @@ import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/re
 import { slashFactory } from "@milkdown/plugin-slash";
 import { SlashProvider } from "@milkdown/plugin-slash";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
+import { prism, prismConfig } from "@milkdown/plugin-prism";
+import { refractor } from "refractor";
 import { $node, $view, $remark } from "@milkdown/kit/utils";
 import type { Node as ProseNode } from "@milkdown/prose/model";
 import type { NodeView, EditorView } from "@milkdown/prose/view";
 import type { MarkdownNode, RemarkPluginRaw } from "@milkdown/transformer";
+import { katexPlugins } from "./milkdown-katex";
+import { mermaidPlugins } from "./milkdown-mermaid";
 
 import "@milkdown/theme-nord/style.css";
+import "katex/dist/katex.min.css";
+import "prismjs/themes/prism.css";
 
 // ---------------------------------------------------------------------------
 // TimestampBadge custom node
@@ -335,6 +341,12 @@ function MilkdownEditorInner({ markdown, onChange }: MilkdownEditorInnerProps) {
       .use(remarkTimestampBadgePlugin)
       .use(slash)
       .use(listener)
+      .use(prism)
+      .config((ctx) => {
+        ctx.set(prismConfig.key, { configureRefractor: () => refractor });
+      })
+      .use(katexPlugins)
+      .use(mermaidPlugins)
       .config((ctx) => {
         const listenerManager = ctx.get(listenerCtx);
         listenerManager.markdownUpdated((_, updatedMarkdown) => {
@@ -461,7 +473,7 @@ export function NoteEditor({ markdown, onChange }: NoteEditorProps) {
   }, [markdown]);
 
   return (
-    <div className="w-full max-w-3xl mx-auto">
+    <div className="w-full">
       <div className="rounded-xl border border-border bg-background p-6 milkdown-editor-wrapper">
         <MilkdownProvider key={editorKey}>
           <MilkdownEditorInner markdown={markdown} onChange={onChange} />

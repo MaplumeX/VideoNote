@@ -62,75 +62,73 @@ Use shadcn/ui components for all interactive elements:
 
 ---
 
-## react-markdown with Custom Components
+## Note Rendering (Milkdown-only)
 
-### Pattern: TimestampBadge for video timestamps
+All note rendering goes through Milkdown WYSIWYG — there is no separate HTML preview pipeline. The editor IS the view. No `react-markdown`, `rehype-*`, or `shiki` dependencies.
 
-The LLM generates Markdown with `[HH:MM:SS](#t=SECONDS)` links. Override `a` component in react-markdown to render these as clickable badges:
+### Pattern: Custom Milkdown node + NodeView + $remark
 
-```tsx
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+For content types not handled by commonmark/gfm (math, diagrams, timestamps), use this pattern:
 
-<Markdown
-  remarkPlugins={[remarkGfm]}
-  components={{
-    a({ href, children }) {
-      if (href?.startsWith("#t=")) {
-        const seconds = parseInt(href.slice(3));
-        return <TimestampBadge seconds={seconds}>{children}</TimestampBadge>;
-      }
-      return <a href={href}>{children}</a>;
-    },
-  }}
->
-  {markdownContent}
-</Markdown>
-```
-
-> **Warning**: Do NOT spread `...rest` from react-markdown's component props to native elements. react-markdown passes extra props (`node`, `index`, etc.) that are not valid HTML attributes and cause React warnings.
-
----
-
-## Markdown Preview (NotePreview)
-
-### Pattern: MarkdownHooks with async rehype plugins
-
-Use `MarkdownHooks` (not `Markdown`) from react-markdown when async rehype plugins like `@shikijs/rehype` are needed. `Markdown` silently skips async rehype; `MarkdownHooks` handles them correctly.
+1. `$remark` — transform mdast nodes into a custom type before ProseMirror parsing
+2. `$node` — define the ProseMirror node schema with `parseMarkdown`/`toMarkdown` for roundtrip
+3. `$view` — register a custom `NodeView` for DOM rendering
+4. `$inputRule` — (optional) add typing shortcuts
 
 ```tsx
-import { MarkdownHooks } from "react-markdown";
-import rehypeShiki from "@shikijs/rehype";
+// Example: KaTeX inline math ($...$)
+const mathInline = $node("math_inline", () => ({
+  inline: true, group: "inline", atom: true,
+  attrs: { value: { default: "" } },
+  parseMarkdown: { match: (node) => node.type === "inlineMath", runner: ... },
+  toMarkdown: { match: (node) => node.type.name === "math_inline", runner: ... },
+}));
 
-<MarkdownHooks
-  remarkPlugins={[remarkGfm, remarkMath]}
-  rehypePlugins={[rehypeSlug, [rehypeShiki, { themes: { light: "github-light", dark: "github-dark" } }], rehypeKatex]}
-  components={components}
->
-  {markdown}
-</MarkdownHooks>
+class MathInlineView implements NodeView {
+  // Renders KaTeX normally, shows raw LaTeX when selected
+}
+
+const mathInlineView = $view(mathInline, () => (node, view) => new MathInlineView(node, view));
 ```
 
-**Hook ordering**: All hooks (including `useMemo` for components) must be called before any conditional returns. React's Rules of Hooks require consistent call order.
+> **Warning**: When exporting `$remark` results for `.use()`, pass `.plugin` not the tuple: `remarkMermaidDiagramPlugin.plugin`, not `remarkMermaidDiagramPlugin`.
+
+> **Warning**: Do NOT hijack `codeBlockSchema.extendSchema` to implement block math — it conflicts with `@milkdown/plugin-prism`. Use a standalone `$node("math_block")` instead.
+
+### Pattern: Milkdown plugin arrays
+
+Group related plugins into exported arrays for clean `.use()` calls:
 
 ```tsx
-// BAD — useMemo called after conditional return, violates Rules of Hooks
-if (!markdown) return null;
-const components = useMemo(() => ({...}), []);
+// milkdown-katex.ts
+export const katexPlugins = [
+  mathInline, mathInlineView,
+  mathBlock, mathBlockView,
+  mathInlineInputRule, mathBlockInputRule,
+  remarkMathPlugin.plugin,
+];
 
-// GOOD — all hooks before conditional logic
-const components = useMemo(() => ({...}), []);
-if (!markdown) return null;
+// NoteEditor.tsx
+import { katexPlugins } from "./milkdown-katex";
+// ...
+.use(katexPlugins)
 ```
 
-### Shiki Dual-Theme Highlighting
+### Code Highlighting: @milkdown/plugin-prism
 
-Configure `@shikijs/rehype` with dual themes. CSS handles the switching via `[data-theme="dark"]`:
+Use `@milkdown/plugin-prism` with `refractor` (named export, no default):
 
-```css
-.shiki { /* light theme colors by default */ }
-[data-theme="dark"] .shiki { /* dark theme overrides */ }
+```tsx
+import { prism, prismConfig } from "@milkdown/plugin-prism";
+import { refractor } from "refractor";
+
+.use(prism)
+.config((ctx) => {
+  ctx.set(prismConfig.key, { configureRefractor: () => refractor });
+})
 ```
+
+Import `prismjs/themes/prism.css` for syntax highlighting styles.
 
 ### Mermaid Diagrams
 
@@ -140,7 +138,7 @@ Lazy-load mermaid via dynamic `import()` to avoid bloating the main bundle:
 const mermaid = await import("mermaid");
 ```
 
-Always re-initialize `mermaid` when theme changes (call `mermaid.initialize()` with the new theme config).
+Re-initialize `mermaid` when theme changes — track `lastMermaidTheme` and call `m.initialize({ theme })` when it differs from the current mode.
 
 ---
 
@@ -179,7 +177,7 @@ This ensures WYSIWYG editing preserves timestamp links in standard Markdown form
 
 ### Pattern: IntersectionObserver for active heading tracking
 
-The TOC component scans the preview container for headings, tracks which is visible using `IntersectionObserver`, and provides click-to-scroll navigation.
+The TOC component scans the Milkdown editor container for headings, tracks which is visible using `IntersectionObserver`, and provides click-to-scroll navigation.
 
 ```tsx
 // Active heading tracking via IntersectionObserver
@@ -188,7 +186,7 @@ const observer = new IntersectionObserver(callback, {
 });
 ```
 
-- Use `rehype-slug` to generate heading IDs
+- Milkdown's GFM preset generates heading IDs automatically (no `rehype-slug` needed)
 - Use `scrollIntoView({ behavior: "smooth" })` for click navigation
 - Sidebar is sticky and hidden on small screens (`hidden lg:block`)
 
@@ -209,7 +207,7 @@ const observer = new IntersectionObserver(callback, {
 </ThemeProvider>
 ```
 
-Theme state syncs to `document.documentElement.dataset.theme` and `localStorage`. Components that need theme-dependent rendering (Shiki, Mermaid) read from `useTheme()`.
+Theme state syncs to `document.documentElement.classList` (dark class) and `localStorage`. Components that need theme-dependent rendering (Mermaid) read from `useTheme()`.
 
 For DOM-based theme reactivity (when React doesn't control the DOM), use `MutationObserver` on `document.documentElement` to detect `data-theme` attribute changes.
 
@@ -235,16 +233,16 @@ useEffect(() => {
 }, [progress?.stage, progress?.result]);
 ```
 
-### Don't: Spread unknown props to native elements
+### Don't: Use inline styles for visual styling
 
 ```tsx
-// BAD — react-markdown passes node, index, etc.
-a({ node, href, children, ...rest }) {
-  return <a href={href} {...rest}>{children}</a>; // React warning
-}
+// BAD — inline style violates "Tailwind only" rule
+<span style={{ backgroundColor: tag.color }} />
+<div style={{ paddingLeft: `${depth * 16 + 8}px` }} />
 
-// GOOD — only pass what's needed
-a({ href, children }) {
-  return <a href={href}>{children}</a>;
-}
+// GOOD — CSS variable + Tailwind arbitrary value
+<span className="bg-[var(--tag-color)]" style={{ "--tag-color": tag.color } as React.CSSProperties} />
+<div className="pl-[var(--depth-pad)]" style={{ "--depth-pad": `${depth * 16 + 8}px` } as React.CSSProperties} />
 ```
+
+The `style` prop is only used to set the CSS variable value, not to apply visual styles directly. The `as React.CSSProperties` cast is required for custom properties.

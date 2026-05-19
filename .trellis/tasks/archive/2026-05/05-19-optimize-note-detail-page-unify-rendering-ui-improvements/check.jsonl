@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify component structure and naming conventions"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality checks — lint, typecheck, no dead code"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Type safety verification for new Milkdown plugin types"}
+{"file": ".trellis/tasks/05-19-optimize-note-detail-page-unify-rendering-ui-improvements/prd.md", "reason": "Acceptance criteria checklist"}

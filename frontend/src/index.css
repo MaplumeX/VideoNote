@@ -172,27 +172,6 @@
   --tw-prose-td-borders: var(--color-border);
 }
 
-/* Shiki dual theme support */
-.shiki {
-  --shiki-light: #24292e;
-  --shiki-dark: #e1e4e8;
-  background-color: var(--shiki-light-bg, #f6f8fa);
-  color: var(--shiki-light);
-}
-
-.shiki span {
-  color: var(--shiki-light);
-}
-
-.dark .shiki {
-  background-color: var(--shiki-dark-bg, #0d1117);
-  color: var(--shiki-dark);
-}
-
-.dark .shiki span {
-  color: var(--shiki-dark);
-}
-
 /* KaTeX display math centering */
 .katex-display {
   overflow-x: auto;
@@ -201,13 +180,13 @@
 }
 
 /* Mermaid diagram container */
-.mermaid-diagram {
+.mermaid-svg {
   display: flex;
   justify-content: center;
   overflow-x: auto;
 }
 
-.mermaid-diagram svg {
+.mermaid-svg svg {
   max-width: 100%;
   height: auto;
 }

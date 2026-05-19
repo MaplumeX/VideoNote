@@ -606,3 +606,36 @@ History page UI overhaul: view toggle (card/list), search with debounce, sort by
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: Unify note rendering to Milkdown-only + 3-column layout
+
+**Date**: 2026-05-19
+**Task**: Unify note rendering to Milkdown-only + 3-column layout
+**Branch**: `Feat/optimize-note-ui-render`
+
+### Summary
+
+Replaced react-markdown preview pipeline with Milkdown WYSIWYG-only rendering. Added custom ProseMirror node plugins for KaTeX math (milkdown-katex.ts) and Mermaid diagrams (milkdown-mermaid.ts). Integrated prism, katex, mermaid into NoteEditor. Removed 6 unused deps. Restructured NoteDetailPage to 3-column layout: left sidebar (actions/tags/folder), center full-width editor, right TOC. Replaced inline styles with CSS custom property + Tailwind arbitrary value pattern. Updated component-guidelines and directory-structure specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cf87158` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
