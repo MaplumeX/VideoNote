@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "shadcn/ui patterns, named exports, cn() usage, dark mode conventions — must follow for all new components"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "URL state via useSearchParams, no global state library — search/sort/filter should use URL params, not useState"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "File placement conventions — new components go in components/, pages stay in pages/"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript interface patterns for API params and response types — search/sort params need proper typing"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Raw SQL patterns, parameterized queries, connection handling — needed for adding search LIKE and sort params to fetchTasks"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "HTTPException patterns, validation — search/sort params need proper error handling at API boundary"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Data flow across backend→frontend boundaries — search/sort params span both layers, need consistent contracts"}
+{"file": ".trellis/tasks/05-19-ui/prd.md", "reason": "Task requirements and decisions — authoritative source for what to implement"}
