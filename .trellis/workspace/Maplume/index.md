@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 21
+- **Total Sessions**: 22
 - **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~641 | Active |
+| `journal-1.md` | ~674 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 22 | 2026-05-19 | 升级时间戳：条件渲染 + 悬浮视频跳转 | `3295cde` | `Feat/upgrade-timestamp-video-seek` |
 | 21 | 2026-05-19 | Unify note rendering to Milkdown-only + 3-column layout | `cf87158` | `Feat/optimize-note-ui-render` |
 <<<<<<< HEAD
 | 20 | 2026-05-19 | 优化历史界面 UI 布局 | `cbfb508`, `cf31fa4`, `23bd180` | `style/optimize-history-ui` |
