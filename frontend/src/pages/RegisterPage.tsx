@@ -1,6 +1,8 @@
 import { Form, useActionData, useNavigation, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { setAccessToken } from "@/auth/token";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface ActionError {
   error: string;
@@ -61,47 +63,44 @@ export function RegisterPage() {
             <label htmlFor="display_name" className="block text-sm font-medium mb-1.5">
               {t("auth.displayName")}
             </label>
-            <input
+            <Input
               id="display_name"
               name="display_name"
               type="text"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
           <div>
             <label htmlFor="email" className="block text-sm font-medium mb-1.5">
               {t("auth.email")}
             </label>
-            <input
+            <Input
               id="email"
               name="email"
               type="email"
               required
               autoComplete="email"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
           <div>
             <label htmlFor="password" className="block text-sm font-medium mb-1.5">
               {t("auth.password")}
             </label>
-            <input
+            <Input
               id="password"
               name="password"
               type="password"
               required
               minLength={6}
               autoComplete="new-password"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
-          <button
+          <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="w-full"
           >
             {isSubmitting ? t("auth.creatingAccount") : t("auth.register")}
-          </button>
+          </Button>
         </Form>
 
         <p className="text-center text-sm text-muted-foreground">

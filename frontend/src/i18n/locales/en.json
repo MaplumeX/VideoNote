@@ -86,6 +86,10 @@
   "note": {
     "untitled": "Untitled Note"
   },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark"
+  },
   "dashboard": {
     "newNote": "New Video Note",
     "recentNotes": "Recent Notes",
@@ -95,6 +99,7 @@
   },
   "settings": {
     "title": "Settings",
+    "language": "Language",
     "asrConfig": "Speech-to-Text (ASR)",
     "llmConfig": "Note Generation (LLM)",
     "provider": "Provider",

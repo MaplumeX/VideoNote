@@ -450,7 +450,74 @@ Replaced single-page tool layout with multi-route software experience: sidebar n
 - None - task complete
 
 
-## Session 15: Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview
+## Session 15: Move language switch to Settings page
+
+**Date**: 2026-05-19
+**Task**: Move language switch to Settings page
+**Branch**: `Feat/put-lang-switch-in-settings`
+
+### Summary
+
+Moved language toggle from sidebar click-button to a dropdown select in Settings page. Extracted shared style constants (selectClass/inputClass/labelClass) to module level.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `79c2551` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 16: Polish frontend UI with shadcn/ui, dark mode, and layout fix
+
+**Date**: 2026-05-19
+**Task**: Polish frontend UI with shadcn/ui, dark mode, and layout fix
+**Branch**: `Feat/optimize-frontend-ui`
+
+### Summary
+
+引入 shadcn/ui (base-nova) 统一设计语言，修复侧边栏全高布局，添加深色模式切换，提取共享 StatusBadge，将所有原生 button/input/select 迁移到 shadcn/ui 组件，更新 CSS 主题到 oklch 色彩空间
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `00f1cbd` | (see git log) |
+| `86f3d3c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 17: Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview
 
 **Date**: 2026-05-19
 **Task**: Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview

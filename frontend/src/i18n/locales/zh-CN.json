@@ -86,6 +86,10 @@
   "note": {
     "untitled": "无标题笔记"
   },
+  "theme": {
+    "light": "浅色",
+    "dark": "深色"
+  },
   "dashboard": {
     "newNote": "新建视频笔记",
     "recentNotes": "最近笔记",
@@ -95,6 +99,7 @@
   },
   "settings": {
     "title": "设置",
+    "language": "语言",
     "asrConfig": "语音转写 (ASR)",
     "llmConfig": "笔记生成 (LLM)",
     "provider": "服务商",

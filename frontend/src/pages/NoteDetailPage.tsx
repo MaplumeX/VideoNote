@@ -13,13 +13,14 @@ import {
   Eye,
   Save,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { fetchResult, fetchTags, fetchFolderTree, fetchTaskById, fetchNoteTags, addTagsToNote, removeTagFromNote, moveNoteToFolder, toggleFavorite, updateNoteContent } from "@/api/client";
 import { useSSE } from "@/hooks/useSSE";
 import { ProgressBar } from "@/components/ProgressBar";
 import { NotePreview } from "@/components/NotePreview";
 import { NoteEditor } from "@/components/NoteEditor";
 import { TableOfContents } from "@/components/TableOfContents";
-import { cn } from "@/lib/utils";
 import type { NoteResult, Tag as TagType, TagWithCount, FolderTreeNode } from "@/types";
 
 export function NoteDetailPage() {
@@ -77,7 +78,6 @@ export function NoteDetailPage() {
   useEffect(() => {
     if (!jobId) return;
 
-    // Fetch tags for this note
     fetchNoteTags(jobId)
       .then((tags) => {
         setNoteTags(tags);
@@ -86,7 +86,6 @@ export function NoteDetailPage() {
         setNoteTags([]);
       });
 
-    // Fetch task details for is_favorite and folder_id
     fetchTaskById(jobId)
       .then((task) => {
         setIsFavorite(task.is_favorite);
@@ -94,7 +93,6 @@ export function NoteDetailPage() {
       })
       .catch(() => {});
 
-    // Load all tags and folder tree for pickers
     fetchTags().then(setAllTags).catch(() => {});
     fetchFolderTree().then(setFolderTree).catch(() => {});
   }, [jobId]);
@@ -116,7 +114,6 @@ export function NoteDetailPage() {
     setFolderName(findFolder(folderTree, folderId));
   }, [folderId, folderTree]);
 
-  // When SSE shows progress reaching failed/cancelled, show error
   useEffect(() => {
     if (progress?.stage === "failed" && processing) {
       setError(progress.message || "Processing failed");
@@ -128,7 +125,6 @@ export function NoteDetailPage() {
     }
   }, [progress?.stage, processing]);
 
-  // When SSE completes (result received), fetch the full note
   useEffect(() => {
     if (sseResult && processing && jobId) {
       fetchResult(jobId)
@@ -144,7 +140,6 @@ export function NoteDetailPage() {
     }
   }, [sseResult, processing, jobId]);
 
-  // Handle SSE connection error
   useEffect(() => {
     if (sseError && processing) {
       setError(sseError);
@@ -179,13 +174,11 @@ export function NoteDetailPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mode, hasUnsavedChanges, handleSave]);
 
-  // Switch to edit mode: initialize editMarkdown from current note
   const enterEditMode = () => {
     if (note) setEditMarkdown(note.markdown);
     setMode("edit");
   };
 
-  // Switch to preview mode: discard unsaved edits
   const enterPreviewMode = () => {
     if (note) setEditMarkdown(note.markdown);
     setMode("preview");
@@ -219,7 +212,6 @@ export function NoteDetailPage() {
       setNoteTags(result.tags);
       setTagInputValue("");
       setTagInputOpen(false);
-      // Refresh all tags in case new ones were auto-created
       fetchTags().then(setAllTags).catch(() => {});
     } catch {
       // silent
@@ -255,7 +247,6 @@ export function NoteDetailPage() {
     }
   };
 
-  // Suggest tags that aren't already on this note
   const existingTagIds = new Set(noteTags.map((tag) => tag.id));
   const suggestedTags = allTags.filter((tag) => !existingTagIds.has(tag.id));
 
@@ -298,61 +289,52 @@ export function NoteDetailPage() {
 
       {/* Action bar */}
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Edit / Preview toggle */}
         {mode === "preview" ? (
-          <button
-            onClick={enterEditMode}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
+          <Button onClick={enterEditMode} className="gap-2">
             <Pencil size={16} />
             {t("noteDetail.edit")}
-          </button>
+          </Button>
         ) : (
           <>
-            <button
+            <Button
+              variant="outline"
               onClick={enterPreviewMode}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-muted"
+              className="gap-2"
             >
               <Eye size={16} />
               {t("noteDetail.preview")}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               disabled={!hasUnsavedChanges || saving}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                hasUnsavedChanges && !saving
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                  : "bg-muted text-muted-foreground cursor-not-allowed",
-              )}
+              className="gap-2"
             >
               <Save size={16} />
               {saving ? t("noteDetail.saving") : t("noteDetail.save")}
-            </button>
+            </Button>
             {hasUnsavedChanges && (
               <span className="text-xs text-muted-foreground">{t("noteDetail.unsaved")}</span>
             )}
           </>
         )}
 
-        <button
+        <Button
+          variant="outline"
           onClick={handleDownload}
-          className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-muted"
+          className="gap-2"
         >
           <Download size={16} />
           {t("result.downloadMarkdown")}
-        </button>
+        </Button>
 
-        <button
+        <Button
+          variant="outline"
           onClick={handleToggleFavorite}
-          className={cn(
-            "inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-muted",
-            isFavorite ? "text-yellow-500" : "text-muted-foreground",
-          )}
+          className={cn("gap-2", isFavorite && "text-yellow-500")}
         >
           <Star size={16} className={isFavorite ? "fill-current" : ""} />
           {isFavorite ? t("noteDetail.unfavorite") : t("noteDetail.favorite")}
-        </button>
+        </Button>
       </div>
 
       {/* Tags and folder section */}
@@ -443,16 +425,15 @@ export function NoteDetailPage() {
             </span>
           </div>
           <div className="relative">
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setFolderPickerOpen(!folderPickerOpen)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs transition-colors hover:bg-muted",
-                folderName ? "text-foreground" : "text-muted-foreground",
-              )}
+              className={cn("gap-1.5", folderName ? "text-foreground" : "text-muted-foreground")}
             >
               <FolderOpen size={12} />
               {folderName || t("history.noFolder")}
-            </button>
+            </Button>
             {folderPickerOpen && (
               <div className="absolute top-full left-0 mt-1 z-10 w-56 rounded-lg border border-border bg-background shadow-lg py-1 max-h-60 overflow-y-auto">
                 <button

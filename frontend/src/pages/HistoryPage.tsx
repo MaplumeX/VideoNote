@@ -3,10 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import {
   FileText,
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
   Trash2,
   RotateCcw,
   Ban,
@@ -22,78 +18,33 @@ import {
   Square,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { StatusBadge, isActiveTask } from "@/components/StatusBadge";
 import { fetchTasks, fetchTags, fetchFolderTree, toggleFavorite, batchAddTag, batchMoveToFolder, batchSetFavorite } from "@/api/client";
 import { ContentSidebar } from "@/components/ContentSidebar";
-import type { TaskListResponse, TaskItem, TaskStage, HistoryFilter, TagWithCount, FolderTreeNode } from "@/types";
-
-const ACTIVE_STAGES: TaskStage[] = [
-  "pending",
-  "downloading",
-  "extracting_subtitles",
-  "transcribing",
-  "generating_notes",
-];
+import type { TaskListResponse, TaskItem, HistoryFilter, TagWithCount, FolderTreeNode } from "@/types";
 
 function isRetriable(task: TaskItem): boolean {
   return task.stage === "failed" && task.source_type === "url" && !!task.video_url;
 }
 
-function isActive(task: TaskItem): boolean {
-  return ACTIVE_STAGES.includes(task.stage);
-}
-
-function StatusBadge({ task }: { task: TaskItem }) {
-  const { t } = useTranslation();
-  if (task.stage === "complete") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-green-600">
-        <CheckCircle size={12} />
-        {t("progress.complete")}
-      </span>
-    );
-  }
-  if (task.stage === "failed") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-destructive">
-        <AlertCircle size={12} />
-        {t("progress.failed")}
-      </span>
-    );
-  }
-  if (task.stage === "cancelled") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-        <XCircle size={12} />
-        {t("progress.cancelled")}
-      </span>
-    );
-  }
-  if (isActive(task)) {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-blue-500">
-        <Clock size={12} className="animate-pulse" />
-        {Math.round(task.progress * 100)}%
-      </span>
-    );
-  }
-  return null;
-}
-
 function SourceBadge({ task }: { task: TaskItem }) {
   if (task.source_type === "url" && task.platform) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+      <Badge variant="secondary" className="gap-1">
         <Globe size={12} />
         {task.platform}
-      </span>
+      </Badge>
     );
   }
   if (task.source_type === "upload" && task.file_name) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate max-w-[150px]">
+      <Badge variant="secondary" className="gap-1 truncate max-w-[150px]">
         <FileVideo size={12} />
         {task.file_name}
-      </span>
+      </Badge>
     );
   }
   return null;
@@ -292,12 +243,14 @@ export function HistoryPage() {
         {/* Header row */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+              className="text-muted-foreground"
             >
               {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
-            </button>
+            </Button>
             {selectedIds.size > 0 && (
               <span className="text-sm text-muted-foreground">
                 {t("history.selected", { count: selectedIds.size })}
@@ -307,49 +260,55 @@ export function HistoryPage() {
 
           {selectedIds.size > 0 && (
             <div className="relative">
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setBatchMenuOpen(!batchMenuOpen)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+                className="gap-1.5"
               >
                 <ChevronDown size={14} />
                 {t("history.batchTag")}
-              </button>
+              </Button>
               {batchMenuOpen && (
                 <div className="absolute right-0 top-full mt-1 z-10 w-48 rounded-lg border border-border bg-background shadow-lg py-1">
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={() => {
                       setPickerType("tag");
                       setBatchMenuOpen(false);
                     }}
-                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted flex items-center gap-2"
+                    className="w-full justify-start gap-2 px-3 py-1.5 text-sm"
                   >
                     <Tag size={14} />
                     {t("history.batchTag")}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
                     onClick={() => {
                       setPickerType("folder");
                       setBatchMenuOpen(false);
                     }}
-                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted flex items-center gap-2"
+                    className="w-full justify-start gap-2 px-3 py-1.5 text-sm"
                   >
                     <FolderOpen size={14} />
                     {t("history.batchMove")}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
                     onClick={() => handleBatchFavorite(true)}
-                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted flex items-center gap-2"
+                    className="w-full justify-start gap-2 px-3 py-1.5 text-sm"
                   >
                     <Star size={14} />
                     {t("history.batchFavorite")}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
                     onClick={() => handleBatchFavorite(false)}
-                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted flex items-center gap-2"
+                    className="w-full justify-start gap-2 px-3 py-1.5 text-sm"
                   >
                     <Star size={14} className="fill-none" />
                     {t("history.batchUnfavorite")}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -364,14 +323,14 @@ export function HistoryPage() {
 
         {tasks.length === 0 ? (
           <div className="text-center py-12">
-            <FileText size={48} className="mx-auto text-muted-foreground/50" />
+            <FileText size={48} className="mx-auto text-muted-foreground/30" />
             <p className="mt-4 text-muted-foreground">{t("history.empty")}</p>
-            <button
+            <Button
               onClick={() => navigate("/app/new")}
-              className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="mt-4"
             >
               {t("history.processVideo")}
-            </button>
+            </Button>
           </div>
         ) : (
           <>
@@ -396,108 +355,113 @@ export function HistoryPage() {
                 const isSelected = selectedIds.has(task.job_id);
                 const taskFav = task.is_favorite;
                 return (
-                  <div
+                  <Card
                     key={task.job_id}
+                    onClick={clickable ? () => navigate(`/app/notes/${task.job_id}`) : undefined}
                     className={cn(
-                      "relative rounded-lg border p-4 transition-all group",
-                      isSelected
-                        ? "border-primary/40 bg-primary/5"
-                        : "border-border hover:border-border",
-                      clickable
-                        ? "cursor-pointer hover:shadow-sm hover:border-primary/20"
-                        : "cursor-default",
+                      "relative transition-all group",
+                      isSelected && "border-primary/40",
+                      clickable ? "cursor-pointer hover:shadow-sm" : "cursor-default"
                     )}
-                    onClick={() => {
-                      if (clickable) navigate(`/app/notes/${task.job_id}`);
-                    }}
                   >
-                    {/* Select checkbox + Favorite */}
-                    <div className="absolute top-2 right-2 flex items-center gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleFavorite(task.job_id, taskFav);
-                        }}
-                        className={cn(
-                          "p-1 rounded transition-colors",
-                          taskFav
-                            ? "text-yellow-500 hover:text-yellow-600"
-                            : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-yellow-500",
-                        )}
-                      >
-                        <Star size={14} className={taskFav ? "fill-current" : ""} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSelect(task.job_id);
-                        }}
-                        className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground"
-                      >
-                        {isSelected ? (
-                          <CheckSquare size={14} className="text-primary" />
-                        ) : (
-                          <Square size={14} className="opacity-0 group-hover:opacity-100" />
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleDelete(task.job_id);
-                        }}
-                        className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-
-                    {/* Title */}
-                    <p className="text-sm font-medium truncate pr-20">{getDisplayTitle(task)}</p>
-
-                    {/* Source + date */}
-                    <div className="flex items-center gap-3 mt-2">
-                      <SourceBadge task={task} />
-                      {task.language && (
-                        <span className="text-xs text-muted-foreground">{task.language}</span>
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(task.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    {/* Status + actions */}
-                    <div className="flex items-center justify-between mt-3">
-                      <StatusBadge task={task} />
-
-                      <div className="flex items-center gap-1">
-                        {isActive(task) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void handleCancel(task.job_id);
-                            }}
-                            className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
-                            title={t("history.cancel")}
-                          >
-                            <Ban size={14} />
-                          </button>
-                        )}
-
-                        {isRetriable(task) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void handleRetry(task.job_id);
-                            }}
-                            className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-blue-500"
-                            title={t("history.retry")}
-                          >
-                            <RotateCcw size={14} />
-                          </button>
-                        )}
+                    <CardContent className="p-4">
+                      {/* Select checkbox + Favorite + Delete */}
+                      <div className="absolute top-2 right-2 flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            void handleFavorite(task.job_id, taskFav);
+                          }}
+                          className={cn(
+                            taskFav
+                              ? "text-yellow-500 hover:text-yellow-600"
+                              : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-yellow-500"
+                          )}
+                        >
+                          <Star size={14} className={taskFav ? "fill-current" : ""} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            toggleSelect(task.job_id);
+                          }}
+                          className="text-muted-foreground"
+                        >
+                          {isSelected ? (
+                            <CheckSquare size={14} className="text-primary" />
+                          ) : (
+                            <Square size={14} className="opacity-0 group-hover:opacity-100" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            void handleDelete(task.job_id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
                       </div>
-                    </div>
-                  </div>
+
+                      {/* Title */}
+                      <p className="text-sm font-medium truncate pr-20">{getDisplayTitle(task)}</p>
+
+                      {/* Source + date */}
+                      <div className="flex items-center gap-3 mt-2">
+                        <SourceBadge task={task} />
+                        {task.language && (
+                          <Badge variant="outline" className="text-xs">{task.language}</Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(task.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      {/* Status + actions */}
+                      <div className="flex items-center justify-between mt-3">
+                        <StatusBadge task={task} />
+
+                        <div className="flex items-center gap-1">
+                          {isActiveTask(task) && (
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                void handleCancel(task.job_id);
+                              }}
+                              title={t("history.cancel")}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Ban size={14} />
+                            </Button>
+                          )}
+
+                          {isRetriable(task) && (
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                void handleRetry(task.job_id);
+                              }}
+                              title={t("history.retry")}
+                              className="text-muted-foreground hover:text-blue-500"
+                            >
+                              <RotateCcw size={14} />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 );
               })}
             </div>
@@ -510,20 +474,22 @@ export function HistoryPage() {
               {t("history.pageInfo", { page, totalPages })}
             </p>
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => loadTasks(page - 1)}
                 disabled={page <= 1}
-                className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-default"
               >
                 {t("history.previous")}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => loadTasks(page + 1)}
                 disabled={page >= totalPages}
-                className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-default"
               >
                 {t("history.next")}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -567,7 +533,7 @@ function TagPicker({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
       <div
         className="w-72 rounded-lg border border-border bg-background shadow-lg p-4 space-y-2"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <p className="text-sm font-medium">{t("history.batchTag")}</p>
         {tags.length === 0 ? (
@@ -628,7 +594,7 @@ function FolderPickerModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
       <div
         className="w-72 rounded-lg border border-border bg-background shadow-lg p-4 space-y-2"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <p className="text-sm font-medium">{t("history.batchMove")}</p>
         <button

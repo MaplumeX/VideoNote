@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Sidebar } from "./Sidebar";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { getAccessToken } from "@/auth/token";
@@ -12,26 +13,29 @@ export function AppLayout() {
 
   return (
     <ThemeProvider>
-    <div className="min-h-screen bg-background flex">
+    <div className="h-screen flex bg-background">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col h-screen">
         {/* Mobile header */}
-        <header className="border-b border-border md:hidden">
+        <header className="border-b border-border md:hidden shrink-0">
           <div className="px-4 py-3 flex items-center gap-3">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setSidebarOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-muted transition-colors"
             >
               <Menu size={20} />
-            </button>
+            </Button>
             <h1 className="text-base font-bold">{t("app.title")}</h1>
           </div>
         </header>
 
-        {/* Main content */}
-        <main className="max-w-5xl mx-auto px-4 py-8 md:px-6">
-          <Outlet />
+        {/* Main content — independent scroll */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto px-4 py-8 md:px-6">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
