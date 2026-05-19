@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec index — auth changes are frontend-only"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Auth token is module-level state; this spec guides state patterns"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "AppLayout authLoader guard — changes affect component layer"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Lint/typecheck quality bar for the implement sub-agent"}
