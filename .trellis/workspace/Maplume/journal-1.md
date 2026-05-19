@@ -382,3 +382,36 @@ Fixed white screen after video submit: useSSE.ts used line === '' to detect SSE 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: Fix Bilibili yt-dlp audio download FileNotFoundError
+
+**Date**: 2026-05-19
+**Task**: Fix Bilibili yt-dlp audio download FileNotFoundError
+**Branch**: `main`
+
+### Summary
+
+Fix yt-dlp Bilibili audio download failure: check download() return code, override quiet=False for error visibility, expand file matching to handle extensionless files, add diagnostic logging.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ea25d86` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
