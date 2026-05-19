@@ -448,3 +448,36 @@ Replaced single-page tool layout with multi-route software experience: sidebar n
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: Move language switch to Settings page
+
+**Date**: 2026-05-19
+**Task**: Move language switch to Settings page
+**Branch**: `Feat/put-lang-switch-in-settings`
+
+### Summary
+
+Moved language toggle from sidebar click-button to a dropdown select in Settings page. Extracted shared style constants (selectClass/inputClass/labelClass) to module level.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `79c2551` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

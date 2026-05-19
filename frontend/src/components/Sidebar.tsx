@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router";
-import { Plus, FileText, Settings, Globe, LogOut, X } from "lucide-react";
+import { Plus, FileText, Settings, LogOut, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearAuth } from "@/auth/token";
 
@@ -10,10 +10,9 @@ interface SidebarProps {
 }
 
 export function Sidebar({ open, onClose }: SidebarProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const appLanguage = i18n.resolvedLanguage === "zh-CN" ? "zh-CN" : "en";
 
   const navItems = [
     { path: "/app/new", icon: Plus, label: t("sidebar.newNote") },
@@ -22,11 +21,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   ];
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + "/");
-
-  const toggleLang = () => {
-    const next = appLanguage === "zh-CN" ? "en" : "zh-CN";
-    void i18n.changeLanguage(next);
-  };
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", {
@@ -86,13 +80,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Bottom section */}
         <div className="border-t border-border px-2 py-3 space-y-0.5">
-          <button
-            onClick={toggleLang}
-            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-          >
-            <Globe size={18} />
-            {appLanguage === "zh-CN" ? "English" : "中文"}
-          </button>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
