@@ -24,6 +24,19 @@ import "prismjs/themes/prism.css";
 // TimestampBadge custom node
 // ---------------------------------------------------------------------------
 
+// Bridge: lets the imperative NodeView read React-level state.
+// Set by NoteEditor before the editor mounts.
+let _timestampClickHandler: ((seconds: number) => void) | null = null;
+let _timestampHasVideo = false;
+
+export function setTimestampContext(opts: {
+  onTimestampClick?: (seconds: number) => void;
+  hasVideo?: boolean;
+}) {
+  _timestampClickHandler = opts.onTimestampClick ?? null;
+  _timestampHasVideo = opts.hasVideo ?? false;
+}
+
 const timestampBadge = $node("timestamp-badge", () => ({
   inline: true,
   group: "inline",
@@ -64,10 +77,20 @@ class TimestampBadgeView implements NodeView {
     const seconds: number = node.attrs.seconds;
     const label: string = node.attrs.label;
     const btn = document.createElement("button");
-    btn.className =
-      "inline-flex items-center rounded-md bg-accent px-1.5 py-0.5 text-xs font-mono text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-default";
-    btn.textContent = label || formatSeconds(seconds);
     btn.contentEditable = "false";
+
+    if (_timestampHasVideo && _timestampClickHandler) {
+      btn.className =
+        "inline-flex items-center rounded-md bg-accent px-1.5 py-0.5 text-xs font-mono text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer";
+      btn.addEventListener("click", () => {
+        _timestampClickHandler?.(seconds);
+      });
+    } else {
+      btn.className =
+        "inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground cursor-default opacity-60";
+    }
+
+    btn.textContent = label || formatSeconds(seconds);
     this.dom = btn;
   }
 
@@ -458,11 +481,17 @@ function MilkdownEditorInner({ markdown, onChange }: MilkdownEditorInnerProps) {
 interface NoteEditorProps {
   markdown: string;
   onChange: (markdown: string) => void;
+  onTimestampClick?: (seconds: number) => void;
+  hasVideo?: boolean;
 }
 
-export function NoteEditor({ markdown, onChange }: NoteEditorProps) {
+export function NoteEditor({ markdown, onChange, onTimestampClick, hasVideo }: NoteEditorProps) {
   const [editorKey, setEditorKey] = useState(0);
   const prevMarkdownRef = useRef(markdown);
+
+  useEffect(() => {
+    setTimestampContext({ onTimestampClick, hasVideo });
+  }, [onTimestampClick, hasVideo]);
 
   // Reset the editor when the markdown prop changes externally (e.g. switching notes)
   useEffect(() => {

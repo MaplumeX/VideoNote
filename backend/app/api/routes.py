@@ -148,6 +148,7 @@ async def _process_video_url(
             await update_progress(job_id, TaskStage.transcribing, 0.6, "Transcription complete")
 
         await update_progress(job_id, TaskStage.generating_notes, 0.7, "Generating notes...")
+        has_timestamps = "#t=" in transcript
         markdown = await asyncio.to_thread(
             generate_notes,
             transcript,
@@ -156,6 +157,7 @@ async def _process_video_url(
             api_key=llm_api_key,
             api_base=llm_api_base,
             model=llm_model,
+            has_timestamps=has_timestamps,
         )
 
         await update_progress(job_id, TaskStage.generating_notes, 0.9, "Notes generated")
@@ -204,6 +206,7 @@ async def _process_video_file(
         await update_progress(job_id, TaskStage.transcribing, 0.6, "Transcription complete")
 
         await update_progress(job_id, TaskStage.generating_notes, 0.7, "Generating notes...")
+        has_timestamps = "#t=" in transcript
         markdown = await asyncio.to_thread(
             generate_notes,
             transcript,
@@ -211,6 +214,7 @@ async def _process_video_file(
             api_key=llm_api_key,
             api_base=llm_api_base,
             model=llm_model,
+            has_timestamps=has_timestamps,
         )
 
         await update_progress(job_id, TaskStage.generating_notes, 0.9, "Notes generated")

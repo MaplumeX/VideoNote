@@ -161,7 +161,8 @@
     "preview": "Preview",
     "save": "Save",
     "saving": "Saving...",
-    "unsaved": "Unsaved changes"
+    "unsaved": "Unsaved changes",
+    "playVideo": "Play Video"
   },
   "toc": {
     "title": "Table of Contents",
@@ -181,5 +182,8 @@
     "transcribe": "Transcribe",
     "generate": "Generate Notes",
     "inProgress": "Processing {{percent}}%"
+  },
+  "videoPlayer": {
+    "title": "Video Player"
   }
 }
