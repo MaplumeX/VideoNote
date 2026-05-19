@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Sidebar } from "./Sidebar";
 import { getAccessToken } from "@/auth/token";
 
@@ -17,12 +18,13 @@ export function AppLayout() {
         {/* Mobile header */}
         <header className="border-b border-border md:hidden shrink-0">
           <div className="px-4 py-3 flex items-center gap-3">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setSidebarOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-muted transition-colors"
             >
               <Menu size={20} />
-            </button>
+            </Button>
             <h1 className="text-base font-bold">{t("app.title")}</h1>
           </div>
         </header>

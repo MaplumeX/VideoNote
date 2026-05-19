@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router";
 import { Plus, FileText, Settings, Globe, LogOut, X, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearAuth } from "@/auth/token";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 interface SidebarProps {
@@ -72,9 +73,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 md:py-5 shrink-0">
           <h1 className="text-base font-bold">{t("app.title")}</h1>
-          <button onClick={onClose} className="p-1 rounded hover:bg-sidebar-accent md:hidden">
+          <Button variant="ghost" size="icon-xs" onClick={onClose} className="md:hidden hover:bg-sidebar-accent">
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         <Separator />
@@ -82,22 +83,23 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Nav items */}
         <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
           {navItems.map(({ path, icon: Icon, label }) => (
-            <button
+            <Button
               key={path}
+              variant="ghost"
               onClick={() => {
                 navigate(path);
                 onClose();
               }}
               className={cn(
-                "w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
+                "w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm",
                 isActive(path)
-                  ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                  ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground hover:bg-sidebar-accent"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               )}
             >
               <Icon size={18} />
               {label}
-            </button>
+            </Button>
           ))}
         </nav>
 
@@ -105,27 +107,30 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Bottom section */}
         <div className="px-2 py-3 space-y-0.5 shrink-0">
-          <button
+          <Button
+            variant="ghost"
             onClick={toggleTheme}
-            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+            className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
           >
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
             {isDark ? t("theme.light") : t("theme.dark")}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
             onClick={toggleLang}
-            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+            className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
           >
             <Globe size={18} />
             {appLanguage === "zh-CN" ? "English" : "中文"}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
             onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-colors"
+            className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive"
           >
             <LogOut size={18} />
             {t("auth.signOut")}
-          </button>
+          </Button>
         </div>
       </aside>
     </>

@@ -1,6 +1,7 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface NoteViewProps {
@@ -21,33 +22,36 @@ function TimestampBadge({
   const timestamp = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 
   return (
-    <button
+    <Button
+      variant="ghost"
       onClick={onClick}
-      className="inline-flex items-center rounded-md bg-accent px-1.5 py-0.5 text-xs font-mono text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer"
+      size="xs"
+      className="inline-flex items-center rounded-md bg-accent px-1.5 py-0.5 text-xs font-mono text-primary hover:bg-primary hover:text-primary-foreground"
     >
       {timestamp}
-    </button>
+    </Button>
   );
 }
 
-const components: Components = {
-  a({ href, children }) {
-    if (href?.startsWith("#t=")) {
-      const seconds = parseInt(href.slice(3), 10);
-      if (!isNaN(seconds)) {
-        return (
-          <TimestampBadge
-            seconds={seconds}
-          />
-        );
-      }
-    }
-    return <a href={href}>{children}</a>;
-  },
-};
-
-export function NoteView({ markdown }: NoteViewProps) {
+export function NoteView({ markdown, onSeekTo }: NoteViewProps) {
   if (!markdown) return null;
+
+  const components: Components = {
+    a({ href, children }) {
+      if (href?.startsWith("#t=")) {
+        const seconds = parseInt(href.slice(3), 10);
+        if (!isNaN(seconds)) {
+          return (
+            <TimestampBadge
+              seconds={seconds}
+              onClick={onSeekTo ? () => onSeekTo(seconds) : undefined}
+            />
+          );
+        }
+      }
+      return <a href={href}>{children}</a>;
+    },
+  };
 
   return (
     <div className="w-full max-w-3xl mx-auto">

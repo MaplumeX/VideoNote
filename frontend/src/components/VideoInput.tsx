@@ -27,7 +27,7 @@ export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputPr
     disabled,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (url.trim()) {
       onSubmitUrl(url.trim());
@@ -39,11 +39,12 @@ export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputPr
     <div className="w-full max-w-xl mx-auto">
       {/* Tab switcher */}
       <div className="flex border-b border-border mb-4">
-        <button
+        <Button
+          variant="ghost"
           type="button"
           onClick={() => setTab("url")}
           className={cn(
-            "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 rounded-none",
             tab === "url"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -51,12 +52,13 @@ export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputPr
         >
           <Link size={16} />
           {t("input.tabUrl")}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           type="button"
           onClick={() => setTab("upload")}
           className={cn(
-            "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 rounded-none",
             tab === "upload"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -64,7 +66,7 @@ export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputPr
         >
           <Upload size={16} />
           {t("input.tabUpload")}
-        </button>
+        </Button>
       </div>
 
       {/* URL input */}
