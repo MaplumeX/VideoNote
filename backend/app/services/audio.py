@@ -50,12 +50,23 @@ def download_audio_via_ytdlp(url: str, output_dir: str) -> str:
         format="bestaudio/best",
         outtmpl=output_path,
     )
+    # Allow yt-dlp error output through for diagnostics
+    ydl_opts["quiet"] = False
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+        retcode = ydl.download([url])
 
-    # Find the downloaded file (yt-dlp appends the actual extension)
-    audio_files = list(Path(output_dir).glob("audio.*"))
+    # List directory contents for diagnostics before searching
+    dir_contents = list(Path(output_dir).iterdir())
+    file_names = [f.name for f in dir_contents]
+    logger.info(f"yt-dlp retcode={retcode}, files in {output_dir}: {file_names}")
+
+    if retcode != 0:
+        raise RuntimeError(f"yt-dlp download failed (retcode={retcode}) for {url}")
+
+    # Find the downloaded file (yt-dlp usually appends extension, but some
+    # extractors produce files without one, e.g. Bilibili combined streams)
+    audio_files = [f for f in dir_contents if f.name.startswith("audio") and f.name != "audio.wav"]
     if not audio_files:
         raise FileNotFoundError(f"Audio file not found after yt-dlp download in {output_dir}")
 
