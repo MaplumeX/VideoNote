@@ -450,7 +450,18 @@ Replaced single-page tool layout with multi-route software experience: sidebar n
 - None - task complete
 
 
-## Session 15: Polish frontend UI with shadcn/ui, dark mode, and layout fix
+## Session 15: Move language switch to Settings page
+
+**Date**: 2026-05-19
+**Task**: Move language switch to Settings page
+**Branch**: `Feat/put-lang-switch-in-settings`
+
+### Summary
+
+Moved language toggle from sidebar click-button to a dropdown select in Settings page. Extracted shared style constants (selectClass/inputClass/labelClass) to module level.
+
+
+## Session 16: Polish frontend UI with shadcn/ui, dark mode, and layout fix
 
 **Date**: 2026-05-19
 **Task**: Polish frontend UI with shadcn/ui, dark mode, and layout fix
@@ -463,6 +474,27 @@ Replaced single-page tool layout with multi-route software experience: sidebar n
 ### Main Changes
 
 (Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `79c2551` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 16: Polish frontend UI with shadcn/ui, dark mode, and layout fix
 
 ### Git Commits
 

@@ -87,6 +87,7 @@
   },
   "settings": {
     "title": "Settings",
+    "language": "Language",
     "asrConfig": "Speech-to-Text (ASR)",
     "llmConfig": "Note Generation (LLM)",
     "provider": "Provider",

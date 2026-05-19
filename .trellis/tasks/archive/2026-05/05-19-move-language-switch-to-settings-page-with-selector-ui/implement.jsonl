@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Sidebar 和 SettingsPage 组件改动需遵循组件规范"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "语言状态由 i18n 管理，需了解状态管理规范"}

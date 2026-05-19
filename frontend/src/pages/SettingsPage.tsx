@@ -7,8 +7,9 @@ import type {
   SettingsResponse,
   ProviderConfig,
 } from "@/types";
-import { Mic, Brain, Save, Settings } from "lucide-react";
+import { Mic, Brain, Save, Settings, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SUPPORTED_LANGS } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -214,8 +215,13 @@ function buildPayload(form: ConfigFormState): ProviderConfig | null {
   };
 }
 
+const LANG_LABELS: Record<string, string> = {
+  en: "English",
+  "zh-CN": "中文",
+};
+
 export function SettingsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [providers, setProviders] = useState<ProvidersResponse | null>(null);
   const [asrForm, setAsrForm] = useState<ConfigFormState>({ ...emptyConfig });
@@ -293,6 +299,33 @@ export function SettingsPage() {
           {message.text}
         </div>
       )}
+
+      {/* Language */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Globe size={18} className="text-muted-foreground" />
+            <CardTitle>{t("settings.language")}</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Select
+            value={i18n.resolvedLanguage ?? "en"}
+            onValueChange={(v) => { if (v) void i18n.changeLanguage(v); }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SUPPORTED_LANGS.map((lang) => (
+                <SelectItem key={lang} value={lang}>
+                  {LANG_LABELS[lang] ?? lang}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
 
       <ProviderConfigSection
         title={t("settings.asrConfig")}

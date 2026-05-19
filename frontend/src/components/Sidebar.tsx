@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router";
-import { Plus, FileText, Settings, Globe, LogOut, X, Sun, Moon } from "lucide-react";
+import { Plus, FileText, Settings, LogOut, X, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearAuth } from "@/auth/token";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,9 @@ interface SidebarProps {
 }
 
 export function Sidebar({ open, onClose }: SidebarProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const appLanguage = i18n.resolvedLanguage === "zh-CN" ? "zh-CN" : "en";
   const [isDark, setIsDark] = useState(document.documentElement.classList.contains("dark"));
 
   useEffect(() => {
@@ -34,11 +33,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   ];
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + "/");
-
-  const toggleLang = () => {
-    const next = appLanguage === "zh-CN" ? "en" : "zh-CN";
-    void i18n.changeLanguage(next);
-  };
 
   const toggleTheme = () => {
     document.documentElement.classList.toggle("dark");
@@ -114,14 +108,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           >
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
             {isDark ? t("theme.light") : t("theme.dark")}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={toggleLang}
-            className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-          >
-            <Globe size={18} />
-            {appLanguage === "zh-CN" ? "English" : "中文"}
           </Button>
           <Button
             variant="ghost"
