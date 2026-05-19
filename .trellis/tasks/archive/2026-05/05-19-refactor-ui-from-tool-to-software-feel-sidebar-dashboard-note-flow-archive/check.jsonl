@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "验证侧边栏/Dashboard/卡片组件是否符合组件规范"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "验证新文件是否放在正确目录"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "验证 SSE 进度恢复的状态管理是否规范"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "验证实现是否满足质量标准"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "验证类型安全性"}
