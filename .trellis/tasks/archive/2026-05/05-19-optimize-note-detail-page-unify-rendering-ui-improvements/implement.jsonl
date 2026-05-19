@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component patterns and conventions for refactoring NoteDetailPage layout"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "State management patterns — NoteDetailPage uses hooks/useState, ensure consistency"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Type safety conventions for Milkdown plugin type definitions"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality bar for frontend changes"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "File organization — NotePreview deletion, new plugin files"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse existing timestamp-badge pattern for math_inline and mermaid-diagram custom nodes"}
+{"file": ".trellis/tasks/05-19-optimize-note-detail-page-unify-rendering-ui-improvements/research/milkdown-plugins.md", "reason": "Milkdown v7 plugin ecosystem research — plugin-prism, custom KaTeX, custom Mermaid, readonly mode"}
+{"file": ".trellis/tasks/05-19-optimize-note-detail-page-unify-rendering-ui-improvements/prd.md", "reason": "Task requirements, acceptance criteria, technical approach"}
