@@ -562,3 +562,38 @@ Implemented 4 PRs: (1) backend tags/folders/favorites CRUD API + DB schema, (2) 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: 优化历史界面 UI 布局
+
+**Date**: 2026-05-19
+**Task**: 优化历史界面 UI 布局
+**Branch**: `style/optimize-history-ui`
+
+### Summary
+
+History page UI overhaul: view toggle (card/list), search with debounce, sort by title/stage/created_at, batch action bar, context menu, pagination, Sheet-based filters. Fixed: search now matches title in result_json, sort_by=title uses json_extract, inline styles replaced with CSS custom properties + Tailwind, useEffect dependency stabilized. Updated 3 code-spec docs with learned patterns.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cbfb508` | (see git log) |
+| `cf31fa4` | (see git log) |
+| `23bd180` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
