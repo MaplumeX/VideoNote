@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
+- **Total Sessions**: 17
 - **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~500 | Active |
+| `journal-1.md` | ~549 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-05-19 | Fix UI quality issues | `0247ec2` | `Feat/fix-ui-layout-and-menus` |
 | 16 | 2026-05-19 | Polish frontend UI with shadcn/ui, dark mode, and layout fix | `00f1cbd`, `86f3d3c` | `Feat/optimize-frontend-ui` |
 | 15 | 2026-05-19 | Move language switch to Settings page | `79c2551` | `Feat/put-lang-switch-in-settings` |
 | 14 | 2026-05-19 | Refactor UI from tool to software feel | `eba1d4f` | `Feat/online-software-look` |

@@ -514,3 +514,36 @@ Moved language toggle from sidebar click-button to a dropdown select in Settings
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: Fix UI quality issues
+
+**Date**: 2026-05-19
+**Task**: Fix UI quality issues
+**Branch**: `Feat/fix-ui-layout-and-menus`
+
+### Summary
+
+Fixed 4 UI quality issues: sidebar overlapping main content on desktop, language selector showing raw value code instead of display label, Select dropdown menus misaligned on mobile, and missing @tailwindcss/typography plugin causing unstyled markdown in NoteView.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0247ec2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
