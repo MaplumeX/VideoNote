@@ -10,6 +10,7 @@ import {
   X,
   Plus,
   Save,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,8 @@ import { useSSE } from "@/hooks/useSSE";
 import { StepIndicator } from "@/components/StepIndicator";
 import { NoteEditor } from "@/components/NoteEditor";
 import { TableOfContents } from "@/components/TableOfContents";
+import { VideoPlayerFloat } from "@/components/VideoPlayerFloat";
+import type { VideoPlayerFloatHandle } from "@/components/VideoPlayerFloat";
 import type { NoteResult, Tag as TagType, TagWithCount, FolderTreeNode } from "@/types";
 
 export function NoteDetailPage() {
@@ -39,6 +42,10 @@ export function NoteDetailPage() {
 
   const [editMarkdown, setEditMarkdown] = useState("");
   const [saving, setSaving] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<string | null>(null);
+  const [playerOpen, setPlayerOpen] = useState(false);
+  const playerRef = useRef<VideoPlayerFloatHandle>(null);
 
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -82,6 +89,8 @@ export function NoteDetailPage() {
       .then((task) => {
         setIsFavorite(task.is_favorite);
         setFolderId(task.folder_id);
+        setVideoUrl(task.video_url);
+        setPlatform(task.platform);
       })
       .catch(() => {});
 
@@ -228,6 +237,15 @@ export function NoteDetailPage() {
 
   const existingTagIds = new Set(noteTags.map((tag) => tag.id));
   const suggestedTags = allTags.filter((tag) => !existingTagIds.has(tag.id));
+
+  const hasVideo = !!(videoUrl && platform && (platform === "youtube" || platform === "bilibili"));
+
+  const handleTimestampClick = useCallback((seconds: number) => {
+    if (!hasVideo) return;
+    if (!playerOpen) setPlayerOpen(true);
+    // Defer seek so the player ref is available after render
+    setTimeout(() => playerRef.current?.seekTo(seconds), 0);
+  }, [hasVideo, playerOpen]);
 
   if (loading) {
     return (
@@ -408,6 +426,20 @@ export function NoteDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Video play button */}
+        {hasVideo && (
+          <div className="space-y-1.5">
+            <Button
+              variant="outline"
+              onClick={() => setPlayerOpen(true)}
+              className="w-full gap-2"
+            >
+              <Play size={16} />
+              {t("noteDetail.playVideo")}
+            </Button>
+          </div>
+        )}
       </aside>
 
       {/* Center — Milkdown editor */}
@@ -415,11 +447,23 @@ export function NoteDetailPage() {
         <NoteEditor
           markdown={editMarkdown}
           onChange={setEditMarkdown}
+          onTimestampClick={hasVideo ? handleTimestampClick : undefined}
+          hasVideo={hasVideo}
         />
       </div>
 
       {/* Right — TOC */}
       <TableOfContents containerRef={previewRef} contentKey={editMarkdown} />
+
+      {/* Floating video player */}
+      {playerOpen && hasVideo && videoUrl && platform && (
+        <VideoPlayerFloat
+          ref={playerRef}
+          videoUrl={videoUrl}
+          platform={platform}
+          onClose={() => setPlayerOpen(false)}
+        />
+      )}
     </div>
   );
 }

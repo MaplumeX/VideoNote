@@ -161,7 +161,8 @@
     "preview": "预览",
     "save": "保存",
     "saving": "保存中...",
-    "unsaved": "未保存的更改"
+    "unsaved": "未保存的更改",
+    "playVideo": "播放视频"
   },
   "toc": {
     "title": "目录",
@@ -181,5 +182,8 @@
     "transcribe": "转录",
     "generate": "生成笔记",
     "inProgress": "处理中 {{percent}}%"
+  },
+  "videoPlayer": {
+    "title": "视频播放器"
   }
 }

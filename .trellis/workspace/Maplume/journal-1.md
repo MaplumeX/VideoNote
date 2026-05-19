@@ -639,3 +639,36 @@ Replaced react-markdown preview pipeline with Milkdown WYSIWYG-only rendering. A
 ### Next Steps
 
 - None - task complete
+
+
+## Session 22: 升级时间戳：条件渲染 + 悬浮视频跳转
+
+**Date**: 2026-05-19
+**Task**: 升级时间戳：条件渲染 + 悬浮视频跳转
+**Branch**: `Feat/upgrade-timestamp-video-seek`
+
+### Summary
+
+后端条件化 LLM prompt 避免无时间戳时的幻觉；前端新增 VideoPlayerFloat 悬浮播放器（拖拽/缩放/最小化/关闭），时间戳 badge 有视频时可点击 seek，无视频时灰显不可点击；NoteDetailPage 集成播放入口和跳转逻辑。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3295cde` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
