@@ -54,6 +54,11 @@ void bootstrap();
 
 - `?task=<job_id>` loads an existing task result on `/app`
 - `?redirect=<path>` preserves post-login redirect target on `/auth/login`
+- `?search=<query>&folder=<id>&tag=<id>&is_favorite=true&sort_by=created_at&sort_order=desc&view=card|list` drives HistoryPage filter/sort/view state
+
+When a page has multiple filter dimensions, store them all in URL params so the state is shareable and survives page refresh. Use `setSearchParams(params, { replace: true })` to avoid polluting browser history on every filter change.
+
+For search debounce: use `useRef<ReturnType<typeof setTimeout>>()` + `setTimeout(fn, 300)` — update the local input state immediately, but sync to URL params after the delay.
 
 ### Ref state (`useRef`)
 

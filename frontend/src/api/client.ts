@@ -88,6 +88,9 @@ export async function fetchTasks(params: {
   folder?: string;
   tag?: string;
   is_favorite?: boolean;
+  search?: string;
+  sort_by?: string;
+  sort_order?: string;
 }): Promise<TaskListResponse> {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
@@ -95,6 +98,9 @@ export async function fetchTasks(params: {
   if (params.folder) qs.set("folder", params.folder);
   if (params.tag) qs.set("tag", params.tag);
   if (params.is_favorite !== undefined) qs.set("is_favorite", String(params.is_favorite));
+  if (params.search) qs.set("search", params.search);
+  if (params.sort_by) qs.set("sort_by", params.sort_by);
+  if (params.sort_order) qs.set("sort_order", params.sort_order);
   return apiFetch<TaskListResponse>(`${API_BASE}/tasks?${qs.toString()}`);
 }
 

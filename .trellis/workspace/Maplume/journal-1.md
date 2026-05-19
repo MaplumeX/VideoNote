@@ -574,6 +574,17 @@ Implemented 4 PRs: (1) backend tags/folders/favorites CRUD API + DB schema, (2) 
 
 Optimized new note page: added hero section, merged URL+upload into single view, enriched drag zone visuals, replaced progress bar with 3-step indicator, synced NoteDetailPage progress display.
 
+
+## Session 20: 优化历史界面 UI 布局
+
+**Date**: 2026-05-19
+**Task**: 优化历史界面 UI 布局
+**Branch**: `style/optimize-history-ui`
+
+### Summary
+
+History page UI overhaul: view toggle (card/list), search with debounce, sort by title/stage/created_at, batch action bar, context menu, pagination, Sheet-based filters. Fixed: search now matches title in result_json, sort_by=title uses json_extract, inline styles replaced with CSS custom properties + Tailwind, useEffect dependency stabilized. Updated 3 code-spec docs with learned patterns.
+
 ### Main Changes
 
 (Add details)

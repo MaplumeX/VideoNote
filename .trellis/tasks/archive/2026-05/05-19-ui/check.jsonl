@@ -1,2 +1,7 @@
-{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "验证新组件符合组件规范"}
-{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "验证代码质量达标"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify new components follow named exports, cn(), shadcn/ui conventions, no inline styles"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify search/sort/filter state uses URL params (useSearchParams), not component-local state for URL-visible state"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code quality standards — lint/typecheck/forbidden patterns check"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify SQL uses parameterized queries (not string formatting), proper LIKE escaping for search"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify search/sort params validated at API boundary, proper HTTPException on invalid input"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify search/sort/filter params have consistent contracts across backend routes → db → frontend client → types"}
+{"file": ".trellis/tasks/05-19-ui/prd.md", "reason": "Verify all acceptance criteria met — checklist against PRD requirements"}

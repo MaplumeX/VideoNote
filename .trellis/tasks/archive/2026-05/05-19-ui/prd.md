@@ -1,68 +1,103 @@
-# 优化新建笔记界面 UI 布局
+# 优化历史界面 UI 布局
 
 ## Goal
 
-改善 `/app/new` 页面的视觉体验和交互流程，使其从当前的"单输入框"观感升级为有引导感、视觉层次分明、进度反馈清晰的专业界面。
+重构历史页面（HistoryPage），提升信息密度、交互效率与视觉层次，使其从"工具感"升级为"软件感"。
 
-## What I already know
+## Requirements
 
-* 当前 NewNotePage 是 `max-w-xl` 居中布局，内容仅为 tab 切换器 + URL 输入框/拖拽区
-* 处理中显示 ProgressBar（Card 内的百分比条 + 阶段文字）
-* 外层 AppLayout 已提供 `max-w-5xl` 容器 + sidebar，NewNotePage 可用空间充足
-* 技术栈：React 19 + TypeScript + shadcn/ui + Tailwind v4 + react-dropzone + i18next
-* i18n 已配置中英文，所有新增文案需同步更新两个 locale 文件
+### 1. 视图模式：卡片默认 + 列表可切换
+- 卡片视图保持当前双列网格为默认
+- 新增列表视图（紧凑行，类似文件管理器：标题/来源/日期/状态/标签一行显示）
+- 顶栏提供视图切换图标按钮
+- 视图偏好可存入 localStorage
 
-## Assumptions (temporary)
+### 2. 筛选布局：顶栏筛选条 + Sheet 侧栏
+- 顶栏：搜索框 + 当前激活的筛选 pills（文件夹/标签/收藏），可点击 × 移除
+- Sheet 侧栏：保留 ContentSidebar 完整功能（文件夹/标签 CRUD + 筛选），通过按钮从左侧滑出，不常驻
+- ContentSidebar 组件复用，改为在 Sheet/Drawer 中渲染
 
-* 4 个优化方向都需要实现
-* Hero 区域文案可复用 i18n 中已有的 `app.title` / `app.subtitle`
-* 合并 URL 和上传视图后，不再需要 tab 切换
-* 步骤指示器替换现有 ProgressBar 的百分比条样式
+### 3. 后端关键词搜索
+- 后端 db.py 的 fetchTasks 增加 `search` 参数，SQL LIKE 匹配 title
+- routes.py /api/tasks 接收 search query param
+- 前端 fetchTasks 传递 search 参数，搜索框 debounce 300ms
 
-## Open Questions
+### 4. 排序支持
+- 列表视图支持按日期/标题排序
+- 后端 fetchTasks 增加 `sort_by` + `sort_order` 参数
+- 顶栏排序下拉选择器
 
-_(none)_
+### 5. 批量操作 action bar
+- 选中项目后，页面底部/顶部出现固定 action bar（类似 Gmail）
+- 包含：批量打标签、批量移动、批量收藏/取消收藏、批量删除
+- 显示已选数量 + 全选/取消全选
 
-## Decisions
+### 6. 卡片操作改进：收藏常驻 + 右键菜单
+- 收藏星标常驻显示（不再 hover 才出现）
+- 其他操作（删除、重试、取消、选择）放入右键上下文菜单
+- 保留 hover 时的删除快捷入口（可选）
 
-* **Hero 风格** → 简约大标题（粗体大字 + 浅色副标题，无装饰图，Notion/Linear 风格）
-* **合并视图顺序** → URL 输入在上，文件上传区在下
-* **步骤指示器粒度** → 精简 3 阶段：下载（downloading + extracting_subtitles）→ 转录（transcribing）→ 生成笔记（generating_notes）；pending/failed/cancelled 用特殊状态处理
+### 7. 分页组件升级
+- 使用 shadcn/ui Pagination 组件
+- 显示页码按钮（1 2 3 ... 10），支持跳转
+- 显示总数信息
 
-## Requirements (evolving)
+## Acceptance Criteria
 
-* R1: 增加 Hero 区域（粗体大标题 + 浅色副标题，无装饰图，简约 Notion/Linear 风格），提升页面着陆感
-* R2: 合并 URL 输入和文件上传到一个视图，URL 在上、上传在下，去掉 tab 切换
-* R3: 丰富拖拽区视觉（图标、动画、hover/drag 状态）
-* R4: 进度体验升级为 3 阶段步骤指示器：下载 → 转录 → 生成笔记（pending 作为初始态，failed/cancelled 用错误状态）
-* R5: NoteDetailPage 中进行中笔记的进度也使用步骤指示器，与 NewNotePage 保持一致
-
-## Acceptance Criteria (evolving)
-
-* [ ] 页面顶部有清晰的标题和副标题
-* [ ] URL 输入和文件上传同时可见，无需切换 tab
-* [ ] 拖拽区视觉丰富，drag-active 状态有明显反馈
-* [ ] 进度显示为 3 阶段步骤指示器，各阶段清晰可辨
-* [ ] NoteDetailPage 中进行中笔记的进度也使用步骤指示器（与 NewNotePage 一致）
-* [ ] 中英文 i18n 同步更新
-* [ ] 现有功能（URL 提交、文件上传、进度追踪、自动跳转）不受影响
+- [ ] 用户可在卡片视图和列表视图间切换，偏好持久化
+- [ ] 列表视图支持按日期/标题排序
+- [ ] 顶栏搜索框输入关键词可过滤结果（后端 API）
+- [ ] 激活的筛选条件以 pills 显示在顶栏，可 × 移除
+- [ ] 侧栏改为 Sheet 滑出，不常驻占位
+- [ ] 选中项目后出现 action bar，含完整批量操作
+- [ ] 收藏星标常驻可见
+- [ ] 右键菜单包含删除/重试/取消/选择操作
+- [ ] 分页显示页码，支持跳转
+- [ ] 暗色/亮色模式兼容
+- [ ] 响应式布局正常
+- [ ] i18n key 补全
+- [ ] Lint / typecheck 通过
 
 ## Definition of Done
 
-* Lint / typecheck 通过
-* 现有功能无回归
-* 深色/浅色主题均正常
+- Lint / typecheck 通过
+- 暗色/亮色模式兼容
+- 响应式布局正常
+- i18n key 补全
+- 后端新增 search/sort 参数有对应测试
 
 ## Out of Scope
 
-* 双栏布局（方向 5）
-* 过渡动画（方向 6）
-* 后端逻辑变更
+- 视频缩略图预览（后端无 thumbnail 字段）
+- 视频时长显示（后端无 duration 字段）
+- 笔记摘要预览（result_json 列表 API 不返回）
+- 无限滚动分页
+- 触屏 long-press 右键菜单 fallback
+- 导出/分享等未来右键菜单项
+
+## Decision (ADR-lite)
+
+**Context**: 历史页面信息密度低、交互隐蔽、缺少搜索排序
+**Decision**:
+- 视图：卡片默认 + 列表切换
+- 筛选：顶栏筛选条（搜索+ pills）+ Sheet 侧栏（完整 CRUD）
+- 搜索：后端 API LIKE 搜索
+- 排序：后端 sort_by/sort_order 参数，列表视图支持
+- 批量操作：选中后浮动 action bar
+- 卡片操作：收藏常驻 + 右键菜单
+- 分页：页码组件
+**Consequences**: 需前后端同步改动；右键菜单在触屏需后续适配；卡片信息受限于后端现有字段
 
 ## Technical Notes
 
-* 核心文件：`NewNotePage.tsx`, `VideoInput.tsx`, `ProgressBar.tsx`
-* 关联文件：`NoteDetailPage.tsx`（也使用 ProgressBar，需同步升级为步骤指示器）
-* 布局容器：`AppLayout.tsx` 提供 `max-w-5xl` + `px-4 py-8`
-* i18n 文件：`frontend/src/i18n/locales/en.json`, `zh-CN.json`
-* shadcn/ui 组件可用：Card, Button, Input, Badge, Select, Separator, DropdownMenu
+### 前端
+- 文件：HistoryPage.tsx, ContentSidebar.tsx, StatusBadge.tsx
+- 新增：ContextMenu 组件、Actionbar 组件、Pagination 组件
+- API：fetchTasks 增加 search/sort_by/sort_order 参数
+- 路由：/app/history
+- URL params：增加 search, sort_by, sort_order, view
+
+### 后端
+- db.py：fetchTasks 增加 search（LIKE title）、sort_by/sort_order 参数
+- routes.py：/api/tasks 接收 search, sort_by, sort_order query params
+- TaskItem 类型不需要改（title 已有）
