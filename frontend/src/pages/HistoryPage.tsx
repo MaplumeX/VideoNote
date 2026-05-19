@@ -248,21 +248,14 @@ export function HistoryPage() {
   };
 
   const handleSortChange = (value: string | null) => {
+    const params = new URLSearchParams(searchParams);
     if (!value) {
-      const params = new URLSearchParams(searchParams);
       params.delete("sort_by");
       params.delete("sort_order");
-      setSearchParams(params, { replace: true });
-      return;
-    }
-    const params = new URLSearchParams(searchParams);
-    if (value) {
+    } else {
       const [by, order] = value.split("-");
       params.set("sort_by", by);
       params.set("sort_order", order);
-    } else {
-      params.delete("sort_by");
-      params.delete("sort_order");
     }
     setSearchParams(params, { replace: true });
   };
@@ -298,11 +291,11 @@ export function HistoryPage() {
   }, [loadTasks]);
 
   // Sync searchInput when URL search param changes externally
+  const searchParamValue = searchParams.get("search") || "";
   useEffect(() => {
-    const sp = searchParams.get("search") || "";
-    if (sp !== searchInput) setSearchInput(sp);
+    if (searchParamValue !== searchInput) setSearchInput(searchParamValue);
     // searchInput intentionally excluded to avoid loop
-  }, [searchParams.get("search")]);
+  }, [searchParamValue]);
 
   const handleDelete = async (jobId: string) => {
     if (!window.confirm(t("history.deleteConfirm"))) return;
@@ -973,8 +966,8 @@ function TagPicker({
                 className="w-full text-left flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted transition-colors"
               >
                 <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: tag.color || "#6b7280" }}
+                  className="w-2.5 h-2.5 rounded-full shrink-0 bg-[var(--tag-color)]"
+                  style={{ "--tag-color": tag.color || "#6b7280" } as React.CSSProperties}
                 />
                 {tag.name}
               </button>
@@ -1006,8 +999,8 @@ function FolderPickerModal({
       <div key={node.id}>
         <button
           onClick={() => onPick(node.id)}
-          className="w-full text-left flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted transition-colors"
-          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          className="w-full text-left flex items-center gap-2 rounded-lg py-1.5 text-sm hover:bg-muted transition-colors pl-[var(--depth-pad)]"
+          style={{ "--depth-pad": `${depth * 16 + 8}px` } as React.CSSProperties}
         >
           <FolderOpen size={14} className="shrink-0" />
           {node.name}

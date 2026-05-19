@@ -240,13 +240,19 @@ async def get_user_tasks(
             params.append(1 if is_favorite else 0)
 
         if search is not None:
-            conditions.append("(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ?)")
+            conditions.append(
+                "(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ? "
+                "OR json_extract(t.result_json, '$.title') LIKE ?)"
+            )
             like = f"%{search}%"
-            params.extend([like, like, like])
+            params.extend([like, like, like, like])
 
         allowed_sort = {"created_at", "title", "stage"}
         if sort_by == "title":
-            sort_expr = "t.created_at"  # title is extracted from result_json, fallback to created_at
+            # title in result_json JSON; sort by extracted title,
+            # fallback to empty string for NULLs
+            sort_expr = "COALESCE(json_extract(t.result_json, '$.title'), '')"
+
         elif sort_by in allowed_sort:
             sort_expr = f"t.{sort_by}"
         else:
@@ -316,9 +322,12 @@ async def count_user_tasks(
             params.append(1 if is_favorite else 0)
 
         if search is not None:
-            conditions.append("(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ?)")
+            conditions.append(
+                "(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ? "
+                "OR json_extract(t.result_json, '$.title') LIKE ?)"
+            )
             like = f"%{search}%"
-            params.extend([like, like, like])
+            params.extend([like, like, like, like])
 
         where = " AND ".join(conditions)
         query = f"{query}{joins} WHERE {where}"
