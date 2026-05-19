@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec index — component patterns, directory structure, quality bar"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Current TimestampBadge/react-markdown patterns that Milkdown editor must preserve"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Where to place new editor components, folder/tag UI, and enhancement plugins"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality standards — lint, typecheck, testing requirements"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "State management conventions for tags/folders/favorites client state"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript type conventions for new tag/folder/editor types"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index — API patterns, error handling, database conventions"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite conventions, migration pattern, PRAGMA foreign_keys, naming rules"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error response format for new folder/tag/favorite API endpoints"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Where to place new route files, schema definitions, DB functions for tags/folders"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality standards — testing, lint, typecheck"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Frontend-backend contract alignment for new tag/folder/editor APIs"}
+{"file": ".trellis/tasks/05-19-optimize-note/research/wysiwyg-editor.md", "reason": "Milkdown selection rationale, CJK/IME assessment, TimestampBadge extensibility approach"}
+{"file": ".trellis/tasks/05-19-optimize-note/research/markdown-enhancement.md", "reason": "Shiki/TOC/KaTeX/Mermaid plugin choices, CSR constraints, lazy loading patterns"}
+{"file": ".trellis/tasks/05-19-optimize-note/research/tags-folders-schema.md", "reason": "Tags/folders DDL, API endpoint design, PRAGMA foreign_keys fix, migration strategy"}

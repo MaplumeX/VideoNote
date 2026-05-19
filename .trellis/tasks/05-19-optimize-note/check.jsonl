@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec compliance check — component patterns, directory structure"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify TimestampBadge preserved in editor, react-markdown patterns maintained"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality gate — lint, typecheck, testing"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify tag/folder/favorites state follows project conventions"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript type coverage check for new features"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec compliance check — API patterns, error handling"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify DDL naming, migration pattern, PRAGMA foreign_keys fix, FK constraints"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify new API endpoints follow error response conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality gate — lint, typecheck, testing"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify frontend-backend contract alignment for new APIs"}
+{"file": ".trellis/tasks/05-19-optimize-note/research/wysiwyg-editor.md", "reason": "Verify editor choice matches research findings (CJK, Markdown roundtrip, bundle size)"}
+{"file": ".trellis/tasks/05-19-optimize-note/research/markdown-enhancement.md", "reason": "Verify plugin stack matches research recommendations (Shiki, rehype-slug, KaTeX, lazy Mermaid)"}
+{"file": ".trellis/tasks/05-19-optimize-note/research/tags-folders-schema.md", "reason": "Verify schema matches proposed DDL, API endpoints match design, migration is additive"}
