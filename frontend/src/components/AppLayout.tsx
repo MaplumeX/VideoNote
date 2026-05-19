@@ -3,6 +3,7 @@ import { Outlet } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
 import { Sidebar } from "./Sidebar";
+import { ThemeProvider } from "@/hooks/useTheme";
 import { getAccessToken } from "@/auth/token";
 
 export function AppLayout() {
@@ -10,6 +11,7 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
+    <ThemeProvider>
     <div className="min-h-screen bg-background flex">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -33,6 +35,7 @@ export function AppLayout() {
         </main>
       </div>
     </div>
+    </ThemeProvider>
   );
 }
 

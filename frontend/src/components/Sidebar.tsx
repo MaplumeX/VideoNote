@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router";
-import { Plus, FileText, Settings, Globe, LogOut, X } from "lucide-react";
+import { Plus, FileText, Settings, Globe, LogOut, X, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/hooks/useTheme";
 import { clearAuth } from "@/auth/token";
 
 interface SidebarProps {
@@ -14,6 +15,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const appLanguage = i18n.resolvedLanguage === "zh-CN" ? "zh-CN" : "en";
+  const { theme, toggleTheme } = useTheme();
 
   const navItems = [
     { path: "/app/new", icon: Plus, label: t("sidebar.newNote") },
@@ -86,6 +88,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Bottom section */}
         <div className="border-t border-border px-2 py-3 space-y-0.5">
+          <button
+            onClick={toggleTheme}
+            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+          >
+            {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+            {theme === "light" ? t("theme.dark") : t("theme.light")}
+          </button>
           <button
             onClick={toggleLang}
             className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
