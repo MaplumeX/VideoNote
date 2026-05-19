@@ -126,13 +126,27 @@ async def get_user_tasks(user_id: str, limit: int = 20, offset: int = 0) -> list
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT job_id, stage, progress, message, created_at, updated_at, "
-            "video_url, file_name, platform, language, source_type "
+            "video_url, file_name, platform, language, source_type, result_json "
             "FROM tasks WHERE user_id = ? ORDER BY created_at DESC "
             "LIMIT ? OFFSET ?",
             (user_id, limit, offset),
         )
         rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
+        result = []
+        for row in rows:
+            d = dict(row)
+            # Extract title from result_json if available
+            title = None
+            if d.get("result_json"):
+                try:
+                    parsed = json.loads(d["result_json"])
+                    title = parsed.get("title")
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            d["title"] = title
+            del d["result_json"]  # Don't return full result_json in list API
+            result.append(d)
+        return result
 
 
 async def count_user_tasks(user_id: str) -> int:

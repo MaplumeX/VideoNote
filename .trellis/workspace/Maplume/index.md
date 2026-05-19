@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
+- **Total Sessions**: 14
 - **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~417 | Active |
+| `journal-1.md` | ~450 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-05-19 | Refactor UI from tool to software feel | `eba1d4f` | `Feat/online-software-look` |
 | 13 | 2026-05-19 | Fix Bilibili yt-dlp audio download FileNotFoundError | `ea25d86` | `main` |
 | 12 | 2026-05-19 | Fix auth refresh: silent refresh on app startup | `adbc91b`, `a67ba7e` | `Feat/fix-auth-persist-login` |
 | 10 | 2026-05-18 | Enhance task features: delete, retry, cancel, pagination, metadata | `f2bc5ac` | `Feat/enhance-task-feature` |

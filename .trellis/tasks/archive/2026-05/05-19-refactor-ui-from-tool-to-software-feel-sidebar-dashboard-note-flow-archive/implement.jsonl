@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "侧边栏/Dashboard/卡片组件需遵循前端组件规范"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "新组件文件放置位置需符合目录结构规范"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "SSE 进度恢复涉及跨页面状态持久化策略"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "useSSE/useVideoUpload hook 迁移和复用需遵循 hook 规范"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "路由参数和 API 响应类型需保持类型安全"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "实现需满足前端质量标准"}

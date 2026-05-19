@@ -4,7 +4,9 @@ import { createBrowserRouter, RouterProvider, redirect } from "react-router";
 import "./index.css";
 import "./i18n";
 
-import { VideoNoteApp } from "./App";
+import { DashboardPage } from "./pages/DashboardPage";
+import { NewNotePage } from "./pages/NewNotePage";
+import { NoteDetailPage } from "./pages/NoteDetailPage";
 import { AppLayout, authLoader } from "./components/AppLayout";
 import { LoginPage, loginAction } from "./pages/LoginPage";
 import { RegisterPage, registerAction } from "./pages/RegisterPage";
@@ -40,7 +42,9 @@ async function bootstrap() {
       loader: authLoader,
       Component: AppLayout,
       children: [
-        { index: true, Component: VideoNoteApp },
+        { index: true, Component: DashboardPage },
+        { path: "new", Component: NewNotePage },
+        { path: "notes/:id", Component: NoteDetailPage },
         { path: "history", Component: HistoryPage },
         { path: "settings", Component: SettingsPage },
       ],

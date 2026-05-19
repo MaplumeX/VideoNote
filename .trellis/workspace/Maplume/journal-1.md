@@ -415,3 +415,36 @@ Fix yt-dlp Bilibili audio download failure: check download() return code, overri
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: Refactor UI from tool to software feel
+
+**Date**: 2026-05-19
+**Task**: Refactor UI from tool to software feel
+**Branch**: `Feat/online-software-look`
+
+### Summary
+
+Replaced single-page tool layout with multi-route software experience: sidebar navigation, dashboard homepage, independent note creation/detail flow with SSE progress recovery, and card-based history archive. Backend: added title field to TaskListItem parsed from result_json. Frontend: new Sidebar, DashboardPage, NewNotePage, NoteDetailPage; rewrote AppLayout and HistoryPage; removed dead VideoNoteApp.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `eba1d4f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
