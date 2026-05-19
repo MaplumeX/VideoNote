@@ -19,6 +19,20 @@
 
 React StrictMode renders twice. setState in render body = infinite loop.
 
+### Don't: Call hooks after conditional returns
+
+React's Rules of Hooks require consistent call order. All hooks (`useState`, `useMemo`, `useEffect`, etc.) must be called before any conditional `return`.
+
+```tsx
+// BAD — hook called after conditional return
+if (!data) return null;
+const memo = useMemo(() => compute(data), [data]); // violates Rules of Hooks
+
+// GOOD — all hooks before conditionals
+const memo = useMemo(() => compute(data), [data]);
+if (!data) return null;
+```
+
 ### Don't: Spread unknown props to native DOM elements
 
 react-markdown, Radix, etc. pass extra props (`node`, `index`, `asChild`) that are not valid HTML attributes. Destructure only what you need.
