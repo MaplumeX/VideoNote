@@ -65,6 +65,7 @@ export interface TaskItem {
   progress: number;
   message: string;
   created_at: string;
+  title: string | null;
   video_url: string | null;
   file_name: string | null;
   platform: string | null;

@@ -68,6 +68,19 @@
     "next": "Next",
     "pageInfo": "Page {{page}} of {{totalPages}}"
   },
+  "sidebar": {
+    "newNote": "New Note",
+    "history": "History",
+    "settings": "Settings"
+  },
+  "note": {
+    "untitled": "Untitled Note"
+  },
+  "dashboard": {
+    "newNote": "New Video Note",
+    "recentNotes": "Recent Notes",
+    "empty": "No notes yet"
+  },
   "settings": {
     "title": "Settings",
     "asrConfig": "Speech-to-Text (ASR)",

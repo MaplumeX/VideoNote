@@ -69,6 +69,7 @@ class TaskListItem(BaseModel):
     progress: float
     message: str
     created_at: str
+    title: str | None = None
     video_url: str | None = None
     file_name: str | None = None
     platform: str | None = None
