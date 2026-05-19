@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fetchResult, fetchTags, fetchFolderTree, fetchTaskById, fetchNoteTags, addTagsToNote, removeTagFromNote, moveNoteToFolder, toggleFavorite, updateNoteContent } from "@/api/client";
 import { useSSE } from "@/hooks/useSSE";
-import { ProgressBar } from "@/components/ProgressBar";
+import { StepIndicator } from "@/components/StepIndicator";
 import { NotePreview } from "@/components/NotePreview";
 import { NoteEditor } from "@/components/NoteEditor";
 import { TableOfContents } from "@/components/TableOfContents";
@@ -268,8 +268,8 @@ export function NoteDetailPage() {
 
   if (processing) {
     return (
-      <div className="max-w-xl mx-auto space-y-6">
-        <ProgressBar progress={progress} />
+      <div className="flex justify-center pt-12">
+        <StepIndicator stage={progress?.stage ?? null} progress={progress?.progress ?? 0} />
       </div>
     );
   }

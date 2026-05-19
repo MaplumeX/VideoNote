@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import { VideoInput } from "@/components/VideoInput";
-import { ProgressBar } from "@/components/ProgressBar";
+import { StepIndicator } from "@/components/StepIndicator";
 import { useSSE } from "@/hooks/useSSE";
 import { useVideoUpload } from "@/hooks/useVideoUpload";
 import { submitUrl } from "@/api/client";
@@ -65,7 +65,13 @@ export function NewNotePage() {
   };
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
+    <div className="max-w-lg mx-auto space-y-8">
+      {/* Hero */}
+      <div className="text-center space-y-2 pt-4">
+        <h1 className="text-3xl font-bold tracking-tight">{t("app.title")}</h1>
+        <p className="text-muted-foreground">{t("app.subtitle")}</p>
+      </div>
+
       {error && (
         <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
           {error}
@@ -75,17 +81,11 @@ export function NewNotePage() {
       {!isProcessing ? (
         <VideoInput onSubmitUrl={handleUrlSubmit} onUploadFile={handleFileUpload} />
       ) : (
-        <div className="space-y-6">
+        <div className="flex justify-center pt-8">
           {uploading ? (
-            <ProgressBar
-              progress={{
-                stage: "downloading",
-                progress: uploadProgress,
-                message: "",
-              }}
-            />
+            <StepIndicator stage="downloading" progress={uploadProgress} />
           ) : (
-            <ProgressBar progress={progress} />
+            <StepIndicator stage={progress?.stage ?? null} progress={progress?.progress ?? 0} />
           )}
         </div>
       )}

@@ -564,7 +564,18 @@ Implemented 4 PRs: (1) backend tags/folders/favorites CRUD API + DB schema, (2) 
 - None - task complete
 
 
-## Session 19: 优化历史界面 UI 布局
+## Session 19: Optimize new note page UI
+
+**Date**: 2026-05-19
+**Task**: Optimize new note page UI
+**Branch**: `style/optimize-new-note-ui`
+
+### Summary
+
+Optimized new note page: added hero section, merged URL+upload into single view, enriched drag zone visuals, replaced progress bar with 3-step indicator, synced NoteDetailPage progress display.
+
+
+## Session 20: 优化历史界面 UI 布局
 
 **Date**: 2026-05-19
 **Task**: 优化历史界面 UI 布局
@@ -582,9 +593,7 @@ History page UI overhaul: view toggle (card/list), search with debounce, sort by
 
 | Hash | Message |
 |------|---------|
-| `cbfb508` | (see git log) |
-| `cf31fa4` | (see git log) |
-| `23bd180` | (see git log) |
+| `a6404fc` | (see git log) |
 
 ### Testing
 

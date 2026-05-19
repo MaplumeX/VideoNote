@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 19
+- **Total Sessions**: 20
 - **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,9 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~599 | Active |
+<<<<<<< HEAD
+| `journal-1.md` | ~634 | Active |
+>>>>>>> origin/main
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,7 +31,10 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
-| 19 | 2026-05-19 | 优化历史界面 UI 布局 | `cbfb508`, `cf31fa4`, `23bd180` | `style/optimize-history-ui` |
+<<<<<<< HEAD
+| 20 | 2026-05-19 | 优化历史界面 UI 布局 | `cbfb508`, `cf31fa4`, `23bd180` | `style/optimize-history-ui` |
+| 19 | 2026-05-19 | Optimize new note page UI | `a6404fc` | `style/optimize-new-note-ui` |
+>>>>>>> origin/main
 | 18 | 2026-05-19 | Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview | `6613e19`, `e040b13`, `dae0ad6` | `Feat/optimize-md-preview` |
 | 17 | 2026-05-19 | Fix UI quality issues | `0247ec2` | `Feat/fix-ui-layout-and-menus` |
 | 16 | 2026-05-19 | Polish frontend UI with shadcn/ui, dark mode, and layout fix | `00f1cbd`, `86f3d3c` | `Feat/optimize-frontend-ui` |

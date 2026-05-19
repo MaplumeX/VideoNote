@@ -10,7 +10,8 @@
     "process": "处理",
     "dropHere": "拖放视频到这里...",
     "dragOrBrowse": "拖放视频文件，或点击选择",
-    "supportedFormats": "MP4、WebM、MKV 等"
+    "supportedFormats": "MP4、WebM、MKV 等",
+    "orDivider": "或"
   },
   "progress": {
     "uploading": "正在上传视频... {{percent}}%",
@@ -174,5 +175,11 @@
   "mermaid": {
     "loading": "加载图表...",
     "error": "图表渲染失败"
+  },
+  "steps": {
+    "download": "下载",
+    "transcribe": "转录",
+    "generate": "生成笔记",
+    "inProgress": "处理中 {{percent}}%"
   }
 }
