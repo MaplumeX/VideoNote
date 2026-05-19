@@ -21,7 +21,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const navItems = [
     { path: "/app/new", icon: Plus, label: t("sidebar.newNote") },
     { path: "/app/history", icon: FileText, label: t("sidebar.history") },
-    { path: "/app/settings", icon: Settings, label: t("sidebar.settings") },
   ];
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + "/");
@@ -96,6 +95,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           >
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             {theme === "dark" ? t("theme.light") : t("theme.dark")}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => { navigate("/app/settings"); onClose(); }}
+            className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+          >
+            <Settings size={18} />
+            {t("sidebar.settings")}
           </Button>
           <Button
             variant="ghost"
