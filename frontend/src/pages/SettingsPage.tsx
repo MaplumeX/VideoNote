@@ -7,8 +7,9 @@ import type {
   SettingsResponse,
   ProviderConfig,
 } from "@/types";
-import { Mic, Brain, Save, Settings } from "lucide-react";
+import { Mic, Brain, Save, Settings, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SUPPORTED_LANGS } from "@/i18n";
 
 interface ConfigFormState {
   provider: string;
@@ -90,11 +91,6 @@ function ProviderConfigSection({
     }
   };
 
-  const inputClass =
-    "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-colors";
-  const labelClass = "block text-sm font-medium mb-1.5";
-  const selectClass =
-    "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-colors appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20d%3D%22M3%204.5L6%208l3-3.5%22%20fill%3D%22none%22%20stroke%3D%22%23666%22%20stroke-width%3D%221.5%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px] bg-[right_12px_center] bg-no-repeat pr-8";
 
   return (
     <div className="rounded-lg border border-border p-6 space-y-4">
@@ -208,8 +204,19 @@ function buildPayload(form: ConfigFormState): ProviderConfig | null {
   };
 }
 
+const LANG_LABELS: Record<string, string> = {
+  en: "English",
+  "zh-CN": "中文",
+};
+
+const labelClass = "block text-sm font-medium mb-1.5";
+const inputClass =
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-colors";
+const selectClass =
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-colors appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20d%3D%22M3%204.5L6%208l3-3.5%22%20fill%3D%22none%22%20stroke%3D%22%23666%22%20stroke-width%3D%221.5%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px] bg-[right_12px_center] bg-no-repeat pr-8";
+
 export function SettingsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [providers, setProviders] = useState<ProvidersResponse | null>(null);
   const [asrForm, setAsrForm] = useState<ConfigFormState>({ ...emptyConfig });
@@ -288,6 +295,28 @@ export function SettingsPage() {
           {message.text}
         </div>
       )}
+
+      {/* Language */}
+      <div className="rounded-lg border border-border p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <Globe size={18} className="text-muted-foreground" />
+          <h3 className="text-base font-semibold">{t("settings.language")}</h3>
+        </div>
+        <div>
+          <label className={labelClass}>{t("settings.language")}</label>
+          <select
+            value={i18n.resolvedLanguage ?? "en"}
+            onChange={(e) => void i18n.changeLanguage(e.target.value)}
+            className={selectClass}
+          >
+            {SUPPORTED_LANGS.map((lang) => (
+              <option key={lang} value={lang}>
+                {LANG_LABELS[lang] ?? lang}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <ProviderConfigSection
         title={t("settings.asrConfig")}

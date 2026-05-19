@@ -83,6 +83,7 @@
   },
   "settings": {
     "title": "设置",
+    "language": "语言",
     "asrConfig": "语音转写 (ASR)",
     "llmConfig": "笔记生成 (LLM)",
     "provider": "服务商",
