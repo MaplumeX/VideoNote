@@ -9,8 +9,6 @@ import {
   FolderOpen,
   X,
   Plus,
-  Pencil,
-  Eye,
   Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +16,6 @@ import { cn } from "@/lib/utils";
 import { fetchResult, fetchTags, fetchFolderTree, fetchTaskById, fetchNoteTags, addTagsToNote, removeTagFromNote, moveNoteToFolder, toggleFavorite, updateNoteContent } from "@/api/client";
 import { useSSE } from "@/hooks/useSSE";
 import { StepIndicator } from "@/components/StepIndicator";
-import { NotePreview } from "@/components/NotePreview";
 import { NoteEditor } from "@/components/NoteEditor";
 import { TableOfContents } from "@/components/TableOfContents";
 import type { NoteResult, Tag as TagType, TagWithCount, FolderTreeNode } from "@/types";
@@ -40,17 +37,13 @@ export function NoteDetailPage() {
   const [allTags, setAllTags] = useState<TagWithCount[]>([]);
   const [folderTree, setFolderTree] = useState<FolderTreeNode[]>([]);
 
-  // Edit mode state
-  const [mode, setMode] = useState<"preview" | "edit">("preview");
   const [editMarkdown, setEditMarkdown] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Ref for TOC
   const previewRef = useRef<HTMLDivElement>(null);
 
   const { progress, result: sseResult, error: sseError } = useSSE(processing && jobId ? jobId : null);
 
-  // Derived: whether there are unsaved changes
   const hasUnsavedChanges = note !== null && editMarkdown !== note.markdown;
 
   useEffect(() => {
@@ -74,7 +67,6 @@ export function NoteDetailPage() {
       });
   }, [jobId]);
 
-  // Load note tags, folder info, and available tags/folders
   useEffect(() => {
     if (!jobId) return;
 
@@ -97,7 +89,6 @@ export function NoteDetailPage() {
     fetchFolderTree().then(setFolderTree).catch(() => {});
   }, [jobId]);
 
-  // Update folder name when folderId or folderTree changes
   useEffect(() => {
     if (!folderId) {
       setFolderName(null);
@@ -147,7 +138,6 @@ export function NoteDetailPage() {
     }
   }, [sseError, processing]);
 
-  // Save handler
   const handleSave = useCallback(async () => {
     if (!jobId || !hasUnsavedChanges || saving) return;
     setSaving(true);
@@ -160,29 +150,18 @@ export function NoteDetailPage() {
     }
   }, [jobId, editMarkdown, hasUnsavedChanges, saving]);
 
-  // Ctrl/Cmd+S shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        if (mode === "edit" && hasUnsavedChanges) {
+        if (hasUnsavedChanges) {
           handleSave();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, hasUnsavedChanges, handleSave]);
-
-  const enterEditMode = () => {
-    if (note) setEditMarkdown(note.markdown);
-    setMode("edit");
-  };
-
-  const enterPreviewMode = () => {
-    if (note) setEditMarkdown(note.markdown);
-    setMode("preview");
-  };
+  }, [hasUnsavedChanges, handleSave]);
 
   const handleDownload = () => {
     if (!note) return;
@@ -277,68 +256,49 @@ export function NoteDetailPage() {
   if (!note) return null;
 
   return (
-    <div className="space-y-4">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/app/history" className="hover:text-foreground transition-colors">
-          {t("sidebar.history")}
-        </Link>
-        <ChevronRight size={14} />
-        <span className="text-foreground truncate">{note.title || t("note.untitled")}</span>
-      </div>
+    <div className="flex gap-6 h-full">
+      {/* Left sidebar — actions, tags, folder */}
+      <aside className="w-56 shrink-0 space-y-5 sticky top-0 self-start">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Link to="/app/history" className="hover:text-foreground transition-colors">
+            {t("sidebar.history")}
+          </Link>
+          <ChevronRight size={14} />
+          <span className="text-foreground truncate">{note.title || t("note.untitled")}</span>
+        </div>
 
-      {/* Action bar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {mode === "preview" ? (
-          <Button onClick={enterEditMode} className="gap-2">
-            <Pencil size={16} />
-            {t("noteDetail.edit")}
+        {/* Actions */}
+        <div className="space-y-2">
+          <Button
+            onClick={handleSave}
+            disabled={!hasUnsavedChanges || saving}
+            className="w-full gap-2"
+          >
+            <Save size={16} />
+            {saving ? t("noteDetail.saving") : t("noteDetail.save")}
           </Button>
-        ) : (
-          <>
-            <Button
-              variant="outline"
-              onClick={enterPreviewMode}
-              className="gap-2"
-            >
-              <Eye size={16} />
-              {t("noteDetail.preview")}
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!hasUnsavedChanges || saving}
-              className="gap-2"
-            >
-              <Save size={16} />
-              {saving ? t("noteDetail.saving") : t("noteDetail.save")}
-            </Button>
-            {hasUnsavedChanges && (
-              <span className="text-xs text-muted-foreground">{t("noteDetail.unsaved")}</span>
-            )}
-          </>
-        )}
+          {hasUnsavedChanges && (
+            <p className="text-xs text-muted-foreground text-center">{t("noteDetail.unsaved")}</p>
+          )}
+          <Button
+            variant="outline"
+            onClick={handleDownload}
+            className="w-full gap-2"
+          >
+            <Download size={16} />
+            {t("result.downloadMarkdown")}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleToggleFavorite}
+            className={cn("w-full gap-2", isFavorite && "text-yellow-500")}
+          >
+            <Star size={16} className={isFavorite ? "fill-current" : ""} />
+            {isFavorite ? t("noteDetail.unfavorite") : t("noteDetail.favorite")}
+          </Button>
+        </div>
 
-        <Button
-          variant="outline"
-          onClick={handleDownload}
-          className="gap-2"
-        >
-          <Download size={16} />
-          {t("result.downloadMarkdown")}
-        </Button>
-
-        <Button
-          variant="outline"
-          onClick={handleToggleFavorite}
-          className={cn("gap-2", isFavorite && "text-yellow-500")}
-        >
-          <Star size={16} className={isFavorite ? "fill-current" : ""} />
-          {isFavorite ? t("noteDetail.unfavorite") : t("noteDetail.favorite")}
-        </Button>
-      </div>
-
-      {/* Tags and folder section */}
-      <div className="flex items-start gap-4 flex-wrap">
         {/* Tags */}
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
@@ -354,8 +314,8 @@ export function NoteDetailPage() {
                 className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-0.5 text-xs"
               >
                 <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: tag.color || "#6b7280" }}
+                  className="w-2 h-2 rounded-full shrink-0 bg-[var(--tag-color)]"
+                  style={{ "--tag-color": tag.color || "#6b7280" } as React.CSSProperties}
                 />
                 {tag.name}
                 <button
@@ -395,8 +355,8 @@ export function NoteDetailPage() {
                           className="w-full text-left flex items-center gap-2 px-2 py-1 text-xs hover:bg-muted"
                         >
                           <span
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: tag.color || "#6b7280" }}
+                            className="w-2 h-2 rounded-full shrink-0 bg-[var(--tag-color)]"
+                            style={{ "--tag-color": tag.color || "#6b7280" } as React.CSSProperties}
                           />
                           {tag.name}
                         </button>
@@ -429,13 +389,13 @@ export function NoteDetailPage() {
               variant="outline"
               size="sm"
               onClick={() => setFolderPickerOpen(!folderPickerOpen)}
-              className={cn("gap-1.5", folderName ? "text-foreground" : "text-muted-foreground")}
+              className={cn("w-full gap-1.5 justify-start", folderName ? "text-foreground" : "text-muted-foreground")}
             >
               <FolderOpen size={12} />
-              {folderName || t("history.noFolder")}
+              <span className="truncate">{folderName || t("history.noFolder")}</span>
             </Button>
             {folderPickerOpen && (
-              <div className="absolute top-full left-0 mt-1 z-10 w-56 rounded-lg border border-border bg-background shadow-lg py-1 max-h-60 overflow-y-auto">
+              <div className="absolute top-full left-0 mt-1 z-10 w-full rounded-lg border border-border bg-background shadow-lg py-1 max-h-60 overflow-y-auto">
                 <button
                   onClick={() => handleMoveToFolder(null)}
                   className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted"
@@ -448,22 +408,18 @@ export function NoteDetailPage() {
             )}
           </div>
         </div>
-      </div>
+      </aside>
 
-      {/* Note content */}
-      {mode === "preview" ? (
-        <div className="flex gap-6">
-          <div className="flex-1 min-w-0" ref={previewRef}>
-            <NotePreview markdown={note.markdown} />
-          </div>
-          <TableOfContents containerRef={previewRef} contentKey={note.markdown} />
-        </div>
-      ) : (
+      {/* Center — Milkdown editor */}
+      <div className="flex-1 min-w-0" ref={previewRef}>
         <NoteEditor
           markdown={editMarkdown}
           onChange={setEditMarkdown}
         />
-      )}
+      </div>
+
+      {/* Right — TOC */}
+      <TableOfContents containerRef={previewRef} contentKey={editMarkdown} />
     </div>
   );
 }
@@ -477,8 +433,8 @@ function renderFolderNodes(
     <div key={node.id}>
       <button
         onClick={() => onPick(node.id)}
-        className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted"
-        style={{ paddingLeft: `${depth * 16 + 12}px` }}
+        className="w-full text-left flex items-center gap-2 py-1.5 text-sm hover:bg-muted pl-[var(--depth-pad)]"
+        style={{ "--depth-pad": `${depth * 16 + 12}px` } as React.CSSProperties}
       >
         <FolderOpen size={14} className="shrink-0" />
         {node.name}

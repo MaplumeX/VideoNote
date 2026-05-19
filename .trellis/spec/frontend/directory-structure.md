@@ -18,7 +18,9 @@ frontend/
 │   │   ├── StatusBadge.tsx  # Shared task status badge (active/complete/failed)
 │   │   ├── VideoInput.tsx    # URL input + file upload (react-dropzone)
 │   │   ├── ProgressBar.tsx   # SSE-driven progress display
-│   │   ├── NoteView.tsx      # Markdown note renderer (react-markdown)
+│   │   ├── NoteEditor.tsx    # Milkdown WYSIWYG editor (slash commands, timestamp badges)
+│   │   ├── milkdown-katex.ts # KaTeX math plugins (inline + block $node/$view/$inputRule)
+│   │   ├── milkdown-mermaid.ts # Mermaid diagram plugin ($node/$view/$remark)
 │   │   └── ui/               # shadcn/ui primitives
 │   │       ├── badge.tsx
 │   │       ├── button.tsx
@@ -66,7 +68,7 @@ frontend/
 
 ## Module Organization
 
-- **`components/`**: React components, one per file. Feature components alongside shadcn/ui primitives in `ui/`. Layout: `AppLayout` (h-screen flex) + `Sidebar` (fixed, full-height). Shared: `StatusBadge`.
+- **`components/`**: React components, one per file. Feature components alongside shadcn/ui primitives in `ui/`. Layout: `AppLayout` (h-screen flex) + `Sidebar` (fixed, full-height). Shared: `StatusBadge`. Note editing: `NoteEditor` (Milkdown WYSIWYG) + `milkdown-katex.ts` / `milkdown-mermaid.ts` (custom ProseMirror node plugins).
 - **`pages/`**: Route-level page components. Auth pages include route `action` functions for form handling. Dashboard/History/Settings use shadcn/ui components (Button, Card, Select, Badge).
 - **`hooks/`**: Custom hooks. One hook per concern (SSE, upload). No global state hooks.
 - **`auth/`**: Auth infrastructure. `token.ts` stores access token in memory; `api.ts` provides `authFetch` with automatic 401 refresh.
