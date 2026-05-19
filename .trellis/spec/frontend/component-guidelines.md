@@ -33,7 +33,16 @@ import { cn } from "@/lib/utils";
 <div className={cn("rounded-lg border p-4", isActive && "border-blue-500")} />
 ```
 
-shadcn/ui components in `components/ui/` — install via CLI, don't hand-write.
+shadcn/ui components in `components/ui/` — install via CLI, don't hand-write. Available: `Button`, `Input`, `Select`, `Card`, `Badge`, `Separator`, `DropdownMenu`.
+
+Use shadcn/ui components for all interactive elements:
+- Buttons → `<Button variant="...">` (default, outline, ghost, destructive)
+- Inputs → `<Input>` (replaces raw `<input>`)
+- Selects → `<Select>/<SelectTrigger>/<SelectContent>/<SelectItem>` (replaces raw `<select>`)
+- Cards → `<Card>/<CardHeader>/<CardTitle>/<CardContent>`
+- Badges → `<Badge variant="...">` (default, secondary, destructive)
+
+**Dark mode**: Toggle `document.documentElement.classList.toggle("dark")`. Use MutationObserver on `<html>` class attribute for reactive state.
 
 ---
 

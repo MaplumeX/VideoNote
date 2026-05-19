@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { TaskProgress, TaskStage } from "../types";
 import { cn } from "../lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface ProgressBarProps {
   progress: TaskProgress | null;
@@ -29,25 +30,27 @@ export function ProgressBar({ progress }: ProgressBarProps) {
   const stageKey = STAGE_KEY[progress.stage];
 
   return (
-    <div className="w-full max-w-xl mx-auto">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium">
-          {t(stageKey)}
-        </span>
-        <span className={cn("text-sm", isFailed || isCancelled ? "text-destructive" : "text-muted-foreground")}>
-          {isFailed || isCancelled ? "" : `${percentage}%`}
-        </span>
-      </div>
+    <Card className="max-w-xl mx-auto">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">
+            {t(stageKey)}
+          </span>
+          <span className={cn("text-sm", isFailed || isCancelled ? "text-destructive" : "text-muted-foreground")}>
+            {isFailed || isCancelled ? "" : `${percentage}%`}
+          </span>
+        </div>
 
-      <div className="h-2 rounded-full bg-muted overflow-hidden">
-        <div
-          className={cn(
-            "h-full rounded-full transition-all duration-500",
-            isFailed || isCancelled ? "bg-destructive" : isComplete ? "bg-green-500" : "bg-primary"
-          )}
-          style={{ width: isFailed || isCancelled ? "100%" : `${percentage}%` }}
-        />
-      </div>
-    </div>
+        <div className="h-2 rounded-full bg-muted overflow-hidden">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all duration-500",
+              isFailed || isCancelled ? "bg-destructive" : isComplete ? "bg-green-500 dark:bg-green-400" : "bg-primary"
+            )}
+            style={{ width: isFailed || isCancelled ? "100%" : `${percentage}%` }}
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

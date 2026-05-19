@@ -22,14 +22,12 @@ export function NewNotePage() {
 
   const isProcessing = !!jobId;
 
-  // When SSE completes, navigate to note detail
   useEffect(() => {
     if (result && jobId) {
       navigate(`/app/notes/${jobId}`);
     }
   }, [result, jobId, navigate]);
 
-  // When SSE errors, show error
   useEffect(() => {
     if (sseError) {
       setError(t("error.processingFailed"));
@@ -38,7 +36,6 @@ export function NewNotePage() {
     }
   }, [sseError, t, setSearchParams]);
 
-  // When upload errors, show error
   useEffect(() => {
     if (uploadError) {
       setError(uploadError);
@@ -80,19 +77,13 @@ export function NewNotePage() {
       ) : (
         <div className="space-y-6">
           {uploading ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">
-                {t("progress.uploading", {
-                  percent: Math.round(uploadProgress * 100),
-                })}
-              </p>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${uploadProgress * 100}%` }}
-                />
-              </div>
-            </div>
+            <ProgressBar
+              progress={{
+                stage: "downloading",
+                progress: uploadProgress,
+                message: "",
+              }}
+            />
           ) : (
             <ProgressBar progress={progress} />
           )}

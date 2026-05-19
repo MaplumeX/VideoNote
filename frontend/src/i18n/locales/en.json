@@ -76,6 +76,10 @@
   "note": {
     "untitled": "Untitled Note"
   },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark"
+  },
   "dashboard": {
     "newNote": "New Video Note",
     "recentNotes": "Recent Notes",
