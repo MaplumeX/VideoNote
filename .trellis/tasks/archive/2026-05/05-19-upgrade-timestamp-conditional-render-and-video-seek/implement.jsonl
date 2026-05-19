@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "New VideoPlayerFloat component must follow existing component conventions"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Timestamp click + video player open/close state needs consistent state approach"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "New props (video_url, platform, onTimestampClick) need proper typing"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "May need custom hooks for drag/resize behavior on floating player"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Conditional prompt logic should follow existing error handling patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Backend prompt change affects frontend rendering — cross-layer data contract"}
