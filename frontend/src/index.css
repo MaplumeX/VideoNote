@@ -1,9 +1,8 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-
-@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -17,12 +16,6 @@
   --color-primary-foreground: #ffffff;
   --color-destructive: #ef4444;
   --color-accent: #f0f9ff;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: var(--color-background);
-  color: var(--color-foreground);
 }
 
 @theme inline {
@@ -104,6 +97,16 @@ body {
 }
 
 .dark {
+  --color-background: #0a0a0a;
+  --color-foreground: #fafafa;
+  --color-muted: #1c1c1c;
+  --color-muted-foreground: #a3a3a3;
+  --color-border: #262626;
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #ffffff;
+  --color-destructive: #dc2626;
+  --color-accent: #1e293b;
+
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -147,4 +150,69 @@ body {
   html {
     @apply font-sans;
   }
+}
+
+/* Dark mode prose inversion */
+.dark .prose {
+  --tw-prose-body: var(--color-foreground);
+  --tw-prose-headings: var(--color-foreground);
+  --tw-prose-lead: var(--color-muted-foreground);
+  --tw-prose-links: var(--color-primary);
+  --tw-prose-bold: var(--color-foreground);
+  --tw-prose-counters: var(--color-muted-foreground);
+  --tw-prose-bullets: var(--color-muted-foreground);
+  --tw-prose-hr: var(--color-border);
+  --tw-prose-quotes: var(--color-muted-foreground);
+  --tw-prose-quote-borders: var(--color-border);
+  --tw-prose-captions: var(--color-muted-foreground);
+  --tw-prose-code: var(--color-foreground);
+  --tw-prose-pre-code: #e5e5e5;
+  --tw-prose-pre-bg: #1c1c1c;
+  --tw-prose-th-borders: var(--color-border);
+  --tw-prose-td-borders: var(--color-border);
+}
+
+/* Shiki dual theme support */
+.shiki {
+  --shiki-light: #24292e;
+  --shiki-dark: #e1e4e8;
+  background-color: var(--shiki-light-bg, #f6f8fa);
+  color: var(--shiki-light);
+}
+
+.shiki span {
+  color: var(--shiki-light);
+}
+
+.dark .shiki {
+  background-color: var(--shiki-dark-bg, #0d1117);
+  color: var(--shiki-dark);
+}
+
+.dark .shiki span {
+  color: var(--shiki-dark);
+}
+
+/* KaTeX display math centering */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+}
+
+/* Mermaid diagram container */
+.mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Smooth scrolling for TOC navigation */
+html {
+  scroll-behavior: smooth;
 }

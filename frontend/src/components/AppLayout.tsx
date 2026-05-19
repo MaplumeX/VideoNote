@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "./Sidebar";
+import { ThemeProvider } from "@/hooks/useTheme";
 import { getAccessToken } from "@/auth/token";
 
 export function AppLayout() {
@@ -11,6 +12,7 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
+    <ThemeProvider>
     <div className="h-screen flex bg-background">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -37,6 +39,7 @@ export function AppLayout() {
         </main>
       </div>
     </div>
+    </ThemeProvider>
   );
 }
 

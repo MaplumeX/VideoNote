@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 17
+- **Total Sessions**: 18
 - **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~549 | Active |
+| `journal-1.md` | ~560 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 18 | 2026-05-19 | Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview | `6613e19`, `e040b13`, `dae0ad6` | `Feat/optimize-md-preview` |
 | 17 | 2026-05-19 | Fix UI quality issues | `0247ec2` | `Feat/fix-ui-layout-and-menus` |
 | 16 | 2026-05-19 | Polish frontend UI with shadcn/ui, dark mode, and layout fix | `00f1cbd`, `86f3d3c` | `Feat/optimize-frontend-ui` |
 | 15 | 2026-05-19 | Move language switch to Settings page | `79c2551` | `Feat/put-lang-switch-in-settings` |

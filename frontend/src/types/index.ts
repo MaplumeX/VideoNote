@@ -71,6 +71,8 @@ export interface TaskItem {
   platform: string | null;
   language: string | null;
   source_type: string | null;
+  folder_id: string | null;
+  is_favorite: boolean;
 }
 
 export interface TaskListResponse {
@@ -78,4 +80,73 @@ export interface TaskListResponse {
   total: number;
   page: number;
   limit: number;
+}
+
+// --- Tag types ---
+
+export interface Tag {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
+export interface TagWithCount extends Tag {
+  note_count: number;
+}
+
+// --- Folder types ---
+
+export interface Folder {
+  id: string;
+  user_id: string;
+  name: string;
+  parent_id: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FolderTreeNode extends Folder {
+  note_count: number;
+  children: FolderTreeNode[];
+}
+
+// --- Batch / association request types ---
+
+export interface NoteTagAddRequest {
+  tag_ids?: string[];
+  tag_names?: string[];
+}
+
+export interface NoteFolderUpdateRequest {
+  folder_id: string | null;
+}
+
+export interface FavoriteToggleRequest {
+  is_favorite: boolean;
+}
+
+export interface BatchTagRequest {
+  job_ids: string[];
+  tag_id: string;
+}
+
+export interface BatchMoveRequest {
+  job_ids: string[];
+  folder_id: string | null;
+}
+
+export interface BatchFavoriteRequest {
+  job_ids: string[];
+  is_favorite: boolean;
+}
+
+// --- Filter state ---
+
+export interface HistoryFilter {
+  folder?: string;
+  tag?: string;
+  is_favorite?: boolean;
 }

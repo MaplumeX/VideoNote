@@ -75,6 +75,8 @@ class TaskListItem(BaseModel):
     platform: str | None = None
     language: str | None = None
     source_type: str | None = None
+    folder_id: str | None = None
+    is_favorite: bool = False
 
 
 class TaskListResponse(BaseModel):
@@ -120,3 +122,96 @@ class ProviderConfigResponse(BaseModel):
 class SettingsResponse(BaseModel):
     asr: ProviderConfigResponse | None = None
     llm: ProviderConfigResponse | None = None
+
+
+# Tag schemas
+
+
+class TagCreate(BaseModel):
+    name: str
+    color: str = ""
+
+
+class TagUpdate(BaseModel):
+    name: str | None = None
+    color: str | None = None
+
+
+class TagResponse(BaseModel):
+    id: str
+    user_id: str
+    name: str
+    color: str
+    created_at: str
+
+
+class TagWithCount(TagResponse):
+    note_count: int = 0
+
+
+# Folder schemas
+
+
+class FolderCreate(BaseModel):
+    name: str
+    parent_id: str | None = None
+    sort_order: int = 0
+
+
+class FolderUpdate(BaseModel):
+    name: str | None = None
+    parent_id: str | None = None
+
+
+class FolderResponse(BaseModel):
+    id: str
+    user_id: str
+    name: str
+    parent_id: str | None = None
+    sort_order: int = 0
+    created_at: str
+    updated_at: str
+
+
+class FolderWithChildren(FolderResponse):
+    note_count: int = 0
+    children: list["FolderWithChildren"] = []
+
+
+# Note-Tag association schemas
+
+
+class NoteTagAdd(BaseModel):
+    tag_ids: list[str] = []
+    tag_names: list[str] = []
+
+
+class FavoriteToggle(BaseModel):
+    is_favorite: bool
+
+
+class NoteFolderUpdate(BaseModel):
+    folder_id: str | None = None
+
+
+class NoteContentUpdate(BaseModel):
+    markdown: str
+    title: str | None = None
+
+
+# Batch operation schemas
+
+
+class BatchTagRequest(BaseModel):
+    job_ids: list[str]
+    tag_id: str
+
+
+class BatchMoveRequest(BaseModel):
+    job_ids: list[str]
+    folder_id: str | None = None
+
+
+class BatchFavoriteRequest(BaseModel):
+    job_ids: list[str]
+    is_favorite: bool

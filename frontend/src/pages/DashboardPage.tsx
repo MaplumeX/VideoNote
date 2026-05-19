@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { authFetch } from "@/auth/api";
-import { Plus, FileText, Globe, FileVideo } from "lucide-react";
+import {
+  Plus,
+  FileText,
+  Globe,
+  FileVideo,
+  Star,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge, isActiveTask } from "@/components/StatusBadge";
-import type { TaskListResponse, TaskItem } from "@/types";
+import { fetchTasks } from "@/api/client";
+import type { TaskItem } from "@/types";
 
 function SourceIcon({ task }: { task: TaskItem }) {
   if (task.source_type === "url" && task.platform) {
@@ -23,13 +29,12 @@ export function DashboardPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [favoriteTasks, setFavoriteTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadRecent = useCallback(async () => {
     try {
-      const res = await authFetch("/api/tasks?page=1&limit=5");
-      if (!res.ok) throw new Error("Failed");
-      const data: TaskListResponse = await res.json();
+      const data = await fetchTasks({ page: 1, limit: 5 });
       setTasks(data.items);
     } catch {
       // silent fail for dashboard
@@ -38,12 +43,50 @@ export function DashboardPage() {
     }
   }, []);
 
+  const loadFavorites = useCallback(async () => {
+    try {
+      const data = await fetchTasks({ page: 1, limit: 5, is_favorite: true });
+      setFavoriteTasks(data.items);
+    } catch {
+      // silent fail
+    }
+  }, []);
+
   useEffect(() => {
     void loadRecent();
-  }, [loadRecent]);
+    void loadFavorites();
+  }, [loadRecent, loadFavorites]);
 
   const getDisplayTitle = (task: TaskItem) => {
     return task.title || task.video_url || task.file_name || task.message || task.stage;
+  };
+
+  const TaskRow = ({ task }: { task: TaskItem }) => {
+    const clickable = task.stage === "complete" || isActiveTask(task);
+    const taskFav = task.is_favorite;
+    return (
+      <Card
+        onClick={clickable ? () => navigate(`/app/notes/${task.job_id}`) : undefined}
+        className={cn(
+          "cursor-pointer hover:shadow-sm transition-shadow",
+          !clickable && "cursor-default hover:shadow-none"
+        )}
+      >
+        <CardContent className="flex items-center gap-3 py-3">
+          <SourceIcon task={task} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              {taskFav && <Star size={12} className="text-yellow-500 fill-current shrink-0" />}
+              <p className="text-sm font-medium truncate">{getDisplayTitle(task)}</p>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {new Date(task.created_at).toLocaleDateString()}
+            </p>
+          </div>
+          <StatusBadge task={task} />
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
@@ -60,6 +103,23 @@ export function DashboardPage() {
         </Button>
       </div>
 
+      {/* Favorites section */}
+      {favoriteTasks.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Star size={16} className="text-yellow-500 fill-current" />
+            <h2 className="text-sm font-medium text-muted-foreground">
+              {t("dashboard.favorites")}
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {favoriteTasks.map((task) => (
+              <TaskRow key={task.job_id} task={task} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Recent notes */}
       <div>
         <h2 className="text-sm font-medium text-muted-foreground mb-3">
@@ -67,42 +127,19 @@ export function DashboardPage() {
         </h2>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
+          <div className="flex items-center justify-center py-8">
             <p className="text-sm text-muted-foreground">{t("history.loading")}</p>
           </div>
         ) : tasks.length === 0 ? (
-          <div className="text-center py-12">
-            <FileText size={48} className="mx-auto text-muted-foreground/30" />
-            <p className="mt-4 text-sm text-muted-foreground">{t("dashboard.empty")}</p>
+          <div className="text-center py-8">
+            <FileText size={36} className="mx-auto text-muted-foreground/40" />
+            <p className="mt-3 text-sm text-muted-foreground">{t("dashboard.empty")}</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {tasks.map((task) => {
-              const clickable = task.stage === "complete" || isActiveTask(task);
-              return (
-                <Card
-                  key={task.job_id}
-                  onClick={clickable ? () => navigate(`/app/notes/${task.job_id}`) : undefined}
-                  className={cn(
-                    "cursor-pointer hover:shadow-sm transition-shadow",
-                    !clickable && "cursor-default hover:shadow-none"
-                  )}
-                >
-                  <CardContent className="flex items-center gap-3 py-3">
-                    <SourceIcon task={task} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {getDisplayTitle(task)}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {new Date(task.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <StatusBadge task={task} />
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {tasks.map((task) => (
+              <TaskRow key={task.job_id} task={task} />
+            ))}
           </div>
         )}
       </div>
