@@ -120,7 +120,7 @@ function ProviderConfigSection({
             <SelectTrigger className="w-full">
               <SelectValue placeholder={t("settings.provider")} />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent align="start" alignItemWithTrigger={false}>
               {presets.map((p) => (
                 <SelectItem key={p.provider} value={p.provider}>
                   {p.provider}
@@ -152,7 +152,7 @@ function ProviderConfigSection({
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={t("settings.model")} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="start" alignItemWithTrigger={false}>
                 {models.map((m) => (
                   <SelectItem key={m} value={m}>
                     {m}
@@ -314,9 +314,11 @@ export function SettingsPage() {
             onValueChange={(v) => { if (v) void i18n.changeLanguage(v); }}
           >
             <SelectTrigger className="w-full">
-              <SelectValue />
+              <SelectValue placeholder={t("settings.language")}>
+                {LANG_LABELS[i18n.resolvedLanguage ?? "en"] ?? i18n.resolvedLanguage}
+              </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent align="start" alignItemWithTrigger={false}>
               {SUPPORTED_LANGS.map((lang) => (
                 <SelectItem key={lang} value={lang}>
                   {LANG_LABELS[lang] ?? lang}

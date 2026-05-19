@@ -517,7 +517,18 @@ Moved language toggle from sidebar click-button to a dropdown select in Settings
 - None - task complete
 
 
-## Session 17: Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview
+## Session 17: Fix UI quality issues
+
+**Date**: 2026-05-19
+**Task**: Fix UI quality issues
+**Branch**: `Feat/fix-ui-layout-and-menus`
+
+### Summary
+
+Fixed 4 UI quality issues: sidebar overlapping main content on desktop, language selector showing raw value code instead of display label, Select dropdown menus misaligned on mobile, and missing @tailwindcss/typography plugin causing unstyled markdown in NoteView.
+
+
+## Session 18: Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview
 
 **Date**: 2026-05-19
 **Task**: Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview
@@ -535,6 +546,7 @@ Implemented 4 PRs: (1) backend tags/folders/favorites CRUD API + DB schema, (2) 
 
 | Hash | Message |
 |------|---------|
+| `0247ec2` | (see git log) |
 | `6613e19` | (see git log) |
 | `e040b13` | (see git log) |
 | `dae0ad6` | (see git log) |
