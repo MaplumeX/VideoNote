@@ -205,6 +205,9 @@ async def get_user_tasks(
     tag_id: str | None = None,
     is_favorite: bool | None = None,
     folder_null: bool = False,
+    search: str | None = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
 ) -> list[dict]:
     """Get tasks for a user with pagination and optional filters, newest first."""
     db = await _get_db()
@@ -236,8 +239,22 @@ async def get_user_tasks(
             conditions.append("t.is_favorite = ?")
             params.append(1 if is_favorite else 0)
 
+        if search is not None:
+            conditions.append("(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ?)")
+            like = f"%{search}%"
+            params.extend([like, like, like])
+
+        allowed_sort = {"created_at", "title", "stage"}
+        if sort_by == "title":
+            sort_expr = "t.created_at"  # title is extracted from result_json, fallback to created_at
+        elif sort_by in allowed_sort:
+            sort_expr = f"t.{sort_by}"
+        else:
+            sort_expr = "t.created_at"
+        order_dir = "ASC" if sort_order.lower() == "asc" else "DESC"
+
         where = " AND ".join(conditions)
-        query = f"{query}{joins} WHERE {where} ORDER BY t.created_at DESC LIMIT ? OFFSET ?"
+        query = f"{query}{joins} WHERE {where} ORDER BY {sort_expr} {order_dir} LIMIT ? OFFSET ?"
 
         if tag_id is not None:
             query = f"SELECT DISTINCT * FROM ({query})"
@@ -271,6 +288,7 @@ async def count_user_tasks(
     tag_id: str | None = None,
     is_favorite: bool | None = None,
     folder_null: bool = False,
+    search: str | None = None,
 ) -> int:
     """Count total tasks for a user with optional filters."""
     db = await _get_db()
@@ -296,6 +314,11 @@ async def count_user_tasks(
         if is_favorite is not None:
             conditions.append("t.is_favorite = ?")
             params.append(1 if is_favorite else 0)
+
+        if search is not None:
+            conditions.append("(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ?)")
+            like = f"%{search}%"
+            params.extend([like, like, like])
 
         where = " AND ".join(conditions)
         query = f"{query}{joins} WHERE {where}"

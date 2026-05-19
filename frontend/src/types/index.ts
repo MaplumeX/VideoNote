@@ -149,4 +149,7 @@ export interface HistoryFilter {
   folder?: string;
   tag?: string;
   is_favorite?: boolean;
+  search?: string;
+  sort_by?: string;
+  sort_order?: string;
 }

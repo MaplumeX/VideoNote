@@ -76,7 +76,22 @@
     "batchUnfavorite": "Unfavorite",
     "noTags": "No tags",
     "noFolder": "Uncategorized",
-    "actionFailed": "Action failed"
+    "actionFailed": "Action failed",
+    "search": "Search notes...",
+    "viewCard": "Card view",
+    "viewList": "List view",
+    "sortDate": "Date",
+    "sortTitle": "Title",
+    "sortAsc": "Ascending",
+    "sortDesc": "Descending",
+    "filter": "Filter",
+    "openFilter": "Open filters",
+    "batchDelete": "Delete",
+    "select": "Select",
+    "title": "Title",
+    "source": "Source",
+    "date": "Date",
+    "status": "Status"
   },
   "sidebar": {
     "newNote": "New Note",

@@ -400,6 +400,9 @@ async def list_tasks(
     folder: str | None = None,
     tag: str | None = None,
     is_favorite: bool | None = None,
+    search: str | None = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
 ):
     """List tasks for the current user with pagination and optional filters."""
     if page < 1:
@@ -413,11 +416,12 @@ async def list_tasks(
     tasks = await get_user_tasks(
         user.user_id, limit=limit, offset=offset,
         folder_id=folder_id, tag_id=tag, is_favorite=is_favorite,
-        folder_null=folder_null,
+        folder_null=folder_null, search=search,
+        sort_by=sort_by, sort_order=sort_order,
     )
     total = await count_user_tasks(
         user.user_id, folder_id=folder_id, tag_id=tag, is_favorite=is_favorite,
-        folder_null=folder_null,
+        folder_null=folder_null, search=search,
     )
     return TaskListResponse(
         items=[TaskListItem(**t) for t in tasks],

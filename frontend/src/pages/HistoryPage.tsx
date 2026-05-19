@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import {
@@ -11,20 +11,66 @@ import {
   Star,
   Tag,
   FolderOpen,
-  ChevronDown,
-  PanelLeftClose,
-  PanelLeft,
+  LayoutGrid,
+  List,
+  SlidersHorizontal,
+  ArrowUpDown,
   CheckSquare,
   Square,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { StatusBadge, isActiveTask } from "@/components/StatusBadge";
-import { fetchTasks, fetchTags, fetchFolderTree, toggleFavorite, batchAddTag, batchMoveToFolder, batchSetFavorite } from "@/api/client";
+import {
+  fetchTasks,
+  fetchTags,
+  fetchFolderTree,
+  toggleFavorite,
+  batchAddTag,
+  batchMoveToFolder,
+  batchSetFavorite,
+} from "@/api/client";
 import { ContentSidebar } from "@/components/ContentSidebar";
-import type { TaskListResponse, TaskItem, HistoryFilter, TagWithCount, FolderTreeNode } from "@/types";
+import type {
+  TaskListResponse,
+  TaskItem,
+  HistoryFilter,
+  TagWithCount,
+  FolderTreeNode,
+} from "@/types";
 
 function isRetriable(task: TaskItem): boolean {
   return task.stage === "failed" && task.source_type === "url" && !!task.video_url;
@@ -50,6 +96,41 @@ function SourceBadge({ task }: { task: TaskItem }) {
   return null;
 }
 
+type ViewMode = "card" | "list";
+
+function getStoredViewMode(): ViewMode {
+  try {
+    const stored = localStorage.getItem("history-view-mode");
+    if (stored === "list" || stored === "card") return stored;
+  } catch {
+    // ignore
+  }
+  return "card";
+}
+
+function storeViewMode(mode: ViewMode) {
+  try {
+    localStorage.setItem("history-view-mode", mode);
+  } catch {
+    // ignore
+  }
+}
+
+/** Generate page numbers with ellipsis for pagination */
+function getPageNumbers(current: number, total: number): (number | "ellipsis")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages: (number | "ellipsis")[] = [1];
+  if (current > 3) pages.push("ellipsis");
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  for (let i = start; i <= end; i++) pages.push(i);
+  if (current < total - 2) pages.push("ellipsis");
+  pages.push(total);
+  return pages;
+}
+
 export function HistoryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -60,12 +141,26 @@ export function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [batchMenuOpen, setBatchMenuOpen] = useState(false);
   const [pickerType, setPickerType] = useState<"tag" | "folder" | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const limit = 20;
   const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // View mode: URL param > localStorage > default
+  const viewParam = searchParams.get("view");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    viewParam === "list" ? "list" : viewParam === "card" ? "card" : getStoredViewMode(),
+  );
+
+  // Search debounce
+  const searchParam = searchParams.get("search") || "";
+  const [searchInput, setSearchInput] = useState(searchParam);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Sort: URL params
+  const sortBy = searchParams.get("sort_by") || "";
+  const sortOrder = searchParams.get("sort_order") || "";
 
   // Read filter from URL params
   const filter: HistoryFilter = {};
@@ -75,14 +170,101 @@ export function HistoryPage() {
   if (folderParam) filter.folder = folderParam;
   if (tagParam) filter.tag = tagParam;
   if (favParam === "true") filter.is_favorite = true;
+  if (searchParam) filter.search = searchParam;
+  if (sortBy) filter.sort_by = sortBy;
+  if (sortOrder) filter.sort_order = sortOrder;
+
+  // Resolve tag/folder names for filter pills
+  const [allTags, setAllTags] = useState<TagWithCount[]>([]);
+  const [allFolders, setAllFolders] = useState<FolderTreeNode[]>([]);
+
+  useEffect(() => {
+    fetchTags().then(setAllTags).catch(() => {});
+    fetchFolderTree().then(setAllFolders).catch(() => {});
+  }, []);
+
+  const findFolderName = useCallback(
+    (id: string): string => {
+      function search(nodes: FolderTreeNode[]): string {
+        for (const node of nodes) {
+          if (node.id === id) return node.name;
+          const found = search(node.children);
+          if (found) return found;
+        }
+        return "";
+      }
+      return search(allFolders) || id;
+    },
+    [allFolders],
+  );
+
+  const findTagName = useCallback(
+    (id: string): string => {
+      return allTags.find((tg) => tg.id === id)?.name || id;
+    },
+    [allTags],
+  );
 
   const handleFilterChange = (newFilter: HistoryFilter) => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams);
+    // Remove old filter keys
+    params.delete("folder");
+    params.delete("tag");
+    params.delete("is_favorite");
     if (newFilter.folder) params.set("folder", newFilter.folder);
     if (newFilter.tag) params.set("tag", newFilter.tag);
     if (newFilter.is_favorite) params.set("is_favorite", "true");
     setSearchParams(params, { replace: true });
     setSelectedIds(new Set());
+  };
+
+  const removeFilter = (key: "folder" | "tag" | "is_favorite") => {
+    const newFilter = { ...filter };
+    delete (newFilter as Record<string, unknown>)[key];
+    handleFilterChange(newFilter);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const params = new URLSearchParams(searchParams);
+      if (value) {
+        params.set("search", value);
+      } else {
+        params.delete("search");
+      }
+      params.delete("page");
+      setSearchParams(params, { replace: true });
+    }, 300);
+  };
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    storeViewMode(mode);
+    const params = new URLSearchParams(searchParams);
+    params.set("view", mode);
+    setSearchParams(params, { replace: true });
+  };
+
+  const handleSortChange = (value: string | null) => {
+    if (!value) {
+      const params = new URLSearchParams(searchParams);
+      params.delete("sort_by");
+      params.delete("sort_order");
+      setSearchParams(params, { replace: true });
+      return;
+    }
+    const params = new URLSearchParams(searchParams);
+    if (value) {
+      const [by, order] = value.split("-");
+      params.set("sort_by", by);
+      params.set("sort_order", order);
+    } else {
+      params.delete("sort_by");
+      params.delete("sort_order");
+    }
+    setSearchParams(params, { replace: true });
   };
 
   const loadTasks = useCallback(
@@ -93,6 +275,9 @@ export function HistoryPage() {
       if (filter.folder) params.folder = filter.folder;
       if (filter.tag) params.tag = filter.tag;
       if (filter.is_favorite) params.is_favorite = true;
+      if (filter.search) params.search = filter.search;
+      if (filter.sort_by) params.sort_by = filter.sort_by;
+      if (filter.sort_order) params.sort_order = filter.sort_order;
       fetchTasks(params)
         .then((data: TaskListResponse) => {
           setTasks(data.items);
@@ -105,12 +290,19 @@ export function HistoryPage() {
           setLoading(false);
         });
     },
-    [t, filter.folder, filter.tag, filter.is_favorite],
+    [t, filter.folder, filter.tag, filter.is_favorite, filter.search, filter.sort_by, filter.sort_order],
   );
 
   useEffect(() => {
     loadTasks(1);
   }, [loadTasks]);
+
+  // Sync searchInput when URL search param changes externally
+  useEffect(() => {
+    const sp = searchParams.get("search") || "";
+    if (sp !== searchInput) setSearchInput(sp);
+    // searchInput intentionally excluded to avoid loop
+  }, [searchParams.get("search")]);
 
   const handleDelete = async (jobId: string) => {
     if (!window.confirm(t("history.deleteConfirm"))) return;
@@ -169,7 +361,7 @@ export function HistoryPage() {
     if (selectedIds.size === tasks.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(tasks.map((t) => t.job_id)));
+      setSelectedIds(new Set(tasks.map((task) => task.job_id)));
     }
   };
 
@@ -181,7 +373,24 @@ export function HistoryPage() {
     } catch {
       setActionError(t("history.actionFailed"));
     }
-    setBatchMenuOpen(false);
+  };
+
+  const handleBatchDelete = async () => {
+    if (!window.confirm(t("history.deleteConfirm"))) return;
+    try {
+      const { authFetch } = await import("@/auth/api");
+      const results = await Promise.all(
+        Array.from(selectedIds).map((id) =>
+          authFetch(`/api/tasks/${id}`, { method: "DELETE" }),
+        ),
+      );
+      const failed = results.filter((r) => !r.ok).length;
+      if (failed > 0) throw new Error();
+      setSelectedIds(new Set());
+      loadTasks(page);
+    } catch {
+      setActionError(t("history.deleteFailed"));
+    }
   };
 
   const handleBatchTag = async (tagId: string) => {
@@ -192,7 +401,6 @@ export function HistoryPage() {
       setActionError(t("history.actionFailed"));
     }
     setPickerType(null);
-    setBatchMenuOpen(false);
   };
 
   const handleBatchMove = async (folderId: string | null) => {
@@ -203,11 +411,71 @@ export function HistoryPage() {
       setActionError(t("history.actionFailed"));
     }
     setPickerType(null);
-    setBatchMenuOpen(false);
   };
 
   const getDisplayTitle = (task: TaskItem) => {
     return task.title || task.video_url || task.file_name || task.message || task.stage;
+  };
+
+  // Active filter pills
+  const activeFilterPills = useMemo(() => {
+    const pills: { key: string; label: string; onRemove: () => void }[] = [];
+    if (filter.folder) {
+      const name = findFolderName(filter.folder);
+      pills.push({
+        key: "folder",
+        label: name || filter.folder,
+        onRemove: () => removeFilter("folder"),
+      });
+    }
+    if (filter.tag) {
+      const name = findTagName(filter.tag);
+      pills.push({
+        key: "tag",
+        label: name || filter.tag,
+        onRemove: () => removeFilter("tag"),
+      });
+    }
+    if (filter.is_favorite) {
+      pills.push({
+        key: "is_favorite",
+        label: t("contentSidebar.favorites"),
+        onRemove: () => removeFilter("is_favorite"),
+      });
+    }
+    return pills;
+    // removeFilter and findFolderName/findTagName are stable via useCallback
+  }, [filter.folder, filter.tag, filter.is_favorite, allTags, allFolders, t]);
+
+  // Context menu items for a task
+  const getContextMenuItems = (task: TaskItem) => {
+    const items: { label: string; icon: React.ReactNode; onClick: () => void; variant?: "destructive" }[] = [];
+    items.push({
+      label: t("history.select"),
+      icon: selectedIds.has(task.job_id) ? <CheckSquare size={14} /> : <Square size={14} />,
+      onClick: () => toggleSelect(task.job_id),
+    });
+    if (isActiveTask(task)) {
+      items.push({
+        label: t("history.cancel"),
+        icon: <Ban size={14} />,
+        onClick: () => void handleCancel(task.job_id),
+      });
+    }
+    if (isRetriable(task)) {
+      items.push({
+        label: t("history.retry"),
+        icon: <RotateCcw size={14} />,
+        onClick: () => void handleRetry(task.job_id),
+      });
+    }
+    items.push({
+      label: t("history.delete"),
+      icon: <Trash2 size={14} />,
+      onClick: () => void handleDelete(task.job_id),
+      variant: "destructive",
+    });
+    return items;
   };
 
   if (loading && tasks.length === 0) {
@@ -227,145 +495,156 @@ export function HistoryPage() {
   }
 
   return (
-    <div className="flex gap-6 -mx-4 md:-mx-6">
-      {/* Sidebar */}
-      <div
-        className={cn(
-          "shrink-0 border-r border-border transition-all overflow-hidden",
-          sidebarOpen ? "w-52 pr-4" : "w-0 pr-0",
-        )}
-      >
-        <ContentSidebar filter={filter} onFilterChange={handleFilterChange} />
-      </div>
+    <div className="space-y-4">
+      {/* Sheet sidebar */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="left" className="p-0 w-72">
+          <SheetHeader className="p-4 pb-0">
+            <SheetTitle>{t("history.filter")}</SheetTitle>
+          </SheetHeader>
+          <div className="p-4 pt-2 overflow-y-auto h-full">
+            <ContentSidebar filter={filter} onFilterChange={(f) => { handleFilterChange(f); setSheetOpen(false); }} />
+          </div>
+        </SheetContent>
+      </Sheet>
 
-      {/* Main content */}
-      <div className="flex-1 min-w-0 space-y-4">
-        {/* Header row */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-muted-foreground"
-            >
-              {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
-            </Button>
-            {selectedIds.size > 0 && (
-              <span className="text-sm text-muted-foreground">
-                {t("history.selected", { count: selectedIds.size })}
-              </span>
+      {/* Top filter bar */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Filter sidebar button */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSheetOpen(true)}
+            title={t("history.openFilter")}
+            className="shrink-0"
+          >
+            <SlidersHorizontal size={16} />
+          </Button>
+
+          {/* Search input */}
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Input
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder={t("history.search")}
+              className="h-8 text-sm"
+            />
+            {searchInput && (
+              <button
+                onClick={() => handleSearchChange("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X size={14} />
+              </button>
             )}
           </div>
 
-          {selectedIds.size > 0 && (
-            <div className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setBatchMenuOpen(!batchMenuOpen)}
-                className="gap-1.5"
-              >
-                <ChevronDown size={14} />
-                {t("history.batchTag")}
-              </Button>
-              {batchMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 z-10 w-48 rounded-lg border border-border bg-background shadow-lg py-1">
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setPickerType("tag");
-                      setBatchMenuOpen(false);
-                    }}
-                    className="w-full justify-start gap-2 px-3 py-1.5 text-sm"
-                  >
-                    <Tag size={14} />
-                    {t("history.batchTag")}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setPickerType("folder");
-                      setBatchMenuOpen(false);
-                    }}
-                    className="w-full justify-start gap-2 px-3 py-1.5 text-sm"
-                  >
-                    <FolderOpen size={14} />
-                    {t("history.batchMove")}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleBatchFavorite(true)}
-                    className="w-full justify-start gap-2 px-3 py-1.5 text-sm"
-                  >
-                    <Star size={14} />
-                    {t("history.batchFavorite")}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleBatchFavorite(false)}
-                    className="w-full justify-start gap-2 px-3 py-1.5 text-sm"
-                  >
-                    <Star size={14} className="fill-none" />
-                    {t("history.batchUnfavorite")}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {actionError && (
-          <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
-            {actionError}
-          </div>
-        )}
-
-        {tasks.length === 0 ? (
-          <div className="text-center py-12">
-            <FileText size={48} className="mx-auto text-muted-foreground/30" />
-            <p className="mt-4 text-muted-foreground">{t("history.empty")}</p>
-            <Button
-              onClick={() => navigate("/app/new")}
-              className="mt-4"
+          {/* Sort dropdown */}
+          {viewMode === "list" && (
+            <Select
+              value={sortBy && sortOrder ? `${sortBy}-${sortOrder}` : ""}
+              onValueChange={handleSortChange}
             >
-              {t("history.processVideo")}
+              <SelectTrigger className="h-8 w-auto gap-1 text-sm min-w-[140px]">
+                <ArrowUpDown size={14} />
+                <SelectValue placeholder={t("history.sortDate")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created_at-desc">{t("history.sortDate")} ({t("history.sortDesc")})</SelectItem>
+                <SelectItem value="created_at-asc">{t("history.sortDate")} ({t("history.sortAsc")})</SelectItem>
+                <SelectItem value="title-asc">{t("history.sortTitle")} ({t("history.sortAsc")})</SelectItem>
+                <SelectItem value="title-desc">{t("history.sortTitle")} ({t("history.sortDesc")})</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* View toggle */}
+          <div className="flex items-center border rounded-md">
+            <Button
+              variant={viewMode === "card" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8 rounded-r-none"
+              onClick={() => handleViewModeChange("card")}
+              title={t("history.viewCard")}
+            >
+              <LayoutGrid size={16} />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8 rounded-l-none"
+              onClick={() => handleViewModeChange("list")}
+              title={t("history.viewList")}
+            >
+              <List size={16} />
             </Button>
           </div>
-        ) : (
-          <>
-            {/* Select all row */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={toggleSelectAll}
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {selectedIds.size === tasks.length ? (
-                  <CheckSquare size={14} className="text-primary" />
-                ) : (
-                  <Square size={14} />
-                )}
-                {selectedIds.size === tasks.length ? t("history.deselectAll") : t("history.selectAll")}
-              </button>
-            </div>
+        </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {tasks.map((task) => {
-                const clickable = task.stage === "complete";
-                const isSelected = selectedIds.has(task.job_id);
-                const taskFav = task.is_favorite;
-                return (
+        {/* Active filter pills */}
+        {activeFilterPills.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {activeFilterPills.map((pill) => (
+              <Badge key={pill.key} variant="secondary" className="gap-1 pl-2 pr-1 py-0.5">
+                {pill.label}
+                <button
+                  onClick={pill.onRemove}
+                  className="rounded-full hover:bg-muted-foreground/20 p-0.5"
+                >
+                  <X size={12} />
+                </button>
+              </Badge>
+            ))}
+            <button
+              onClick={() => handleFilterChange({})}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {t("history.deselectAll")}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {actionError && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+          {actionError}
+        </div>
+      )}
+
+      {tasks.length === 0 ? (
+        <div className="text-center py-12">
+          <FileText size={48} className="mx-auto text-muted-foreground/30" />
+          <p className="mt-4 text-muted-foreground">{t("history.empty")}</p>
+          <Button
+            onClick={() => navigate("/app/new")}
+            className="mt-4"
+          >
+            {t("history.processVideo")}
+          </Button>
+        </div>
+      ) : viewMode === "card" ? (
+        /* Card view */
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {tasks.map((task) => {
+            const clickable = task.stage === "complete";
+            const isSelected = selectedIds.has(task.job_id);
+            const taskFav = task.is_favorite;
+            const ctxItems = getContextMenuItems(task);
+
+            return (
+              <ContextMenu key={task.job_id}>
+                <ContextMenuTrigger>
                   <Card
-                    key={task.job_id}
                     onClick={clickable ? () => navigate(`/app/notes/${task.job_id}`) : undefined}
                     className={cn(
-                      "relative transition-all group",
+                      "relative transition-all",
                       isSelected && "border-primary/40",
-                      clickable ? "cursor-pointer hover:shadow-sm" : "cursor-default"
+                      clickable ? "cursor-pointer hover:shadow-sm" : "cursor-default",
                     )}
                   >
                     <CardContent className="p-4">
-                      {/* Select checkbox + Favorite + Delete */}
+                      {/* Favorite star - always visible */}
                       <div className="absolute top-2 right-2 flex items-center gap-1">
                         <Button
                           variant="ghost"
@@ -377,41 +656,15 @@ export function HistoryPage() {
                           className={cn(
                             taskFav
                               ? "text-yellow-500 hover:text-yellow-600"
-                              : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-yellow-500"
+                              : "text-muted-foreground hover:text-yellow-500",
                           )}
                         >
                           <Star size={14} className={taskFav ? "fill-current" : ""} />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            toggleSelect(task.job_id);
-                          }}
-                          className="text-muted-foreground"
-                        >
-                          {isSelected ? (
-                            <CheckSquare size={14} className="text-primary" />
-                          ) : (
-                            <Square size={14} className="opacity-0 group-hover:opacity-100" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            void handleDelete(task.job_id);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 size={14} />
-                        </Button>
                       </div>
 
                       {/* Title */}
-                      <p className="text-sm font-medium truncate pr-20">{getDisplayTitle(task)}</p>
+                      <p className="text-sm font-medium truncate pr-8">{getDisplayTitle(task)}</p>
 
                       {/* Source + date */}
                       <div className="flex items-center gap-3 mt-2">
@@ -424,7 +677,7 @@ export function HistoryPage() {
                         </span>
                       </div>
 
-                      {/* Status + actions */}
+                      {/* Status */}
                       <div className="flex items-center justify-between mt-3">
                         <StatusBadge task={task} />
 
@@ -443,7 +696,6 @@ export function HistoryPage() {
                               <Ban size={14} />
                             </Button>
                           )}
-
                           {isRetriable(task) && (
                             <Button
                               variant="ghost"
@@ -462,38 +714,212 @@ export function HistoryPage() {
                       </div>
                     </CardContent>
                   </Card>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-2">
-            <p className="text-xs text-muted-foreground">
-              {t("history.pageInfo", { page, totalPages })}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => loadTasks(page - 1)}
-                disabled={page <= 1}
-              >
-                {t("history.previous")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => loadTasks(page + 1)}
-                disabled={page >= totalPages}
-              >
-                {t("history.next")}
-              </Button>
-            </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  {ctxItems.map((item, i) => (
+                    <span key={item.label}>
+                      {i === ctxItems.length - 1 && <ContextMenuSeparator />}
+                      <ContextMenuItem
+                        variant={item.variant}
+                        onClick={item.onClick}
+                        className="flex items-center gap-2"
+                      >
+                        {item.icon}
+                        {item.label}
+                      </ContextMenuItem>
+                    </span>
+                  ))}
+                </ContextMenuContent>
+              </ContextMenu>
+            );
+          })}
+        </div>
+      ) : (
+        /* List view */
+        <div className="rounded-lg border">
+          {/* Header row */}
+          <div className="grid grid-cols-[1fr_100px_80px_120px_100px_40px] gap-2 px-4 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30">
+            <span>{t("history.title")}</span>
+            <span>{t("history.source")}</span>
+            <span>{t("lang.label")}</span>
+            <span>{t("history.date")}</span>
+            <span>{t("history.status")}</span>
+            <span></span>
           </div>
-        )}
-      </div>
+          {tasks.map((task) => {
+            const clickable = task.stage === "complete";
+            const isSelected = selectedIds.has(task.job_id);
+            const taskFav = task.is_favorite;
+            const ctxItems = getContextMenuItems(task);
+
+            return (
+              <ContextMenu key={task.job_id}>
+                <ContextMenuTrigger>
+                  <div
+                    onClick={clickable ? () => navigate(`/app/notes/${task.job_id}`) : undefined}
+                    className={cn(
+                      "grid grid-cols-[1fr_100px_80px_120px_100px_40px] gap-2 px-4 py-2.5 items-center text-sm border-b last:border-b-0 transition-colors",
+                      isSelected && "bg-primary/5",
+                      clickable ? "cursor-pointer hover:bg-muted/50" : "cursor-default",
+                    )}
+                  >
+                    <span className="truncate font-medium">{getDisplayTitle(task)}</span>
+                    <span className="truncate">
+                      <SourceBadge task={task} />
+                    </span>
+                    <span className="text-xs text-muted-foreground">{task.language || ""}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(task.created_at).toLocaleDateString()}
+                    </span>
+                    <span>
+                      <StatusBadge task={task} />
+                    </span>
+                    <span>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation();
+                          void handleFavorite(task.job_id, taskFav);
+                        }}
+                        className={cn(
+                          taskFav
+                            ? "text-yellow-500 hover:text-yellow-600"
+                            : "text-muted-foreground hover:text-yellow-500",
+                        )}
+                      >
+                        <Star size={14} className={taskFav ? "fill-current" : ""} />
+                      </Button>
+                    </span>
+                  </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  {ctxItems.map((item, i) => (
+                    <span key={item.label}>
+                      {i === ctxItems.length - 1 && <ContextMenuSeparator />}
+                      <ContextMenuItem
+                        variant={item.variant}
+                        onClick={item.onClick}
+                        className="flex items-center gap-2"
+                      >
+                        {item.icon}
+                        {item.label}
+                      </ContextMenuItem>
+                    </span>
+                  ))}
+                </ContextMenuContent>
+              </ContextMenu>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {t("history.pageInfo", { page, totalPages })} ({total})
+          </p>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => loadTasks(page - 1)}
+                  className={cn(page <= 1 && "pointer-events-none opacity-50")}
+                  text={t("history.previous")}
+                />
+              </PaginationItem>
+              {getPageNumbers(page, totalPages).map((p, i) =>
+                p === "ellipsis" ? (
+                  <PaginationItem key={`ellipsis-${i}`}>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                ) : (
+                  <PaginationItem key={p}>
+                    <PaginationLink
+                      isActive={p === page}
+                      onClick={() => loadTasks(p)}
+                    >
+                      {p}
+                    </PaginationLink>
+                  </PaginationItem>
+                ),
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => loadTasks(page + 1)}
+                  className={cn(page >= totalPages && "pointer-events-none opacity-50")}
+                  text={t("history.next")}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
+
+      {/* Batch action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-lg border border-border bg-background shadow-lg px-4 py-2">
+          <span className="text-sm text-muted-foreground">
+            {t("history.selected", { count: selectedIds.size })}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleSelectAll}
+            className="text-xs"
+          >
+            {selectedIds.size === tasks.length ? t("history.deselectAll") : t("history.selectAll")}
+          </Button>
+          <div className="h-4 w-px bg-border" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPickerType("tag")}
+            className="gap-1.5 text-xs"
+          >
+            <Tag size={14} />
+            {t("history.batchTag")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPickerType("folder")}
+            className="gap-1.5 text-xs"
+          >
+            <FolderOpen size={14} />
+            {t("history.batchMove")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleBatchFavorite(true)}
+            className="gap-1.5 text-xs"
+          >
+            <Star size={14} />
+            {t("history.batchFavorite")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleBatchFavorite(false)}
+            className="gap-1.5 text-xs"
+          >
+            <Star size={14} className="fill-none" />
+            {t("history.batchUnfavorite")}
+          </Button>
+          <div className="h-4 w-px bg-border" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleBatchDelete()}
+            className="gap-1.5 text-xs text-destructive hover:text-destructive"
+          >
+            <Trash2 size={14} />
+            {t("history.batchDelete")}
+          </Button>
+        </div>
+      )}
 
       {/* Tag picker modal */}
       {pickerType === "tag" && (

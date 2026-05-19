@@ -76,7 +76,22 @@
     "batchUnfavorite": "取消收藏",
     "noTags": "无标签",
     "noFolder": "未分类",
-    "actionFailed": "操作失败"
+    "actionFailed": "操作失败",
+    "search": "搜索笔记...",
+    "viewCard": "卡片视图",
+    "viewList": "列表视图",
+    "sortDate": "日期",
+    "sortTitle": "标题",
+    "sortAsc": "升序",
+    "sortDesc": "降序",
+    "filter": "筛选",
+    "openFilter": "打开筛选",
+    "batchDelete": "删除",
+    "select": "选择",
+    "title": "标题",
+    "source": "来源",
+    "date": "日期",
+    "status": "状态"
   },
   "sidebar": {
     "newNote": "新建笔记",
