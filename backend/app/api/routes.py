@@ -397,21 +397,55 @@ async def list_tasks(
     user: CurrentUser,
     page: int = 1,
     limit: int = 20,
+    folder: str | None = None,
+    tag: str | None = None,
+    is_favorite: bool | None = None,
 ):
-    """List tasks for the current user with pagination."""
+    """List tasks for the current user with pagination and optional filters."""
     if page < 1:
         page = 1
     if limit < 1 or limit > 100:
         limit = 20
     offset = (page - 1) * limit
-    tasks = await get_user_tasks(user.user_id, limit=limit, offset=offset)
-    total = await count_user_tasks(user.user_id)
+    # "none" is a special value meaning "filter for uncategorized notes (folder_id IS NULL)"
+    folder_id = None if folder == "none" else folder
+    folder_null = folder == "none"
+    tasks = await get_user_tasks(
+        user.user_id, limit=limit, offset=offset,
+        folder_id=folder_id, tag_id=tag, is_favorite=is_favorite,
+        folder_null=folder_null,
+    )
+    total = await count_user_tasks(
+        user.user_id, folder_id=folder_id, tag_id=tag, is_favorite=is_favorite,
+        folder_null=folder_null,
+    )
     return TaskListResponse(
         items=[TaskListItem(**t) for t in tasks],
         total=total,
         page=page,
         limit=limit,
     )
+
+
+@router.get("/tasks/{job_id}", response_model=TaskListItem)
+async def get_single_task(
+    job_id: str,
+    user: CurrentUser,
+):
+    """Get a single task by job_id."""
+    task = await get_task(job_id)
+    if not task or task.get("user_id") != user.user_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+    # Extract title from result_json
+    title = None
+    if task.get("result_json"):
+        try:
+            parsed = json.loads(task["result_json"])
+            title = parsed.get("title")
+        except (json.JSONDecodeError, TypeError):
+            pass
+    task["title"] = title
+    return TaskListItem(**task)
 
 
 @router.delete("/tasks/{job_id}")

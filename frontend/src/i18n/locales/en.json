@@ -66,7 +66,17 @@
     "cancelFailed": "Failed to cancel task",
     "previous": "Previous",
     "next": "Next",
-    "pageInfo": "Page {{page}} of {{totalPages}}"
+    "pageInfo": "Page {{page}} of {{totalPages}}",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "selected": "{{count}} selected",
+    "batchTag": "Add tag",
+    "batchMove": "Move to folder",
+    "batchFavorite": "Favorite",
+    "batchUnfavorite": "Unfavorite",
+    "noTags": "No tags",
+    "noFolder": "Uncategorized",
+    "actionFailed": "Action failed"
   },
   "sidebar": {
     "newNote": "New Note",
@@ -83,7 +93,9 @@
   "dashboard": {
     "newNote": "New Video Note",
     "recentNotes": "Recent Notes",
-    "empty": "No notes yet"
+    "empty": "No notes yet",
+    "favorites": "Favorites",
+    "noFavorites": "No favorite notes"
   },
   "settings": {
     "title": "Settings",
@@ -101,5 +113,51 @@
     "saveFailed": "Failed to save settings",
     "keyMasked": "Current: ••••{{last4}}",
     "keyPlaceholder": "Enter API key"
+  },
+  "contentSidebar": {
+    "allNotes": "All Notes",
+    "favorites": "Favorites",
+    "uncategorized": "Uncategorized",
+    "tags": "Tags",
+    "folders": "Folders",
+    "newFolder": "New Folder",
+    "newTag": "New Tag",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleteConfirm": "Delete \"{{name}}\"?",
+    "deleteTagConfirm": "Delete tag \"{{name}}\"? This removes it from all notes.",
+    "deleteFolderConfirm": "Delete folder \"{{name}}\"? Subfolders will also be deleted. Notes will become uncategorized.",
+    "createFailed": "Failed to create",
+    "renameFailed": "Failed to rename",
+    "deleteFailed": "Failed to delete",
+    "tagNamePlaceholder": "Tag name",
+    "folderNamePlaceholder": "Folder name"
+  },
+  "noteDetail": {
+    "addTag": "Add tag...",
+    "moveToFolder": "Move to folder",
+    "removeFolder": "Remove from folder",
+    "tags": "Tags",
+    "folder": "Folder",
+    "favorite": "Favorite",
+    "unfavorite": "Unfavorite",
+    "edit": "Edit",
+    "preview": "Preview",
+    "save": "Save",
+    "saving": "Saving...",
+    "unsaved": "Unsaved changes"
+  },
+  "toc": {
+    "title": "Table of Contents",
+    "onThisPage": "On this page"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "toggle": "Toggle theme"
+  },
+  "mermaid": {
+    "loading": "Loading diagram...",
+    "error": "Diagram rendering failed"
   }
 }

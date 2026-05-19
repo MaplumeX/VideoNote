@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router";
 import { Plus, FileText, Settings, LogOut, X, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/hooks/useTheme";
 import { clearAuth } from "@/auth/token";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -16,15 +16,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isDark, setIsDark] = useState(document.documentElement.classList.contains("dark"));
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
+  const { theme, toggleTheme } = useTheme();
 
   const navItems = [
     { path: "/app/new", icon: Plus, label: t("sidebar.newNote") },
@@ -33,10 +25,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   ];
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + "/");
-
-  const toggleTheme = () => {
-    document.documentElement.classList.toggle("dark");
-  };
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", {
@@ -106,8 +94,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             onClick={toggleTheme}
             className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
           >
-            {isDark ? <Sun size={18} /> : <Moon size={18} />}
-            {isDark ? t("theme.light") : t("theme.dark")}
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === "dark" ? t("theme.light") : t("theme.dark")}
           </Button>
           <Button
             variant="ghost"

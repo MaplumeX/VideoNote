@@ -6,6 +6,39 @@
 
 ## Custom Hook Patterns
 
+### Theme Hook (useTheme)
+
+React Context-based theme management. `ThemeProvider` wraps `AppLayout`; components consume via `useTheme()`.
+
+**Pattern**: Context + `dataset.theme` sync + `localStorage` persistence.
+
+```tsx
+const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void }>({
+  theme: "light",
+  toggleTheme: () => {},
+});
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+  const toggleTheme = useCallback(() => {
+    setTheme((t) => (t === "light" ? "dark" : "light"));
+  }, []);
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+```
+
+**File naming**: If the hook file contains JSX (e.g., `ThemeProvider`), use `.tsx` not `.ts`.
+
+---
+
 ### SSE Hook (useSSE)
 
 Consumes Server-Sent Events for real-time task progress via manual `ReadableStream` parsing (not `EventSource`, which doesn't support auth headers).
