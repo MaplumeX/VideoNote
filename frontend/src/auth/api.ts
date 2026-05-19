@@ -22,6 +22,27 @@ async function refreshToken(): Promise<string> {
   return data.access_token;
 }
 
+export async function silentRefresh(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      clearAuth();
+      return false;
+    }
+
+    const data = await res.json();
+    setAccessToken(data.access_token);
+    return true;
+  } catch {
+    clearAuth();
+    return false;
+  }
+}
+
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = getAccessToken();
   const headers = {
