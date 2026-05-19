@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Named exports, Tailwind-only styling with cn(), react-markdown patterns, forbidden patterns"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Component/page organization, naming conventions, how to add new components"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Linting/type-checking requirements, i18n for all strings, required patterns"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "No global state lib, local useState only, URL state via useSearchParams"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Type organization, TaskStage discriminated union, forbidden any/as patterns"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "useSSE/useVideoUpload patterns, stale closure avoidance"}
