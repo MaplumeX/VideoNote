@@ -10,22 +10,33 @@
 frontend/
 ├── src/
 │   ├── main.tsx              # React entry point, router config
-│   ├── App.tsx               # VideoNoteApp — step flow: input → progress → result
-│   ├── index.css             # Tailwind CSS v4 base + custom theme
+│   ├── index.css             # Tailwind CSS v4 base + shadcn/ui theme (oklch)
 │   ├── vite-env.d.ts         # Vite type declarations
 │   ├── components/
-│   │   ├── AppLayout.tsx     # Header + outlet layout, auth loader
+│   │   ├── AppLayout.tsx     # h-screen flex layout, auth loader
+│   │   ├── Sidebar.tsx      # Fixed sidebar with nav, theme/lang toggle
+│   │   ├── StatusBadge.tsx  # Shared task status badge (active/complete/failed)
 │   │   ├── VideoInput.tsx    # URL input + file upload (react-dropzone)
 │   │   ├── ProgressBar.tsx   # SSE-driven progress display
 │   │   ├── NoteView.tsx      # Markdown note renderer (react-markdown)
-│   │   └── ui/               # shadcn/ui primitives (empty, reserved)
+│   │   └── ui/               # shadcn/ui primitives
+│   │       ├── badge.tsx
+│   │       ├── button.tsx
+│   │       ├── card.tsx
+│   │       ├── dropdown-menu.tsx
+│   │       ├── input.tsx
+│   │       ├── select.tsx
+│   │       └── separator.tsx
 │   ├── hooks/
 │   │   ├── useSSE.ts         # SSE hook for progress updates
 │   │   └── useVideoUpload.ts # XHR upload hook with progress tracking
 │   ├── pages/
 │   │   ├── LoginPage.tsx     # Auth login form + action
 │   │   ├── RegisterPage.tsx  # Auth register form + action
-│   │   ├── HistoryPage.tsx   # Task history list
+│   │   ├── DashboardPage.tsx # Dashboard with CTA + recent notes
+│   │   ├── NewNotePage.tsx   # New note: URL submit / file upload → progress
+│   │   ├── NoteDetailPage.tsx# Note detail view with download
+│   │   ├── HistoryPage.tsx   # Task history list with pagination
 │   │   └── SettingsPage.tsx  # ASR/LLM provider + model settings
 │   ├── api/
 │   │   └── client.ts        # API client functions (typed, uses authFetch)
@@ -41,6 +52,7 @@ frontend/
 │   │   └── index.ts          # Shared TypeScript types
 │   └── lib/
 │       └── utils.ts          # cn() utility (clsx + tailwind-merge)
+├── components.json           # shadcn/ui config (style: base-nova)
 ├── public/
 │   └── vite.svg
 ├── index.html
@@ -54,8 +66,8 @@ frontend/
 
 ## Module Organization
 
-- **`components/`**: React components, one per file. Feature components alongside shadcn/ui primitives in `ui/`. Layout component (`AppLayout`) provides header + `<Outlet>`.
-- **`pages/`**: Route-level page components. Auth pages include route `action` functions for form handling.
+- **`components/`**: React components, one per file. Feature components alongside shadcn/ui primitives in `ui/`. Layout: `AppLayout` (h-screen flex) + `Sidebar` (fixed, full-height). Shared: `StatusBadge`.
+- **`pages/`**: Route-level page components. Auth pages include route `action` functions for form handling. Dashboard/History/Settings use shadcn/ui components (Button, Card, Select, Badge).
 - **`hooks/`**: Custom hooks. One hook per concern (SSE, upload). No global state hooks.
 - **`auth/`**: Auth infrastructure. `token.ts` stores access token in memory; `api.ts` provides `authFetch` with automatic 401 refresh.
 - **`api/`**: API client. Thin typed wrapper over `authFetch`, returns typed responses.
@@ -72,7 +84,8 @@ frontend/
 - Pages: named exports, action functions exported alongside (`export async function loginAction()`)
 - Hooks: `use` prefix (`useSSE`, `useVideoUpload`)
 - Types: `PascalCase` interfaces (`TaskProgress`, `NoteResult`)
-- CSS: Tailwind utility classes only, no separate CSS files except `index.css`
+- CSS: Tailwind utility classes + shadcn/ui semantic tokens, no separate CSS files except `index.css`
+- Dark mode: class strategy (`@custom-variant dark (&:is(.dark *))`), toggle via `document.documentElement.classList.toggle("dark")`
 
 ---
 

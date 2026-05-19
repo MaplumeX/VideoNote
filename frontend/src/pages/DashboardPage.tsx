@@ -2,67 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { authFetch } from "@/auth/api";
-import {
-  Plus,
-  FileText,
-  Globe,
-  FileVideo,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  XCircle,
-} from "lucide-react";
+import { Plus, FileText, Globe, FileVideo } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { TaskListResponse, TaskItem, TaskStage } from "@/types";
-
-const ACTIVE_STAGES: TaskStage[] = [
-  "pending",
-  "downloading",
-  "extracting_subtitles",
-  "transcribing",
-  "generating_notes",
-];
-
-function isActive(task: TaskItem): boolean {
-  return ACTIVE_STAGES.includes(task.stage);
-}
-
-function StatusBadge({ task }: { task: TaskItem }) {
-  const { t } = useTranslation();
-  if (task.stage === "complete") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-green-600">
-        <CheckCircle size={12} />
-        {t("progress.complete")}
-      </span>
-    );
-  }
-  if (task.stage === "failed") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-destructive">
-        <AlertCircle size={12} />
-        {t("progress.failed")}
-      </span>
-    );
-  }
-  if (task.stage === "cancelled") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-        <XCircle size={12} />
-        {t("progress.cancelled")}
-      </span>
-    );
-  }
-  if (isActive(task)) {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-blue-500">
-        <Clock size={12} className="animate-pulse" />
-        {Math.round(task.progress * 100)}%
-      </span>
-    );
-  }
-  return null;
-}
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { StatusBadge, isActiveTask } from "@/components/StatusBadge";
+import type { TaskListResponse, TaskItem } from "@/types";
 
 function SourceIcon({ task }: { task: TaskItem }) {
   if (task.source_type === "url" && task.platform) {
@@ -103,14 +48,17 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* New Note button */}
-      <button
-        onClick={() => navigate("/app/new")}
-        className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-4 text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-      >
-        <Plus size={20} />
-        {t("dashboard.newNote")}
-      </button>
+      {/* New Note CTA */}
+      <div className="flex justify-center">
+        <Button
+          size="lg"
+          onClick={() => navigate("/app/new")}
+          className="gap-2 px-8 py-5 text-base"
+        >
+          <Plus size={20} />
+          {t("dashboard.newNote")}
+        </Button>
+      </div>
 
       {/* Recent notes */}
       <div>
@@ -119,48 +67,40 @@ export function DashboardPage() {
         </h2>
 
         {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <p className="text-sm text-muted-foreground">
-              {t("history.loading")}
-            </p>
+          <div className="flex items-center justify-center py-12">
+            <p className="text-sm text-muted-foreground">{t("history.loading")}</p>
           </div>
         ) : tasks.length === 0 ? (
-          <div className="text-center py-8">
-            <FileText size={36} className="mx-auto text-muted-foreground/40" />
-            <p className="mt-3 text-sm text-muted-foreground">
-              {t("dashboard.empty")}
-            </p>
+          <div className="text-center py-12">
+            <FileText size={48} className="mx-auto text-muted-foreground/30" />
+            <p className="mt-4 text-sm text-muted-foreground">{t("dashboard.empty")}</p>
           </div>
         ) : (
           <div className="space-y-2">
             {tasks.map((task) => {
-              const clickable = task.stage === "complete";
+              const clickable = task.stage === "complete" || isActiveTask(task);
               return (
-                <div
+                <Card
                   key={task.job_id}
-                  onClick={
-                    clickable
-                      ? () => navigate(`/app/notes/${task.job_id}`)
-                      : undefined
-                  }
+                  onClick={clickable ? () => navigate(`/app/notes/${task.job_id}`) : undefined}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg border border-border p-3 transition-colors",
-                    clickable
-                      ? "cursor-pointer hover:bg-muted/50"
-                      : "cursor-default"
+                    "cursor-pointer hover:shadow-sm transition-shadow",
+                    !clickable && "cursor-default hover:shadow-none"
                   )}
                 >
-                  <SourceIcon task={task} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {getDisplayTitle(task)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(task.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <StatusBadge task={task} />
-                </div>
+                  <CardContent className="flex items-center gap-3 py-3">
+                    <SourceIcon task={task} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {getDisplayTitle(task)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {new Date(task.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <StatusBadge task={task} />
+                  </CardContent>
+                </Card>
               );
             })}
           </div>

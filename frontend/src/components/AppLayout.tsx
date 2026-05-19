@@ -10,12 +10,12 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="h-screen flex bg-background">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col h-screen">
         {/* Mobile header */}
-        <header className="border-b border-border md:hidden">
+        <header className="border-b border-border md:hidden shrink-0">
           <div className="px-4 py-3 flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -27,9 +27,11 @@ export function AppLayout() {
           </div>
         </header>
 
-        {/* Main content */}
-        <main className="max-w-5xl mx-auto px-4 py-8 md:px-6">
-          <Outlet />
+        {/* Main content — independent scroll */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto px-4 py-8 md:px-6">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

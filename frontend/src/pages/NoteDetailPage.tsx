@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, Link } from "react-router";
 import { Download, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { fetchResult } from "@/api/client";
 import { useSSE } from "@/hooks/useSSE";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -38,7 +39,6 @@ export function NoteDetailPage() {
       });
   }, [jobId]);
 
-  // When SSE shows progress reaching failed/cancelled, show error
   useEffect(() => {
     if (progress?.stage === "failed" && processing) {
       setError(progress.message || "Processing failed");
@@ -50,7 +50,6 @@ export function NoteDetailPage() {
     }
   }, [progress?.stage, processing]);
 
-  // When SSE completes (result received), fetch the full note
   useEffect(() => {
     if (sseResult && processing && jobId) {
       fetchResult(jobId)
@@ -65,7 +64,6 @@ export function NoteDetailPage() {
     }
   }, [sseResult, processing, jobId]);
 
-  // Handle SSE connection error
   useEffect(() => {
     if (sseError && processing) {
       setError(sseError);
@@ -123,13 +121,10 @@ export function NoteDetailPage() {
 
       {/* Action bar */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={handleDownload}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
+        <Button onClick={handleDownload} className="gap-2">
           <Download size={16} />
           {t("result.downloadMarkdown")}
-        </button>
+        </Button>
       </div>
 
       {/* Note content */}

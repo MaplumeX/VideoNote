@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDropzone } from "react-dropzone";
 import { Upload, Link, FileVideo } from "lucide-react";
-import { cn } from "../lib/utils";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface VideoInputProps {
   onSubmitUrl: (url: string) => void;
@@ -68,21 +70,21 @@ export function VideoInput({ onSubmitUrl, onUploadFile, disabled }: VideoInputPr
       {/* URL input */}
       {tab === "url" && (
         <form onSubmit={handleSubmit} className="flex gap-2">
-          <input
+          <Input
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder={t("input.urlPlaceholder")}
             disabled={disabled}
-            className="flex-1 rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors disabled:opacity-50"
+            className="flex-1 h-9"
           />
-          <button
+          <Button
             type="submit"
             disabled={disabled || !url.trim()}
-            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-9"
           >
             {t("input.process")}
-          </button>
+          </Button>
         </form>
       )}
 

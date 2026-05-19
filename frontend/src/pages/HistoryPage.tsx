@@ -4,10 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import {
   FileText,
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
   Trash2,
   RotateCcw,
   Ban,
@@ -15,76 +11,31 @@ import {
   FileVideo,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { TaskListResponse, TaskItem, TaskStage } from "@/types";
-
-const ACTIVE_STAGES: TaskStage[] = [
-  "pending",
-  "downloading",
-  "extracting_subtitles",
-  "transcribing",
-  "generating_notes",
-];
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { StatusBadge, isActiveTask } from "@/components/StatusBadge";
+import type { TaskListResponse, TaskItem } from "@/types";
 
 function isRetriable(task: TaskItem): boolean {
   return task.stage === "failed" && task.source_type === "url" && !!task.video_url;
 }
 
-function isActive(task: TaskItem): boolean {
-  return ACTIVE_STAGES.includes(task.stage);
-}
-
-function StatusBadge({ task }: { task: TaskItem }) {
-  const { t } = useTranslation();
-  if (task.stage === "complete") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-green-600">
-        <CheckCircle size={12} />
-        {t("progress.complete")}
-      </span>
-    );
-  }
-  if (task.stage === "failed") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-destructive">
-        <AlertCircle size={12} />
-        {t("progress.failed")}
-      </span>
-    );
-  }
-  if (task.stage === "cancelled") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-        <XCircle size={12} />
-        {t("progress.cancelled")}
-      </span>
-    );
-  }
-  if (isActive(task)) {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-blue-500">
-        <Clock size={12} className="animate-pulse" />
-        {Math.round(task.progress * 100)}%
-      </span>
-    );
-  }
-  return null;
-}
-
 function SourceBadge({ task }: { task: TaskItem }) {
   if (task.source_type === "url" && task.platform) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+      <Badge variant="secondary" className="gap-1">
         <Globe size={12} />
         {task.platform}
-      </span>
+      </Badge>
     );
   }
   if (task.source_type === "upload" && task.file_name) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate max-w-[150px]">
+      <Badge variant="secondary" className="gap-1 truncate max-w-[150px]">
         <FileVideo size={12} />
         {task.file_name}
-      </span>
+      </Badge>
     );
   }
   return null;
@@ -185,14 +136,14 @@ export function HistoryPage() {
   if (tasks.length === 0) {
     return (
       <div className="text-center py-12">
-        <FileText size={48} className="mx-auto text-muted-foreground/50" />
+        <FileText size={48} className="mx-auto text-muted-foreground/30" />
         <p className="mt-4 text-muted-foreground">{t("history.empty")}</p>
-        <button
+        <Button
           onClick={() => navigate("/app/new")}
-          className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="mt-4"
         >
           {t("history.processVideo")}
-        </button>
+        </Button>
       </div>
     );
   }
@@ -209,74 +160,80 @@ export function HistoryPage() {
         {tasks.map((task) => {
           const clickable = task.stage === "complete";
           return (
-            <div
+            <Card
               key={task.job_id}
               onClick={clickable ? () => navigate(`/app/notes/${task.job_id}`) : undefined}
               className={cn(
-                "relative rounded-lg border border-border p-4 transition-all group",
-                clickable
-                  ? "cursor-pointer hover:shadow-sm hover:border-primary/20"
-                  : "cursor-default"
+                "relative transition-all group hover:shadow-sm",
+                clickable ? "cursor-pointer" : "cursor-default"
               )}
             >
-              {/* Delete button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleDelete(task.job_id);
-                }}
-                className="absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all text-muted-foreground hover:text-destructive"
-              >
-                <Trash2 size={14} />
-              </button>
+              <CardContent className="p-4">
+                {/* Delete button */}
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDelete(task.job_id);
+                  }}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 size={14} />
+                </Button>
 
-              {/* Title */}
-              <p className="text-sm font-medium truncate pr-6">{getDisplayTitle(task)}</p>
+                {/* Title */}
+                <p className="text-sm font-medium truncate pr-6">{getDisplayTitle(task)}</p>
 
-              {/* Source + date */}
-              <div className="flex items-center gap-3 mt-2">
-                <SourceBadge task={task} />
-                {task.language && (
-                  <span className="text-xs text-muted-foreground">{task.language}</span>
-                )}
-                <span className="text-xs text-muted-foreground">
-                  {new Date(task.created_at).toLocaleDateString()}
-                </span>
-              </div>
-
-              {/* Status + actions */}
-              <div className="flex items-center justify-between mt-3">
-                <StatusBadge task={task} />
-
-                <div className="flex items-center gap-1">
-                  {isActive(task) && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleCancel(task.job_id);
-                      }}
-                      className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
-                      title={t("history.cancel")}
-                    >
-                      <Ban size={14} />
-                    </button>
+                {/* Source + date */}
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <SourceBadge task={task} />
+                  {task.language && (
+                    <Badge variant="outline" className="text-xs">{task.language}</Badge>
                   )}
-
-                  {isRetriable(task) && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleRetry(task.job_id);
-                      }}
-                      className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-blue-500"
-                      title={t("history.retry")}
-                    >
-                      <RotateCcw size={14} />
-                    </button>
-                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(task.created_at).toLocaleDateString()}
+                  </span>
                 </div>
-              </div>
-            </div>
+
+                {/* Status + actions */}
+                <div className="flex items-center justify-between mt-3">
+                  <StatusBadge task={task} />
+
+                  <div className="flex items-center gap-1">
+                    {isActiveTask(task) && (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleCancel(task.job_id);
+                        }}
+                        title={t("history.cancel")}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Ban size={14} />
+                      </Button>
+                    )}
+
+                    {isRetriable(task) && (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleRetry(task.job_id);
+                        }}
+                        title={t("history.retry")}
+                        className="text-muted-foreground hover:text-blue-500"
+                      >
+                        <RotateCcw size={14} />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           );
         })}
       </div>
@@ -287,20 +244,22 @@ export function HistoryPage() {
             {t("history.pageInfo", { page, totalPages })}
           </p>
           <div className="flex gap-2">
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => loadTasks(page - 1)}
               disabled={page <= 1}
-              className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-default"
             >
               {t("history.previous")}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => loadTasks(page + 1)}
               disabled={page >= totalPages}
-              className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-default"
             >
               {t("history.next")}
-            </button>
+            </Button>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface NoteViewProps {
   markdown: string;
@@ -50,13 +51,15 @@ export function NoteView({ markdown }: NoteViewProps) {
 
   return (
     <div className="w-full max-w-3xl mx-auto">
-      <div className="rounded-xl border border-border bg-background p-6">
-        <div className="prose prose-sm max-w-none">
-          <Markdown remarkPlugins={[remarkGfm]} components={components}>
-            {markdown}
-          </Markdown>
-        </div>
-      </div>
+      <Card>
+        <CardContent className="p-6">
+          <div className="prose prose-sm max-w-none dark:prose-invert">
+            <Markdown remarkPlugins={[remarkGfm]} components={components}>
+              {markdown}
+            </Markdown>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
