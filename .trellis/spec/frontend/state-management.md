@@ -36,6 +36,20 @@ export function setAccessToken(token: string | null): void { accessToken = token
 export function clearAuth(): void { accessToken = null; }
 ```
 
+### App bootstrap: silent refresh
+
+Access token is in-memory only (lost on page refresh). A `silentRefresh()` call in the `bootstrap()` function (before router creation) uses the httpOnly refresh cookie to restore the access token on app startup. Do NOT use top-level await — Vite's esbuild target (es2020) doesn't support it; wrap in an async function instead.
+
+```ts
+// main.tsx
+async function bootstrap() {
+  await silentRefresh();  // uses /api/auth/refresh cookie
+  const router = createBrowserRouter([...]);
+  createRoot(...).render(<RouterProvider router={router} />);
+}
+void bootstrap();
+```
+
 ### URL state (`useSearchParams`)
 
 - `?task=<job_id>` loads an existing task result on `/app`

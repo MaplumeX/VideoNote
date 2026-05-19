@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec index for quality check"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify token state pattern compliance"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Lint/typecheck pass criteria"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Auth spans frontend token + backend cookie — check cross-layer consistency"}

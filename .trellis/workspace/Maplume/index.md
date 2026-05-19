@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
-- **Last Active**: 2026-05-18
+- **Total Sessions**: 12
+- **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~350 | Active |
+| `journal-1.md` | ~384 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-05-19 | Fix auth refresh: silent refresh on app startup | `adbc91b`, `a67ba7e` | `Feat/fix-auth-persist-login` |
 | 10 | 2026-05-18 | Enhance task features: delete, retry, cancel, pagination, metadata | `f2bc5ac` | `Feat/enhance-task-feature` |
 | 11 | 2026-05-18 | Fix SSE CRLF parsing causing white screen | `9f77489` | `fix/fix-white-screen-after-video-submit` |
 | 9 | 2026-05-18 | Bootstrap Guidelines: fill .trellis/spec with project conventions | `4f7614b` | `main` |

@@ -11,47 +11,54 @@ import { RegisterPage, registerAction } from "./pages/RegisterPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { getAccessToken } from "./auth/token";
+import { silentRefresh } from "./auth/api";
 
-const router = createBrowserRouter([
-  {
-    path: "/auth/login",
-    loader: () => {
-      if (getAccessToken()) return redirect("/app");
-      return null;
-    },
-    Component: LoginPage,
-    action: loginAction,
-  },
-  {
-    path: "/auth/register",
-    loader: () => {
-      if (getAccessToken()) return redirect("/app");
-      return null;
-    },
-    Component: RegisterPage,
-    action: registerAction,
-  },
-  {
-    path: "/app",
-    loader: authLoader,
-    Component: AppLayout,
-    children: [
-      { index: true, Component: VideoNoteApp },
-      { path: "history", Component: HistoryPage },
-      { path: "settings", Component: SettingsPage },
-    ],
-  },
-  {
-    path: "*",
-    loader: () => {
-      if (getAccessToken()) return redirect("/app");
-      return redirect("/auth/login");
-    },
-  },
-]);
+async function bootstrap() {
+  await silentRefresh();
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <RouterProvider router={router} />
-  </StrictMode>,
-);
+  const router = createBrowserRouter([
+    {
+      path: "/auth/login",
+      loader: () => {
+        if (getAccessToken()) return redirect("/app");
+        return null;
+      },
+      Component: LoginPage,
+      action: loginAction,
+    },
+    {
+      path: "/auth/register",
+      loader: () => {
+        if (getAccessToken()) return redirect("/app");
+        return null;
+      },
+      Component: RegisterPage,
+      action: registerAction,
+    },
+    {
+      path: "/app",
+      loader: authLoader,
+      Component: AppLayout,
+      children: [
+        { index: true, Component: VideoNoteApp },
+        { path: "history", Component: HistoryPage },
+        { path: "settings", Component: SettingsPage },
+      ],
+    },
+    {
+      path: "*",
+      loader: () => {
+        if (getAccessToken()) return redirect("/app");
+        return redirect("/auth/login");
+      },
+    },
+  ]);
+
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <RouterProvider router={router} />
+    </StrictMode>,
+  );
+}
+
+void bootstrap();
