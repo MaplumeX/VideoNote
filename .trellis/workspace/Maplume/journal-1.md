@@ -348,3 +348,37 @@ Fixed white screen after video submit: useSSE.ts used line === '' to detect SSE 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: Fix auth refresh: silent refresh on app startup
+
+**Date**: 2026-05-19
+**Task**: Fix auth refresh: silent refresh on app startup
+**Branch**: `Feat/fix-auth-persist-login`
+
+### Summary
+
+修复页面刷新后用户被踢回登录页的问题。access token 仅存内存，刷新后丢失，而 refresh cookie 有效却未被使用。在 main.tsx 的 bootstrap() 中 router 创建前调用 silentRefresh()，用 httpOnly cookie 恢复 access token。质量检查发现 top-level await 在 Vite esbuild 中不可用，改为 async function 包装。更新了 state-management spec 记录此模式。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `adbc91b` | (see git log) |
+| `a67ba7e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
