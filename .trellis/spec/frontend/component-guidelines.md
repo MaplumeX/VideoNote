@@ -25,6 +25,20 @@ export function VideoInput({ onSubmit, disabled }: VideoInputProps) {
 
 **Tailwind CSS only.** No CSS modules, no styled-components, no inline styles.
 
+When dynamic values are needed (e.g., tag color, folder indentation depth), use **CSS custom properties** + Tailwind arbitrary value syntax instead of inline styles:
+
+```tsx
+// BAD — inline style violates "Tailwind only" rule
+<span style={{ backgroundColor: tag.color }} />
+<div style={{ paddingLeft: `${depth * 16 + 8}px` }} />
+
+// GOOD — CSS variable + Tailwind arbitrary value
+<span className="bg-[var(--tag-color)]" style={{ "--tag-color": tag.color } as React.CSSProperties} />
+<div className="pl-[var(--depth-pad)]" style={{ "--depth-pad": `${depth * 16 + 8}px` } as React.CSSProperties} />
+```
+
+The `style` prop is used only to set the CSS variable value, not to apply the visual style directly. The `as React.CSSProperties` cast is required because custom properties aren't in the CSSProperties type.
+
 Use `cn()` for conditional class merging:
 
 ```tsx
@@ -33,7 +47,9 @@ import { cn } from "@/lib/utils";
 <div className={cn("rounded-lg border p-4", isActive && "border-blue-500")} />
 ```
 
-shadcn/ui components in `components/ui/` — install via CLI, don't hand-write. Available: `Button`, `Input`, `Select`, `Card`, `Badge`, `Separator`, `DropdownMenu`.
+shadcn/ui components in `components/ui/` — install via CLI, don't hand-write. Available: `Button`, `Input`, `Select`, `Card`, `Badge`, `Separator`, `DropdownMenu`, `ContextMenu`, `Sheet`, `Pagination`.
+
+> **Warning**: shadcn/ui components (e.g., `Pagination`) may use `nativeButton` / `render` props from Radix Button. This project's Button is based on **base-ui**, not Radix. When installing shadcn/ui components that wrap `<Button>`, check for incompatible props and adapt the component.
 
 Use shadcn/ui components for all interactive elements:
 - Buttons → `<Button variant="...">` (default, outline, ghost, destructive)

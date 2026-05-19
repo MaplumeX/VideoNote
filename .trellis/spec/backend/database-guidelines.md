@@ -115,3 +115,43 @@ await db.execute("SELECT * FROM tasks WHERE job_id = ?", (job_id,))
 ### Don't: Store secrets in plaintext
 
 API keys must be encrypted via `app/crypto.py` (Fernet) before storing in `user_providers.api_key_encrypted`.
+
+---
+
+## Dynamic ORDER BY
+
+When user input controls the sort column, use a **whitelist** — never interpolate directly:
+
+```python
+# BAD — SQL injection via sort_by
+query = f"SELECT * FROM tasks ORDER BY {sort_by} {sort_order}"
+
+# GOOD — whitelist validated column name
+allowed_sort = {"created_at", "title", "stage"}
+if sort_by in allowed_sort:
+    sort_expr = f"t.{sort_by}"
+else:
+    sort_expr = "t.created_at"  # safe default
+```
+
+`sort_order` must also be validated: only `"ASC"` or `"DESC"`.
+
+---
+
+## Searching JSON Columns
+
+`tasks.result_json` stores a JSON blob with fields like `title`. Since `title` isn't a real column, search it via `json_extract()`:
+
+```python
+# Search title inside result_json
+conditions.append("json_extract(t.result_json, '$.title') LIKE ?")
+params.append(f"%{search}%")
+```
+
+Similarly, sorting by `title` requires `json_extract`:
+
+```python
+sort_expr = "COALESCE(json_extract(t.result_json, '$.title'), '')"
+```
+
+> **Note**: `json_extract` on every row is a full scan. This is acceptable for current scale (single-user SQLite). If scale grows, extract `title` into a real column at insert time.
