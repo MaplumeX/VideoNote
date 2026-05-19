@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 14
+- **Total Sessions**: 15
 - **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~450 | Active |
+| `journal-1.md` | ~485 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 15 | 2026-05-19 | Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview | `6613e19`, `e040b13`, `dae0ad6` | `Feat/optimize-md-preview` |
 | 14 | 2026-05-19 | Refactor UI from tool to software feel | `eba1d4f` | `Feat/online-software-look` |
 | 13 | 2026-05-19 | Fix Bilibili yt-dlp audio download FileNotFoundError | `ea25d86` | `main` |
 | 12 | 2026-05-19 | Fix auth refresh: silent refresh on app startup | `adbc91b`, `a67ba7e` | `Feat/fix-auth-persist-login` |

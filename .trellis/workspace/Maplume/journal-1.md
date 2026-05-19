@@ -448,3 +448,38 @@ Replaced single-page tool layout with multi-route software experience: sidebar n
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview
+
+**Date**: 2026-05-19
+**Task**: Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview
+**Branch**: `Feat/optimize-md-preview`
+
+### Summary
+
+Implemented 4 PRs: (1) backend tags/folders/favorites CRUD API + DB schema, (2) frontend ContentSidebar + HistoryPage filtering, (3) Milkdown WYSIWYG editor with TimestampBadge node + slash commands + edit/preview toggle, (4) Shiki dual-theme code highlighting + TOC sidebar + KaTeX math + Mermaid diagrams + ThemeProvider context + @tailwindcss/typography. Updated frontend specs with new patterns.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6613e19` | (see git log) |
+| `e040b13` | (see git log) |
+| `dae0ad6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
