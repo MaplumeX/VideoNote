@@ -54,6 +54,7 @@ from app.schemas import (
     TaskListItem,
     TaskListResponse,
 )
+from app.services.markdown import normalize_note_markdown
 
 CurrentUser = Annotated[TokenData, Depends(get_current_user)]
 
@@ -345,14 +346,15 @@ async def update_note_content_endpoint(job_id: str, req: NoteContentUpdate, user
     if not result_raw:
         raise HTTPException(status_code=400, detail="Note has no content to update")
 
-    updated = await update_note_content(job_id, req.markdown, req.title)
+    markdown = normalize_note_markdown(req.markdown)
+    updated = await update_note_content(job_id, markdown, req.title)
     if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
 
     # Return the updated note
     result = json.loads(result_raw)
     new_title = req.title if req.title is not None else result.get("title")
-    return NoteResponse(job_id=job_id, markdown=req.markdown, title=new_title)
+    return NoteResponse(job_id=job_id, markdown=markdown, title=new_title)
 
 
 # --- Batch operation endpoints ---

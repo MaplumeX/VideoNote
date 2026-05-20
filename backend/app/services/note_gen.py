@@ -5,6 +5,7 @@ import logging
 from openai import OpenAI
 
 from app.config import LLM_API_BASE, LLM_API_KEY, LLM_MODEL
+from app.services.markdown import normalize_note_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ _PROMPTS_WITH_TIMESTAMPS: dict[str, dict[str, str]] = {
             "6. Add a brief overall summary at the top\n"
             "7. Write notes in the same language as the transcript "
             "(Chinese for Chinese, English for English)\n"
+            "8. Return only the Markdown document. Do not wrap it in a code block.\n"
         ),
         "user": "Please generate structured Markdown notes from the following video transcript.",
     },
@@ -43,6 +45,7 @@ _PROMPTS_WITH_TIMESTAMPS: dict[str, dict[str, str]] = {
             "5. 如果转录文本有明显段落，为每段生成摘要\n"
             "6. 在顶部添加简要总览\n"
             "7. 用中文撰写笔记\n"
+            "8. 只返回 Markdown 文档本身，不要包裹在代码块中。\n"
         ),
         "user": "请根据以下视频转录文本生成结构化的 Markdown 笔记。",
     },
@@ -66,6 +69,7 @@ _PROMPTS_WITHOUT_TIMESTAMPS: dict[str, dict[str, str]] = {
             "6. Add a brief overall summary at the top\n"
             "7. Write notes in the same language as the transcript "
             "(Chinese for Chinese, English for English)\n"
+            "8. Return only the Markdown document. Do not wrap it in a code block.\n"
         ),
         "user": "Please generate structured Markdown notes from the following video transcript.",
     },
@@ -82,6 +86,7 @@ _PROMPTS_WITHOUT_TIMESTAMPS: dict[str, dict[str, str]] = {
             "5. 如果转录文本有明显段落，为每段生成摘要\n"
             "6. 在顶部添加简要总览\n"
             "7. 用中文撰写笔记\n"
+            "8. 只返回 Markdown 文档本身，不要包裹在代码块中。\n"
         ),
         "user": "请根据以下视频转录文本生成结构化的 Markdown 笔记。",
     },
@@ -142,4 +147,4 @@ def generate_notes(
     )
 
     notes = response.choices[0].message.content
-    return notes or ""
+    return normalize_note_markdown(notes or "")

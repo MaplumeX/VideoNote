@@ -49,6 +49,7 @@ from app.schemas import (
     VideoRequest,
 )
 from app.services.audio import download_audio_via_ytdlp, extract_audio
+from app.services.markdown import normalize_note_markdown
 from app.services.note_gen import generate_notes
 from app.services.subtitle import detect_video_platform, extract_subtitles, get_video_title
 from app.services.transcribe import transcribe_audio
@@ -391,7 +392,7 @@ async def task_result(
     result = json.loads(result_raw)
     return NoteResponse(
         job_id=job_id,
-        markdown=result.get("markdown", ""),
+        markdown=normalize_note_markdown(result.get("markdown", "")),
         title=result.get("title"),
     )
 
