@@ -360,7 +360,7 @@ function MilkdownEditorInner({ markdown, onChange }: MilkdownEditorInnerProps) {
       .use(gfm)
       .use(timestampBadge)
       .use(timestampBadgeView)
-      .use(remarkTimestampBadgePlugin)
+      .use(remarkTimestampBadgePlugin.plugin)
       .use(slash)
       .use(listener)
       .use(prism)
