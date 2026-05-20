@@ -717,6 +717,17 @@ Replaced @milkdown/theme-nord/style.css (which contained a Tailwind v4 reset lay
 
 Fixed Milkdown editor showing raw markdown instead of WYSIWYG: changed .use(remarkTimestampBadgePlugin) to .use(remarkTimestampBadgePlugin.plugin). The $remark() utility returns [options, plugin] tuple; passing the raw tuple to .use() caused silent editor initialization failure.
 
+
+## Session 24: Sidebar Collapsible Feature
+
+**Date**: 2026-05-20
+**Task**: Sidebar Collapsible Feature
+**Branch**: `Feat/sidebar-collapsible`
+
+### Summary
+
+Implemented desktop sidebar collapse to icon mode with Tooltip, Cmd/Ctrl+B shortcut, and localStorage persistence. Updated component spec with @base-ui render prop guidance.
+
 ### Main Changes
 
 (Add details)
@@ -726,6 +737,7 @@ Fixed Milkdown editor showing raw markdown instead of WYSIWYG: changed .use(rema
 | Hash | Message |
 |------|---------|
 | `a71fcb7` | (see git log) |
+| `c8217dc` | (see git log) |
 
 ### Testing
 

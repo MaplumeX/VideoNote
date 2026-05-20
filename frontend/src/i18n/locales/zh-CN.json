@@ -97,7 +97,9 @@
   "sidebar": {
     "newNote": "新建笔记",
     "history": "历史记录",
-    "settings": "设置"
+    "settings": "设置",
+    "collapse": "收起",
+    "expand": "展开"
   },
   "note": {
     "untitled": "无标题笔记"
