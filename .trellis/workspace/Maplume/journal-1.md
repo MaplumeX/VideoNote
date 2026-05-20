@@ -705,3 +705,36 @@ Replaced @milkdown/theme-nord/style.css (which contained a Tailwind v4 reset lay
 ### Next Steps
 
 - None - task complete
+
+
+## Session 24: Fix Milkdown raw markdown rendering
+
+**Date**: 2026-05-20
+**Task**: Fix Milkdown raw markdown rendering
+**Branch**: `Feat/fix-note-style-rendering`
+
+### Summary
+
+Fixed Milkdown editor showing raw markdown instead of WYSIWYG: changed .use(remarkTimestampBadgePlugin) to .use(remarkTimestampBadgePlugin.plugin). The $remark() utility returns [options, plugin] tuple; passing the raw tuple to .use() caused silent editor initialization failure.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a71fcb7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
