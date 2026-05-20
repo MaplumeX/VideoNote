@@ -202,8 +202,8 @@ export async function toggleFavorite(jobId: string, req: FavoriteToggleRequest):
 
 // --- Note content editing ---
 
-export async function updateNoteContent(jobId: string, data: { markdown: string }): Promise<void> {
-  await apiFetch(`${API_BASE}/tasks/${jobId}/content`, {
+export async function updateNoteContent(jobId: string, data: { markdown: string }): Promise<NoteResult> {
+  return apiFetch<NoteResult>(`${API_BASE}/tasks/${jobId}/content`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),

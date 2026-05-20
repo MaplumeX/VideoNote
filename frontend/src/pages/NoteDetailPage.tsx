@@ -151,8 +151,9 @@ export function NoteDetailPage() {
     if (!jobId || !hasUnsavedChanges || saving) return;
     setSaving(true);
     try {
-      await updateNoteContent(jobId, { markdown: editMarkdown });
-      setNote((prev) => (prev ? { ...prev, markdown: editMarkdown } : prev));
+      const savedNote = await updateNoteContent(jobId, { markdown: editMarkdown });
+      setNote(savedNote);
+      setEditMarkdown(savedNote.markdown);
       setSaving(false);
     } catch {
       setSaving(false);
