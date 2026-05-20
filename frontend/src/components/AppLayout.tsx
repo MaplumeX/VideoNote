@@ -1,22 +1,57 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Outlet } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "./Sidebar";
 import { ThemeProvider } from "@/hooks/useTheme";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { getAccessToken } from "@/auth/token";
+
+const COLLAPSED_KEY = "sidebar-collapsed";
+
+function useSidebarCollapse() {
+  const [collapsed, setCollapsed] = useState(() => {
+    const stored = localStorage.getItem(COLLAPSED_KEY);
+    return stored === "true";
+  });
+
+  const toggle = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(COLLAPSED_KEY, String(next));
+      return next;
+    });
+  }, []);
+
+  // Cmd/Ctrl+B shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+        e.preventDefault();
+        toggle();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [toggle]);
+
+  return { collapsed, toggle };
+}
 
 export function AppLayout() {
   const { t } = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { collapsed, toggle: toggleCollapse } = useSidebarCollapse();
 
   return (
     <ThemeProvider>
+    <TooltipProvider>
     <div className="h-screen flex bg-background">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
 
-      <div className="flex-1 min-w-0 flex flex-col h-screen md:ml-52">
+      <div className={cn("flex-1 min-w-0 flex flex-col h-screen transition-all duration-300", collapsed ? "md:ml-14" : "md:ml-52")}>
         {/* Mobile header */}
         <header className="border-b border-border md:hidden shrink-0">
           <div className="px-4 py-3 flex items-center gap-3">
@@ -39,6 +74,7 @@ export function AppLayout() {
         </main>
       </div>
     </div>
+    </TooltipProvider>
     </ThemeProvider>
   );
 }

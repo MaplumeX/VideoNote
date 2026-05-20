@@ -47,9 +47,19 @@ import { cn } from "@/lib/utils";
 <div className={cn("rounded-lg border p-4", isActive && "border-blue-500")} />
 ```
 
-shadcn/ui components in `components/ui/` — install via CLI, don't hand-write. Available: `Button`, `Input`, `Select`, `Card`, `Badge`, `Separator`, `DropdownMenu`, `ContextMenu`, `Sheet`, `Pagination`.
+shadcn/ui components in `components/ui/` — install via CLI, don't hand-write. Available: `Button`, `Input`, `Select`, `Card`, `Badge`, `Separator`, `DropdownMenu`, `ContextMenu`, `Sheet`, `Pagination`, `Tooltip`.
 
-> **Warning**: shadcn/ui components (e.g., `Pagination`) may use `nativeButton` / `render` props from Radix Button. This project's Button is based on **base-ui**, not Radix. When installing shadcn/ui components that wrap `<Button>`, check for incompatible props and adapt the component.
+> **Warning**: This project uses **@base-ui/react** (not Radix) as the headless primitive layer for shadcn. `@base-ui` components use `render` prop instead of `asChild`. When a shadcn component needs to wrap a custom element (e.g., `TooltipTrigger` wrapping a `Button`), use `render` prop:
+>
+> ```tsx
+> // BAD — asChild doesn't exist on @base-ui components
+> <TooltipTrigger asChild><Button>...</Button></TooltipTrigger>
+>
+> // GOOD — use render prop with a function that receives trigger props
+> <TooltipTrigger render={(props) => <Button {...props}>...</Button>} />
+> ```
+>
+> Similarly, when installing new shadcn components via CLI, check for `asChild` usage in the generated code and replace with `render` prop where needed.
 
 Use shadcn/ui components for all interactive elements:
 - Buttons → `<Button variant="...">` (default, outline, ghost, destructive)
