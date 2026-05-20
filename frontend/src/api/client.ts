@@ -16,6 +16,7 @@ import type {
   BatchTagRequest,
   BatchMoveRequest,
   BatchFavoriteRequest,
+  ModelsResponse,
 } from "../types";
 import { authFetch } from "../auth/api";
 
@@ -74,6 +75,18 @@ export async function saveSettings(settings: SettingsRequest): Promise<void> {
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
     throw new Error(err.detail || `HTTP ${res.status}`);
   }
+}
+
+export async function fetchModels(
+  apiKey: string,
+  apiBase: string,
+  category: "asr" | "llm"
+): Promise<ModelsResponse> {
+  return apiFetch<ModelsResponse>(`${API_BASE}/models`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey, api_base: apiBase, category }),
+  });
 }
 
 // --- Task listing with filters ---

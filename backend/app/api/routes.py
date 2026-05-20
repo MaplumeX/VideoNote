@@ -37,6 +37,9 @@ from app.db import (
     update_progress,
 )
 from app.schemas import (
+    ModelItem,
+    ModelsRequest,
+    ModelsResponse,
     NoteResponse,
     ProviderConfigResponse,
     ProviderPreset,
@@ -534,6 +537,24 @@ async def cancel_task(
 
 
 # --- Provider / Settings endpoints ---
+
+
+@router.post("/models", response_model=ModelsResponse)
+async def list_models(req: ModelsRequest, user: CurrentUser):
+    """Proxy /v1/models call to avoid exposing API key to the frontend."""
+    try:
+        from openai import AsyncOpenAI
+
+        async with AsyncOpenAI(api_key=req.api_key, base_url=req.api_base) as client:
+            page = await client.models.list()
+            models = [
+                ModelItem(id=m.id, object=m.object, created=m.created, owned_by=m.owned_by)
+                for m in page.data
+            ]
+            return ModelsResponse(models=models)
+    except Exception as e:
+        logger.warning(f"Failed to list models for {req.api_base}: {e}")
+        return ModelsResponse(models=[], error=str(e))
 
 
 @router.get("/providers", response_model=ProvidersResponse)

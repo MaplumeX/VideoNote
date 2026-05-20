@@ -750,3 +750,36 @@ Implemented desktop sidebar collapse to icon mode with Tooltip, Cmd/Ctrl+B short
 ### Next Steps
 
 - None - task complete
+
+
+## Session 25: 增强API模型选择方案
+
+**Date**: 2026-05-20
+**Task**: 增强API模型选择方案
+**Branch**: `Feat/api-model-selection`
+
+### Summary
+
+新增 POST /api/models 端点代理第三方 /v1/models 请求；前端模型输入从固定 Select 改为 Combobox（可搜索下拉+自由输入）；选择 provider + API key 后自动拉取模型列表；获取失败降级为空列表
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c706d86` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

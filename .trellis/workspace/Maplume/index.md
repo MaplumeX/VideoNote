@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 24
+- **Total Sessions**: 25
 - **Last Active**: 2026-05-20
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~740 | Active |
+| `journal-1.md` | ~785 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 25 | 2026-05-20 | 增强API模型选择方案 | `c706d86` | `Feat/api-model-selection` |
 | 24 | 2026-05-20 | Fix Milkdown raw markdown rendering | `a71fcb7` | `Feat/fix-note-style-rendering` |
 | 24 | 2026-05-20 | Sidebar Collapsible Feature | `c8217dc` | `Feat/sidebar-collapsible` |
 | 23 | 2026-05-20 | Fix note rendering and dark mode theme | `e622ba2` | `fix/fix-note-render-and-theme` |

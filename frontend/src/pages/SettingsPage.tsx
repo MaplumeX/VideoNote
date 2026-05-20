@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchProviders, fetchSettings, saveSettings } from "@/api/client";
+import { fetchProviders, fetchSettings, saveSettings, fetchModels } from "@/api/client";
 import type {
   ProviderPreset,
   ProvidersResponse,
@@ -13,6 +13,7 @@ import { SUPPORTED_LANGS } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Select,
   SelectContent,
@@ -66,6 +67,7 @@ const labelClass = "block text-sm font-medium mb-1.5";
 interface ProviderConfigSectionProps {
   title: string;
   icon: React.ReactNode;
+  category: "asr" | "llm";
   presets: ProviderPreset[];
   form: ConfigFormState;
   onChange: (form: ConfigFormState) => void;
@@ -74,14 +76,64 @@ interface ProviderConfigSectionProps {
 function ProviderConfigSection({
   title,
   icon,
+  category,
   presets,
   form,
   onChange,
 }: ProviderConfigSectionProps) {
   const { t } = useTranslation();
 
+  const [dynamicModels, setDynamicModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const prevFetchRef = useRef({ apiKey: "", apiBase: "" });
+
   const selectedPreset = presets.find((p) => p.provider === form.provider);
-  const models = selectedPreset?.models ?? [];
+  const presetModels = selectedPreset?.models ?? [];
+
+  // Determine effective model list: dynamic if fetched, otherwise preset fallback
+  const modelOptions = dynamicModels.length > 0 ? dynamicModels : presetModels;
+
+  const fetchDynamicModels = useCallback(
+    async (apiKey: string, apiBase: string) => {
+      if (!apiKey || !apiBase) {
+        setDynamicModels([]);
+        return;
+      }
+      // Avoid duplicate fetches for the same key+base
+      const key = `${apiKey}:${apiBase}`;
+      if (prevFetchRef.current.apiKey + ":" + prevFetchRef.current.apiBase === key) return;
+      prevFetchRef.current = { apiKey, apiBase };
+
+      setModelsLoading(true);
+      try {
+        const res = await fetchModels(apiKey, apiBase, category);
+        if (res.error) {
+          setDynamicModels([]);
+        } else {
+          setDynamicModels(res.models.map((m) => m.id).sort());
+        }
+      } catch {
+        setDynamicModels([]);
+      } finally {
+        setModelsLoading(false);
+      }
+    },
+    [category]
+  );
+
+  // Auto-fetch models when provider + api key are both available
+  useEffect(() => {
+    // For preset provider: need apiKey and apiBase
+    // For custom provider: need apiKey and apiBase
+    const apiKey = form.apiKey;
+    const apiBase = form.apiBase;
+    if (apiKey && apiBase) {
+      void fetchDynamicModels(apiKey, apiBase);
+    } else {
+      setDynamicModels([]);
+      prevFetchRef.current = { apiKey: "", apiBase: "" };
+    }
+  }, [form.apiKey, form.apiBase, fetchDynamicModels]);
 
   const handleProviderChange = (value: string | null) => {
     if (!value) return;
@@ -98,10 +150,13 @@ function ProviderConfigSection({
         ...emptyConfig,
         provider: value,
         apiBase: preset?.api_base ?? "",
-        model: preset?.models[0] ?? "",
+        model: "",
         keyMasked: form.keyMasked,
       });
     }
+    // Reset dynamic models when provider changes
+    setDynamicModels([]);
+    prevFetchRef.current = { apiKey: "", apiBase: "" };
   };
 
   return (
@@ -144,34 +199,19 @@ function ProviderConfigSection({
           </div>
         )}
 
-        {/* Model */}
-        {!form.isCustom && models.length > 0 ? (
-          <div>
-            <label className={labelClass}>{t("settings.model")}</label>
-            <Select value={form.model} onValueChange={(v) => onChange({ ...form, model: v ?? "" })}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("settings.model")} />
-              </SelectTrigger>
-              <SelectContent align="start" alignItemWithTrigger={false}>
-                {models.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : (
-          <div>
-            <label className={labelClass}>{t("settings.model")}</label>
-            <Input
-              type="text"
-              value={form.model}
-              onChange={(e) => onChange({ ...form, model: e.target.value })}
-              placeholder={t("settings.model")}
-            />
-          </div>
-        )}
+        {/* Model - Combobox for both preset and custom */}
+        <div>
+          <label className={labelClass}>{t("settings.model")}</label>
+          <Combobox
+            value={form.model}
+            onChange={(v) => onChange({ ...form, model: v })}
+            options={modelOptions}
+            placeholder={t("settings.model")}
+            loading={modelsLoading}
+            loadingText={t("settings.loadingModels")}
+            emptyText={t("settings.noModels")}
+          />
+        </div>
 
         {/* API Base */}
         <div>
@@ -332,6 +372,7 @@ export function SettingsPage() {
       <ProviderConfigSection
         title={t("settings.asrConfig")}
         icon={<Mic size={18} className="text-muted-foreground" />}
+        category="asr"
         presets={providers?.asr ?? []}
         form={asrForm}
         onChange={setAsrForm}
@@ -340,6 +381,7 @@ export function SettingsPage() {
       <ProviderConfigSection
         title={t("settings.llmConfig")}
         icon={<Brain size={18} className="text-muted-foreground" />}
+        category="llm"
         presets={providers?.llm ?? []}
         form={llmForm}
         onChange={setLlmForm}
