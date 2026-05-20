@@ -1,18 +1,21 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router";
-import { Plus, FileText, Settings, LogOut, X, Sun, Moon } from "lucide-react";
+import { Plus, FileText, Settings, LogOut, X, Sun, Moon, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/useTheme";
 import { clearAuth } from "@/auth/token";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-export function Sidebar({ open, onClose }: SidebarProps) {
+export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,13 +50,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 left-0 z-50 h-screen w-52 border-r border-border bg-sidebar text-sidebar-foreground flex flex-col transition-transform md:translate-x-0 md:z-auto",
+          "fixed top-0 left-0 z-50 h-screen border-r border-border bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-300 md:translate-x-0 md:z-auto",
+          collapsed ? "w-14" : "w-52",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 md:py-5 shrink-0">
-          <h1 className="text-base font-bold">{t("app.title")}</h1>
+          <h1 className={cn("text-base font-bold transition-opacity duration-200", collapsed && "opacity-0 w-0 overflow-hidden")}>{t("app.title")}</h1>
           <Button variant="ghost" size="icon-xs" onClick={onClose} className="md:hidden hover:bg-sidebar-accent">
             <X size={18} />
           </Button>
@@ -63,55 +67,160 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Nav items */}
         <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
-          {navItems.map(({ path, icon: Icon, label }) => (
-            <Button
-              key={path}
-              variant="ghost"
-              onClick={() => {
-                navigate(path);
-                onClose();
-              }}
-              className={cn(
-                "w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm",
-                isActive(path)
-                  ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground hover:bg-sidebar-accent"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-              )}
-            >
-              <Icon size={18} />
-              {label}
-            </Button>
-          ))}
+          {navItems.map(({ path, icon: Icon, label }) =>
+            collapsed ? (
+              <Tooltip key={path}>
+                <TooltipTrigger
+                  render={(props: React.HTMLAttributes<HTMLButtonElement>) => (
+                    <Button
+                      variant="ghost"
+                      {...props}
+                      onClick={() => {
+                        navigate(path);
+                        onClose();
+                      }}
+                      className={cn(
+                        "w-full flex items-center justify-center px-0 py-2 text-sm",
+                        isActive(path)
+                          ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground hover:bg-sidebar-accent"
+                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                      )}
+                    >
+                      <Icon size={18} />
+                    </Button>
+                  )}
+                />
+                <TooltipContent side="right">{label}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                key={path}
+                variant="ghost"
+                onClick={() => {
+                  navigate(path);
+                  onClose();
+                }}
+                className={cn(
+                  "w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm",
+                  isActive(path)
+                    ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground hover:bg-sidebar-accent"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                )}
+              >
+                <Icon size={18} />
+                {label}
+              </Button>
+            )
+          )}
         </nav>
 
         <Separator />
 
         {/* Bottom section */}
         <div className="px-2 py-3 space-y-0.5 shrink-0">
-          <Button
-            variant="ghost"
-            onClick={toggleTheme}
-            className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-          >
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-            {theme === "dark" ? t("theme.light") : t("theme.dark")}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => { navigate("/app/settings"); onClose(); }}
-            className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-          >
-            <Settings size={18} />
-            {t("sidebar.settings")}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={handleLogout}
-            className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive"
-          >
-            <LogOut size={18} />
-            {t("auth.signOut")}
-          </Button>
+          {collapsed ? (
+            <>
+              <Tooltip>
+                <TooltipTrigger
+                  render={(props: React.HTMLAttributes<HTMLButtonElement>) => (
+                    <Button
+                      variant="ghost"
+                      {...props}
+                      onClick={toggleTheme}
+                      className="w-full flex items-center justify-center px-0 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    >
+                      {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+                    </Button>
+                  )}
+                />
+                <TooltipContent side="right">{theme === "dark" ? t("theme.light") : t("theme.dark")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={(props: React.HTMLAttributes<HTMLButtonElement>) => (
+                    <Button
+                      variant="ghost"
+                      {...props}
+                      onClick={() => { navigate("/app/settings"); onClose(); }}
+                      className="w-full flex items-center justify-center px-0 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    >
+                      <Settings size={18} />
+                    </Button>
+                  )}
+                />
+                <TooltipContent side="right">{t("sidebar.settings")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={(props: React.HTMLAttributes<HTMLButtonElement>) => (
+                    <Button
+                      variant="ghost"
+                      {...props}
+                      onClick={handleLogout}
+                      className="w-full flex items-center justify-center px-0 py-2 text-sm text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <LogOut size={18} />
+                    </Button>
+                  )}
+                />
+                <TooltipContent side="right">{t("auth.signOut")}</TooltipContent>
+              </Tooltip>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                onClick={toggleTheme}
+                className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              >
+                {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+                {theme === "dark" ? t("theme.light") : t("theme.dark")}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => { navigate("/app/settings"); onClose(); }}
+                className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              >
+                <Settings size={18} />
+                {t("sidebar.settings")}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={handleLogout}
+                className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive"
+              >
+                <LogOut size={18} />
+                {t("auth.signOut")}
+              </Button>
+            </>
+          )}
+          <Separator />
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={(props: React.HTMLAttributes<HTMLButtonElement>) => (
+                  <Button
+                    variant="ghost"
+                    {...props}
+                    onClick={onToggleCollapse}
+                    className="w-full flex items-center justify-center px-0 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  >
+                    <ChevronsRight size={18} />
+                  </Button>
+                )}
+              />
+              <TooltipContent side="right">{t("sidebar.expand")}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              variant="ghost"
+              onClick={onToggleCollapse}
+              className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            >
+              <ChevronsLeft size={18} />
+              {t("sidebar.collapse")}
+            </Button>
+          )}
         </div>
       </aside>
     </>

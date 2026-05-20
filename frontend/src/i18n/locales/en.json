@@ -97,7 +97,9 @@
   "sidebar": {
     "newNote": "New Note",
     "history": "History",
-    "settings": "Settings"
+    "settings": "Settings",
+    "collapse": "Collapse",
+    "expand": "Expand"
   },
   "note": {
     "untitled": "Untitled Note"

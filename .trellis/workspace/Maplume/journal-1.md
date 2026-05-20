@@ -705,3 +705,36 @@ Replaced @milkdown/theme-nord/style.css (which contained a Tailwind v4 reset lay
 ### Next Steps
 
 - None - task complete
+
+
+## Session 24: Sidebar Collapsible Feature
+
+**Date**: 2026-05-20
+**Task**: Sidebar Collapsible Feature
+**Branch**: `Feat/sidebar-collapsible`
+
+### Summary
+
+Implemented desktop sidebar collapse to icon mode with Tooltip, Cmd/Ctrl+B shortcut, and localStorage persistence. Updated component spec with @base-ui render prop guidance.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c8217dc` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
