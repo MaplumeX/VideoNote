@@ -1,0 +1,2 @@
+{"file": ".trellis/tasks/05-20-api/prd.md", "reason": "PRD with requirements, acceptance criteria, technical approach, and out-of-scope decisions"}
+{"file": ".trellis/tasks/05-20-api/research/dynamic-model-listing.md", "reason": "Research on /v1/models endpoint, provider compatibility, edge cases, proposed backend endpoint design and frontend component changes"}
