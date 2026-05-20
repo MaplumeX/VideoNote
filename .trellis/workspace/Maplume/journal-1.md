@@ -672,3 +672,36 @@ Replaced react-markdown preview pipeline with Milkdown WYSIWYG-only rendering. A
 ### Next Steps
 
 - None - task complete
+
+
+## Session 23: Fix note rendering and dark mode theme
+
+**Date**: 2026-05-20
+**Task**: Fix note rendering and dark mode theme
+**Branch**: `fix/fix-note-render-and-theme`
+
+### Summary
+
+Replaced @milkdown/theme-nord/style.css (which contained a Tailwind v4 reset layer breaking WYSIWYG rendering and used prefers-color-scheme for dark mode) with custom .milkdown-theme-nord CSS using project CSS variables and .dark class. Switched prism theme to prism-tomorrow, added KaTeX dark mode override, removed orphan .dark .prose rules.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e622ba2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
