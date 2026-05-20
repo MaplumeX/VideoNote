@@ -29,14 +29,13 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 24 | 2026-05-20 | Fix Milkdown raw markdown rendering | `a71fcb7` | `Feat/fix-note-style-rendering` |
 | 24 | 2026-05-20 | Sidebar Collapsible Feature | `c8217dc` | `Feat/sidebar-collapsible` |
 | 23 | 2026-05-20 | Fix note rendering and dark mode theme | `e622ba2` | `fix/fix-note-render-and-theme` |
 | 22 | 2026-05-19 | 升级时间戳：条件渲染 + 悬浮视频跳转 | `3295cde` | `Feat/upgrade-timestamp-video-seek` |
 | 21 | 2026-05-19 | Unify note rendering to Milkdown-only + 3-column layout | `cf87158` | `Feat/optimize-note-ui-render` |
-<<<<<<< HEAD
 | 20 | 2026-05-19 | 优化历史界面 UI 布局 | `cbfb508`, `cf31fa4`, `23bd180` | `style/optimize-history-ui` |
 | 19 | 2026-05-19 | Optimize new note page UI | `a6404fc` | `style/optimize-new-note-ui` |
->>>>>>> origin/main
 | 18 | 2026-05-19 | Optimize note feature — tags, folders, favorites, WYSIWYG editor, enhanced markdown preview | `6613e19`, `e040b13`, `dae0ad6` | `Feat/optimize-md-preview` |
 | 17 | 2026-05-19 | Fix UI quality issues | `0247ec2` | `Feat/fix-ui-layout-and-menus` |
 | 16 | 2026-05-19 | Polish frontend UI with shadcn/ui, dark mode, and layout fix | `00f1cbd`, `86f3d3c` | `Feat/optimize-frontend-ui` |
