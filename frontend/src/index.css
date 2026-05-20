@@ -152,31 +152,176 @@
   }
 }
 
-/* Dark mode prose inversion */
-.dark .prose {
-  --tw-prose-body: var(--color-foreground);
-  --tw-prose-headings: var(--color-foreground);
-  --tw-prose-lead: var(--color-muted-foreground);
-  --tw-prose-links: var(--color-primary);
-  --tw-prose-bold: var(--color-foreground);
-  --tw-prose-counters: var(--color-muted-foreground);
-  --tw-prose-bullets: var(--color-muted-foreground);
-  --tw-prose-hr: var(--color-border);
-  --tw-prose-quotes: var(--color-muted-foreground);
-  --tw-prose-quote-borders: var(--color-border);
-  --tw-prose-captions: var(--color-muted-foreground);
-  --tw-prose-code: var(--color-foreground);
-  --tw-prose-pre-code: #e5e5e5;
-  --tw-prose-pre-bg: #1c1c1c;
-  --tw-prose-th-borders: var(--color-border);
-  --tw-prose-td-borders: var(--color-border);
-}
-
 /* KaTeX display math centering */
 .katex-display {
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0.5rem 0;
+}
+
+/* KaTeX dark mode */
+.dark .katex {
+  color: var(--color-foreground);
+}
+
+/* Milkdown editor — custom theme (replaces @milkdown/theme-nord/style.css) */
+.milkdown-theme-nord {
+  color: var(--color-foreground);
+}
+
+.milkdown-theme-nord h1 {
+  margin-top: 1.5rem;
+  font-size: 1.875rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.milkdown-theme-nord h2 {
+  margin-top: 1.25rem;
+  font-size: 1.5rem;
+  line-height: 1.33;
+  font-weight: 600;
+}
+
+.milkdown-theme-nord h3 {
+  margin-top: 1rem;
+  font-size: 1.25rem;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.milkdown-theme-nord h4 {
+  margin-top: 0.75rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.milkdown-theme-nord h5,
+.milkdown-theme-nord h6 {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.43;
+  font-weight: 500;
+}
+
+.milkdown-theme-nord p {
+  font-size: 1rem;
+  line-height: 1.625;
+}
+
+.milkdown-theme-nord a {
+  color: var(--color-primary);
+  text-decoration-line: underline;
+}
+
+.milkdown-theme-nord strong {
+  font-weight: 700;
+}
+
+.milkdown-theme-nord blockquote {
+  border-left: 4px solid var(--color-primary);
+  padding-left: 1rem;
+  font-style: normal;
+  color: var(--color-muted-foreground);
+}
+
+.milkdown-theme-nord ul {
+  list-style-type: disc;
+  list-style-position: outside;
+  padding-left: 1.25rem;
+}
+
+.milkdown-theme-nord ol {
+  list-style-type: decimal;
+  list-style-position: outside;
+  padding-left: 1.25rem;
+}
+
+.milkdown-theme-nord li {
+  margin-bottom: 0.25rem;
+}
+
+.milkdown-theme-nord li > ul,
+.milkdown-theme-nord li > ol {
+  margin-top: 0.25rem;
+}
+
+.milkdown-theme-nord code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  font-size: 0.875rem;
+  background-color: var(--color-muted);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  color: var(--color-primary);
+}
+
+.milkdown-theme-nord pre {
+  background-color: var(--color-muted);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.milkdown-theme-nord pre code {
+  background-color: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.milkdown-theme-nord hr {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.milkdown-theme-nord img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+  margin-block: 1rem;
+}
+
+.milkdown-theme-nord table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.875rem;
+  border: 1px solid var(--color-border);
+}
+
+.milkdown-theme-nord th,
+.milkdown-theme-nord td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.75rem;
+}
+
+.milkdown-theme-nord th {
+  font-weight: 600;
+  background-color: var(--color-muted);
+}
+
+/* Milkdown dark mode overrides */
+.dark .milkdown-theme-nord pre {
+  background-color: #1c1c1c;
+}
+
+.dark .milkdown-theme-nord code {
+  background-color: #374151;
+}
+
+.dark .milkdown-theme-nord th {
+  background-color: #262626;
+}
+
+.dark .milkdown-theme-nord tr:nth-child(even) {
+  background-color: oklch(0.205 0 0);
+}
+
+/* Prism code block dark adjustments (prism-tomorrow base) */
+.dark .milkdown-theme-nord pre[class*="language-"],
+.dark .milkdown-theme-nord code[class*="language-"] {
+  text-shadow: none;
 }
 
 /* Mermaid diagram container */

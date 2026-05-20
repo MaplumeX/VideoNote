@@ -16,9 +16,8 @@ import type { MarkdownNode, RemarkPluginRaw } from "@milkdown/transformer";
 import { katexPlugins } from "./milkdown-katex";
 import { mermaidPlugins } from "./milkdown-mermaid";
 
-import "@milkdown/theme-nord/style.css";
 import "katex/dist/katex.min.css";
-import "prismjs/themes/prism.css";
+import "prismjs/themes/prism-tomorrow.css";
 
 // ---------------------------------------------------------------------------
 // TimestampBadge custom node
