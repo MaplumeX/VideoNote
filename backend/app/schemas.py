@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, HttpUrl
 
@@ -87,6 +88,24 @@ class TaskListResponse(BaseModel):
 
 
 # Provider / Settings schemas
+
+
+class ModelsRequest(BaseModel):
+    api_key: str
+    api_base: str
+    category: Literal["asr", "llm"]
+
+
+class ModelItem(BaseModel):
+    id: str
+    object: str | None = None
+    created: int | None = None
+    owned_by: str | None = None
+
+
+class ModelsResponse(BaseModel):
+    models: list[ModelItem]
+    error: str | None = None
 
 
 class ProviderPreset(BaseModel):

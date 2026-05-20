@@ -130,7 +130,9 @@
     "saved": "设置已保存",
     "saveFailed": "保存设置失败",
     "keyMasked": "当前：••••{{last4}}",
-    "keyPlaceholder": "输入 API 密钥"
+    "keyPlaceholder": "输入 API 密钥",
+    "loadingModels": "加载模型中...",
+    "noModels": "未找到模型"
   },
   "contentSidebar": {
     "allNotes": "全部笔记",

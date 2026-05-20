@@ -84,6 +84,18 @@ export interface TaskListResponse {
 
 // --- Tag types ---
 
+export interface ModelItem {
+  id: string;
+  object?: string;
+  created?: number;
+  owned_by?: string;
+}
+
+export interface ModelsResponse {
+  models: ModelItem[];
+  error?: string;
+}
+
 export interface Tag {
   id: string;
   user_id: string;

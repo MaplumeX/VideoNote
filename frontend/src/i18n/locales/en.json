@@ -130,7 +130,9 @@
     "saved": "Settings saved",
     "saveFailed": "Failed to save settings",
     "keyMasked": "Current: ••••{{last4}}",
-    "keyPlaceholder": "Enter API key"
+    "keyPlaceholder": "Enter API key",
+    "loadingModels": "Loading models...",
+    "noModels": "No models found"
   },
   "contentSidebar": {
     "allNotes": "All Notes",
