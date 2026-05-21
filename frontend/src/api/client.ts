@@ -16,6 +16,7 @@ import type {
   BatchTagRequest,
   BatchMoveRequest,
   BatchFavoriteRequest,
+  BatchDeleteRequest,
   ModelsResponse,
 } from "../types";
 import { authFetch } from "../auth/api";
@@ -243,6 +244,14 @@ export async function batchMoveToFolder(req: BatchMoveRequest): Promise<void> {
 
 export async function batchSetFavorite(req: BatchFavoriteRequest): Promise<void> {
   await apiFetch(`${API_BASE}/tasks/batch/favorite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
+export async function batchDelete(req: BatchDeleteRequest): Promise<{ deleted: number }> {
+  return apiFetch<{ deleted: number }>(`${API_BASE}/tasks/batch/delete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),

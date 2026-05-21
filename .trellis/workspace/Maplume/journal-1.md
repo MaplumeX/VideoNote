@@ -1051,7 +1051,40 @@ Extract thumbnail URL from yt-dlp, store in DB, add to API schema, and render on
 - None - task complete
 
 
-## Session 33: Remove note editor inner border
+## Session 33: Fix multi-select: checkboxes, batch delete, state consistency, exit controls
+
+**Date**: 2026-05-21
+**Task**: Fix multi-select: checkboxes, batch delete, state consistency, exit controls
+**Branch**: `Feat/fix-note-multi-select`
+
+### Summary
+
+Fixed 4 multi-select issues in HistoryPage: (1) added always-visible checkboxes at top-left of cards and first column of list rows, (2) implemented POST /tasks/batch/delete backend endpoint replacing N individual DELETE calls, (3) clear selectedIds on page/search change to prevent orphan selections, (4) added Escape key handler and X close button to exit selection mode. Updated state-management spec with selection consistency convention.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ea0cfc1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 34: Remove note editor inner border
 
 **Date**: 2026-05-21
 **Task**: Remove note editor inner border

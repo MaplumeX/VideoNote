@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Checkbox component placement, event handling (stopPropagation), and UI conventions for HistoryPage cards/rows"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "selectedIds state consistency rules across page/filter changes, Escape key handling"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "BatchDeleteRequest type definition pattern, matching existing BatchTagRequest/BatchMoveRequest"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Batch delete endpoint error handling: partial failure, ownership verification per existing batch endpoints"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "batch_delete DB function pattern: SQL IN clause usage, user_id filtering, transaction safety"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Batch delete spans backend (schema, route, db) and frontend (type, api client, page) — cross-layer data flow"}

@@ -235,3 +235,7 @@ class BatchMoveRequest(BaseModel):
 class BatchFavoriteRequest(BaseModel):
     job_ids: list[str]
     is_favorite: bool
+
+
+class BatchDeleteRequest(BaseModel):
+    job_ids: list[str]
