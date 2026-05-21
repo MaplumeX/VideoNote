@@ -124,3 +124,23 @@ def get_video_title(url: str) -> str | None:
     except Exception as e:
         logger.warning(f"Failed to get video title for {url}: {e}")
         return None
+
+
+def get_video_info(url: str) -> dict:
+    """Get video metadata (title, thumbnail) from its URL using yt-dlp.
+
+    Returns a dict with keys 'title' (str | None) and 'thumbnail_url' (str | None).
+    """
+    ydl_opts = _ydl_opts()
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if info is None:
+                return {"title": None, "thumbnail_url": None}
+            return {
+                "title": info.get("title"),
+                "thumbnail_url": info.get("thumbnail"),
+            }
+    except Exception as e:
+        logger.warning(f"Failed to get video info for {url}: {e}")
+        return {"title": None, "thumbnail_url": None}

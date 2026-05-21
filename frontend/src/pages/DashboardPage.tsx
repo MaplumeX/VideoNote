@@ -73,7 +73,20 @@ export function DashboardPage() {
         )}
       >
         <CardContent className="flex items-center gap-3 py-3">
-          <SourceIcon task={task} />
+          {task.thumbnail_url ? (
+            <img
+              src={task.thumbnail_url}
+              alt=""
+              className="w-16 h-10 rounded object-cover shrink-0"
+              loading="lazy"
+            />
+          ) : task.source_type === "upload" ? (
+            <div className="w-16 h-10 rounded bg-muted flex items-center justify-center shrink-0">
+              <FileVideo size={16} className="text-muted-foreground/40" />
+            </div>
+          ) : (
+            <SourceIcon task={task} />
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               {taskFav && <Star size={12} className="text-yellow-500 fill-current shrink-0" />}

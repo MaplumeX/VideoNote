@@ -636,6 +636,18 @@ export function HistoryPage() {
                       clickable ? "cursor-pointer hover:shadow-sm" : "cursor-default",
                     )}
                   >
+                    {task.thumbnail_url ? (
+                      <img
+                        src={task.thumbnail_url}
+                        alt=""
+                        className="w-full aspect-video object-cover"
+                        loading="lazy"
+                      />
+                    ) : task.source_type === "upload" ? (
+                      <div className="w-full aspect-video bg-muted flex items-center justify-center">
+                        <FileVideo size={32} className="text-muted-foreground/40" />
+                      </div>
+                    ) : null}
                     <CardContent className="p-4">
                       {/* Favorite star - always visible */}
                       <div className="absolute top-2 right-2 flex items-center gap-1">

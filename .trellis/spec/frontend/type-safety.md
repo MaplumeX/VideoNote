@@ -44,7 +44,29 @@ Manually keep TypeScript types in sync with backend Pydantic schemas (`backend/a
 | `TaskProgress` (BaseModel) | `TaskProgress` (interface) |
 | `NoteResponse` (BaseModel) | `NoteResult` (interface) |
 
+| `TaskListItem.thumbnail_url` (str \| None) | `TaskItem.thumbnail_url` (string \| null) |
+
 Future: can auto-generate from FastAPI's OpenAPI schema if sync becomes painful.
+
+---
+
+## Nullable Fields: `string | null` vs `?: string`
+
+Backend Pydantic `str | None` serializes to JSON `null` (not missing key). Frontend must use `string | null`, not `?: string`:
+
+```ts
+// Wrong — field will always be present (as null), never undefined
+interface TaskItem {
+  thumbnail_url?: string;
+}
+
+// Correct — matches JSON null from backend
+interface TaskItem {
+  thumbnail_url: string | null;
+}
+```
+
+**Why**: `?: string` means the field may be absent or `undefined`. But FastAPI always includes the key in JSON (value is `null`). Using `?: string` misrepresents the actual contract and can cause subtle type errors when code assumes `undefined` vs `null`.
 
 ---
 

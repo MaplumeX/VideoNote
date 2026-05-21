@@ -73,6 +73,7 @@ export interface TaskItem {
   source_type: string | null;
   folder_id: string | null;
   is_favorite: boolean;
+  thumbnail_url: string | null;
 }
 
 export interface TaskListResponse {

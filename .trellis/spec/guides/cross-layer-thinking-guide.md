@@ -82,6 +82,7 @@ After implementation:
 - [ ] Tested with edge cases (null, empty, invalid)
 - [ ] Verified error handling at each boundary
 - [ ] Checked data survives round-trip
+- [ ] Nullable fields use `null` (not `undefined`) consistently across all layers — see [[type-safety]]
 
 ---
 

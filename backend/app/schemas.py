@@ -78,6 +78,7 @@ class TaskListItem(BaseModel):
     source_type: str | None = None
     folder_id: str | None = None
     is_favorite: bool = False
+    thumbnail_url: str | None = None
 
 
 class TaskListResponse(BaseModel):
