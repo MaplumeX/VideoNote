@@ -166,6 +166,8 @@
     "save": "保存",
     "saving": "保存中...",
     "unsaved": "未保存的更改",
+    "saved": "已保存",
+    "saveFailed": "保存失败",
     "playVideo": "播放视频"
   },
   "toc": {

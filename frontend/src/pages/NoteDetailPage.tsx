@@ -11,11 +11,15 @@ import {
   Plus,
   Save,
   Play,
+  Check,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fetchResult, fetchTags, fetchFolderTree, fetchTaskById, fetchNoteTags, addTagsToNote, removeTagFromNote, moveNoteToFolder, toggleFavorite, updateNoteContent } from "@/api/client";
 import { useSSE } from "@/hooks/useSSE";
+import { useAutoSave } from "@/hooks/useAutoSave";
 import { StepIndicator } from "@/components/StepIndicator";
 import { NoteEditor } from "@/components/NoteEditor";
 import { TableOfContents } from "@/components/TableOfContents";
@@ -41,7 +45,6 @@ export function NoteDetailPage() {
   const [folderTree, setFolderTree] = useState<FolderTreeNode[]>([]);
 
   const [editMarkdown, setEditMarkdown] = useState("");
-  const [saving, setSaving] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [platform, setPlatform] = useState<string | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
@@ -51,7 +54,16 @@ export function NoteDetailPage() {
 
   const { progress, result: sseResult, error: sseError } = useSSE(processing && jobId ? jobId : null);
 
-  const hasUnsavedChanges = note !== null && editMarkdown !== note.markdown;
+  const { saving, saveError, hasUnsavedChanges, flush } = useAutoSave({
+    jobId: jobId ?? null,
+    editMarkdown,
+    savedMarkdown: note?.markdown ?? "",
+    saveFn: (id: string, markdown: string) => updateNoteContent(id, { markdown }),
+    onSaveSuccess: useCallback((result: unknown) => {
+      const savedNote = result as NoteResult;
+      setNote(savedNote);
+    }, []),
+  });
 
   useEffect(() => {
     if (!jobId) return;
@@ -149,16 +161,8 @@ export function NoteDetailPage() {
 
   const handleSave = useCallback(async () => {
     if (!jobId || !hasUnsavedChanges || saving) return;
-    setSaving(true);
-    try {
-      const savedNote = await updateNoteContent(jobId, { markdown: editMarkdown });
-      setNote(savedNote);
-      setEditMarkdown(savedNote.markdown);
-      setSaving(false);
-    } catch {
-      setSaving(false);
-    }
-  }, [jobId, editMarkdown, hasUnsavedChanges, saving]);
+    await flush();
+  }, [jobId, hasUnsavedChanges, saving, flush]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -297,8 +301,26 @@ export function NoteDetailPage() {
             <Save size={16} />
             {saving ? t("noteDetail.saving") : t("noteDetail.save")}
           </Button>
-          {hasUnsavedChanges && (
+          {saving && (
+            <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
+              <Loader2 size={12} className="animate-spin" />
+              {t("noteDetail.saving")}
+            </p>
+          )}
+          {!saving && !saveError && hasUnsavedChanges && (
             <p className="text-xs text-muted-foreground text-center">{t("noteDetail.unsaved")}</p>
+          )}
+          {!saving && !saveError && !hasUnsavedChanges && (
+            <p className="text-xs text-green-600 dark:text-green-400 text-center flex items-center justify-center gap-1">
+              <Check size={12} />
+              {t("noteDetail.saved")}
+            </p>
+          )}
+          {saveError && (
+            <p className="text-xs text-destructive text-center flex items-center justify-center gap-1">
+              <AlertCircle size={12} />
+              {t("noteDetail.saveFailed")}
+            </p>
           )}
           <Button
             variant="outline"

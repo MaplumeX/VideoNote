@@ -166,6 +166,8 @@
     "save": "Save",
     "saving": "Saving...",
     "unsaved": "Unsaved changes",
+    "saved": "Saved",
+    "saveFailed": "Save failed",
     "playVideo": "Play Video"
   },
   "toc": {
