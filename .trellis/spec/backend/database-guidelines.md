@@ -148,10 +148,11 @@ conditions.append("json_extract(t.result_json, '$.title') LIKE ?")
 params.append(f"%{search}%")
 ```
 
-Similarly, sorting by `title` requires `json_extract`:
+Similarly, sorting by a field that may live in JSON or a real column — use `COALESCE` to prefer the column:
 
 ```python
-sort_expr = "COALESCE(json_extract(t.result_json, '$.title'), '')"
+# title was extracted from result_json into a real column
+sort_expr = "COALESCE(t.title, json_extract(t.result_json, '$.title'), '')"
 ```
 
-> **Note**: `json_extract` on every row is a full scan. This is acceptable for current scale (single-user SQLite). If scale grows, extract `title` into a real column at insert time.
+> **Pattern**: When a JSON field is needed for sorting/filtering, extract it into a real column at insert time. Then use `COALESCE(column, json_extract(...))` during migration so both old rows (JSON-only) and new rows (column populated) work correctly.

@@ -161,3 +161,27 @@ Create detailed flow docs when:
 - Multiple teams are involved
 - Data format is complex
 - Feature has caused bugs before
+
+---
+
+## POST Response vs SSE Stream for Metadata
+
+When a frontend page initiates a long-running task (via POST) and then receives progress via SSE, you need to decide where to deliver non-progress metadata (e.g., video title, thumbnail URL, platform).
+
+### Options
+
+| Approach | How | Pros | Cons |
+|----------|-----|------|------|
+| **A: Extend SSE** | Push metadata in the first SSE event | Single stream for all data | SSE becomes schema-heavy; metadata re-sent on reconnect; frontend must parse mixed event types |
+| **B: Separate GET** | Frontend fetches metadata after POST | Clean separation | Extra request; race condition if task completes before GET |
+| **C: Extend POST response** | Return metadata in POST response; SSE stays progress-only | Zero extra requests; SSE stays simple; metadata available immediately | Only works for the initiating page; other pages need separate fetch |
+
+### Decision rule
+
+- **Initiating page** (user just clicked Submit) → **Approach C**: extend the POST response. The frontend already has the response, no extra round-trip needed.
+- **Observer page** (user navigated to an existing task) → **Approach B**: fetch metadata via existing `fetchTaskById()`. The data is already in the DB schema.
+- **Don't extend SSE** for static metadata that doesn't change during processing.
+
+### Real-world example
+
+`/process` and `/upload` endpoints return `ProcessResponse`/`UploadResponse` with video metadata (title, thumbnail_url, platform). `NewNotePage` stores this in `taskMeta` state. `NoteDetailPage` gets metadata from `fetchTaskById()` (which returns `TaskItem` with the same fields). SSE only carries `stage`/`progress`/`message`.
