@@ -1148,3 +1148,36 @@ Added shared yt-dlp cookie configuration through browser or cookies file env var
 ### Next Steps
 
 - None - task complete
+
+
+## Session 36: Fix Bilibili thumbnail anti-hotlinking
+
+**Date**: 2026-05-21
+**Task**: Fix Bilibili thumbnail anti-hotlinking
+**Branch**: `Feat/bilibili-cover-fetch-fail`
+
+### Summary
+
+Proxy video thumbnails through backend to bypass Bilibili CDN Referer check. Added download_thumbnail() with Referer header, /api/thumbnails/{filename} endpoint, and frontend thumbnail src routing.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c6f1968` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

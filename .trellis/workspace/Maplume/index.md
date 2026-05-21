@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 35
+- **Total Sessions**: 36
 - **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1150 | Active |
+| `journal-1.md` | ~1183 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 36 | 2026-05-21 | Fix Bilibili thumbnail anti-hotlinking | `c6f1968` | `Feat/bilibili-cover-fetch-fail` |
 | 35 | 2026-05-21 | Support yt-dlp cookies configuration | `a673249` | `Feat/provo` |
 | 34 | 2026-05-21 | Remove note editor inner border | `7a27006` | `Feat/note-panel-double-border` |
 | 33 | 2026-05-21 | Fix multi-select: checkboxes, batch delete, state consistency, exit controls | `ea0cfc1` | `Feat/fix-note-multi-select` |
