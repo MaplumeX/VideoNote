@@ -170,3 +170,36 @@ xhr.upload.onprogress = (e) => setProgress(e.loaded / e.total * 100);
 // GOOD — handles \r\n, \n, and \r line endings
 } else if (line.trim() === "" && currentData) {
 ```
+
+### Don't: Gate useEffect listener registration on a ref
+
+Ref mutations do NOT trigger re-renders, so the effect won't re-execute and listeners won't be registered.
+
+```tsx
+// BAD — dragRef.current is set in mousedown, but ref change doesn't trigger effect re-run
+const dragRef = useRef<{ startX: number } | null>(null);
+useEffect(() => {
+  if (!dragRef.current) return; // always null on mount → listeners never registered
+  const onMove = (e: MouseEvent) => { /* ... */ };
+  const onUp = () => { dragRef.current = null; };
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+  return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+}, [pos.x, pos.y]); // dependency doesn't change when dragRef is set
+
+// GOOD — use state to drive effect re-execution
+const [isDragging, setIsDragging] = useState(false);
+const dragRef = useRef<{ startX: number } | null>(null);
+const onDragStart = (e: React.MouseEvent) => {
+  dragRef.current = { startX: e.clientX };
+  setIsDragging(true); // triggers effect re-run
+};
+useEffect(() => {
+  if (!isDragging) return;
+  const onMove = (e: MouseEvent) => { /* ... */ };
+  const onUp = () => { dragRef.current = null; setIsDragging(false); };
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+  return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+}, [isDragging]); // re-runs when isDragging changes
+```
