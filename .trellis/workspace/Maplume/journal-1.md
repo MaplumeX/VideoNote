@@ -891,6 +891,17 @@ Milkdown编辑器重建只应在笔记切换时发生（markdown prop从note.mar
 
 Fixed auto-save interrupting editing state by using lastSavedMarkdownRef instead of writing back savedNote.markdown to editMarkdown state, preventing Milkdown editor remount on save.
 
+
+## Session 29: feat: theme follows system mode
+
+**Date**: 2026-05-21
+**Task**: feat: theme follows system mode
+**Branch**: `Feat/theme-follow-system`
+
+### Summary
+
+Extended theme system from light/dark to light/dark/system. System mode listens to prefers-color-scheme and responds to OS theme changes in real-time. Sidebar toggle replaced with dropdown menu for three-way selection.
+
 ### Main Changes
 
 (Add details)
@@ -899,7 +910,7 @@ Fixed auto-save interrupting editing state by using lastSavedMarkdownRef instead
 
 | Hash | Message |
 |------|---------|
-| `ee3bb73` | (see git log) |
+| `8bbefdb` | (see git log) |
 
 ### Testing
 

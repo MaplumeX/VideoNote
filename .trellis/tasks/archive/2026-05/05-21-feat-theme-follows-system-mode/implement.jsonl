@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "useTheme.tsx hook 重写需遵循 hook 规范"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Sidebar 下拉菜单组件需遵循组件规范"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "主题状态管理模式参考"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Theme 类型扩展需遵循类型安全规范"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "实现质量标准参考"}

@@ -104,10 +104,6 @@
   "note": {
     "untitled": "无标题笔记"
   },
-  "theme": {
-    "light": "浅色",
-    "dark": "深色"
-  },
   "dashboard": {
     "newNote": "新建视频笔记",
     "recentNotes": "最近笔记",
@@ -177,6 +173,7 @@
   "theme": {
     "light": "浅色",
     "dark": "深色",
+    "system": "跟随系统",
     "toggle": "切换主题"
   },
   "mermaid": {

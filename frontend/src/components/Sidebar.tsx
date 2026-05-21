@@ -1,12 +1,13 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router";
-import { Plus, FileText, Settings, LogOut, X, Sun, Moon, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Plus, FileText, Settings, LogOut, X, Sun, Moon, Monitor, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme, type Theme } from "@/hooks/useTheme";
 import { clearAuth } from "@/auth/token";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 
 interface SidebarProps {
   open: boolean;
@@ -19,7 +20,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarP
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
 
   const navItems = [
     { path: "/app/new", icon: Plus, label: t("sidebar.newNote") },
@@ -120,21 +121,43 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarP
         <div className="px-2 py-3 space-y-0.5 shrink-0">
           {collapsed ? (
             <>
-              <Tooltip>
-                <TooltipTrigger
-                  render={(props: React.HTMLAttributes<HTMLButtonElement>) => (
-                    <Button
-                      variant="ghost"
-                      {...props}
-                      onClick={toggleTheme}
-                      className="w-full flex items-center justify-center px-0 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                    >
-                      {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-                    </Button>
-                  )}
-                />
-                <TooltipContent side="right">{theme === "dark" ? t("theme.light") : t("theme.dark")}</TooltipContent>
-              </Tooltip>
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={(props: React.HTMLAttributes<HTMLButtonElement>) => (
+                      <DropdownMenuTrigger
+                        render={(triggerProps) => (
+                          <Button
+                            variant="ghost"
+                            {...props}
+                            {...triggerProps}
+                            className="w-full flex items-center justify-center px-0 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          >
+                            {resolvedTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+                          </Button>
+                        )}
+                      />
+                    )}
+                  />
+                  <TooltipContent side="right">{t("theme.toggle")}</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent side="right" align="start">
+                  <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setTheme(v as Theme)}>
+                    <DropdownMenuRadioItem value="light">
+                      <Sun size={14} />
+                      {t("theme.light")}
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark">
+                      <Moon size={14} />
+                      {t("theme.dark")}
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="system">
+                      <Monitor size={14} />
+                      {t("theme.system")}
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Tooltip>
                 <TooltipTrigger
                   render={(props: React.HTMLAttributes<HTMLButtonElement>) => (
@@ -168,14 +191,36 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarP
             </>
           ) : (
             <>
-              <Button
-                variant="ghost"
-                onClick={toggleTheme}
-                className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-              >
-                {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-                {theme === "dark" ? t("theme.light") : t("theme.dark")}
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={(props: React.HTMLAttributes<HTMLButtonElement>) => (
+                    <Button
+                      variant="ghost"
+                      {...props}
+                      className="w-full flex items-center justify-start gap-2.5 px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    >
+                      {resolvedTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+                      {t("theme.toggle")}
+                    </Button>
+                  )}
+                />
+                <DropdownMenuContent side="top" align="start">
+                  <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setTheme(v as Theme)}>
+                    <DropdownMenuRadioItem value="light">
+                      <Sun size={14} />
+                      {t("theme.light")}
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark">
+                      <Moon size={14} />
+                      {t("theme.dark")}
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="system">
+                      <Monitor size={14} />
+                      {t("theme.system")}
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="ghost"
                 onClick={() => { navigate("/app/settings"); onClose(); }}
