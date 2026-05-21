@@ -1082,3 +1082,36 @@ Fixed 4 multi-select issues in HistoryPage: (1) added always-visible checkboxes 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 34: Remove note editor inner border
+
+**Date**: 2026-05-21
+**Task**: Remove note editor inner border
+**Branch**: `Feat/note-panel-double-border`
+
+### Summary
+
+Removed the inner Milkdown/ProseMirror border, outline, and focus shadow from the note editor while preserving the outer editor card border. Verified with frontend lint and build.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7a27006` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

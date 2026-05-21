@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 33
+- **Total Sessions**: 34
 - **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1084 | Active |
+| `journal-1.md` | ~1117 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 34 | 2026-05-21 | Remove note editor inner border | `7a27006` | `Feat/note-panel-double-border` |
 | 33 | 2026-05-21 | Fix multi-select: checkboxes, batch delete, state consistency, exit controls | `ea0cfc1` | `Feat/fix-note-multi-select` |
 | 32 | 2026-05-21 | Add video thumbnail to card view | `5ac32e9` | `Feat/card-view-video-thumbnail` |
 | 30 | 2026-05-21 | fix: video floating window drag and resize | `eadbaa8`, `b098a1b` | `Feat/video-floating-window-drag-broken` |

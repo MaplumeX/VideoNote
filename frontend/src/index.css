@@ -174,6 +174,21 @@
   max-width: none;
 }
 
+.milkdown-theme-nord.ProseMirror,
+.milkdown-theme-nord .ProseMirror {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+
+.milkdown-theme-nord.ProseMirror:focus,
+.milkdown-theme-nord.ProseMirror:focus-visible,
+.milkdown-theme-nord .ProseMirror:focus,
+.milkdown-theme-nord .ProseMirror:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 .milkdown-theme-nord h1 {
   margin-top: 1.5rem;
   font-size: 1.875rem;
