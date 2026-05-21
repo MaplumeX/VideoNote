@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "DB migration 规范：新增 thumbnail_url 列需遵循 migration 约定"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "后端文件结构：确认 migration 和 service 文件位置"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "yt-dlp 提取 thumbnail 的错误处理规范"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端代码质量标准"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "卡片组件缩略图渲染需遵循组件规范"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "前端文件结构：确认组件和页面文件位置"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TaskItem 类型扩展规范"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端代码质量标准"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "全栈改动：后端 schema → 前端类型 → UI 渲染的数据流一致性"}
