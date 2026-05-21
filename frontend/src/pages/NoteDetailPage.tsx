@@ -9,7 +9,6 @@ import {
   FolderOpen,
   X,
   Plus,
-  Save,
   Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -173,7 +172,6 @@ export function NoteDetailPage() {
   const handleEditorChange = useCallback((value: string) => {
     editMarkdownRef.current = value;
     setEditMarkdown(value);
-    setSaveError(false);
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
       void handleSave();
@@ -318,23 +316,6 @@ export function NoteDetailPage() {
         {/* Actions */}
         <div className="space-y-2">
           <Button
-            onClick={handleSave}
-            disabled={!hasUnsavedChanges || saving}
-            className="w-full gap-2"
-          >
-            <Save size={16} />
-            {saving ? t("noteDetail.saving") : t("noteDetail.save")}
-          </Button>
-          {saving && (
-            <p className="text-xs text-muted-foreground text-center">{t("noteDetail.saving")}</p>
-          )}
-          {!saving && saveError && (
-            <p className="text-xs text-destructive text-center">{t("noteDetail.saveFailed")}</p>
-          )}
-          {!saving && !saveError && !hasUnsavedChanges && (
-            <p className="text-xs text-muted-foreground text-center">{t("noteDetail.saved")}</p>
-          )}
-          <Button
             variant="outline"
             onClick={handleDownload}
             className="w-full gap-2"
@@ -351,6 +332,17 @@ export function NoteDetailPage() {
             {isFavorite ? t("noteDetail.unfavorite") : t("noteDetail.favorite")}
           </Button>
         </div>
+
+        {/* Save status */}
+        {saving && (
+          <p className="text-xs text-muted-foreground animate-pulse">{t("noteDetail.saving")}</p>
+        )}
+        {!saving && saveError && (
+          <p className="text-xs text-destructive">{t("noteDetail.saveFailed")}</p>
+        )}
+        {!saving && !saveError && !hasUnsavedChanges && (
+          <p className="text-xs text-muted-foreground">{t("noteDetail.saved")}</p>
+        )}
 
         {/* Tags */}
         <div className="space-y-1.5">
