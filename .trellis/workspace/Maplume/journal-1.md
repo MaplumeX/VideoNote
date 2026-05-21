@@ -1181,3 +1181,36 @@ Proxy video thumbnails through backend to bypass Bilibili CDN Referer check. Add
 ### Next Steps
 
 - None - task complete
+
+
+## Session 37: Add confirmation prompts for retry and cancel actions
+
+**Date**: 2026-05-22
+**Task**: Add confirmation prompts for retry and cancel actions
+**Branch**: `Feat/retry-delete-cancel-confirmation`
+
+### Summary
+
+为 HistoryPage 的重试和取消操作添加 window.confirm() 确认提示，与已有的删除操作保持一致，添加中英文 i18n 翻译键
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fa00cf0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
