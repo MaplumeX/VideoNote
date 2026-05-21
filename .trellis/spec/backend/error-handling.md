@@ -63,6 +63,39 @@ ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv"}
 
 Only YouTube and Bilibili URLs are accepted. Reject all others with 422.
 
+### File-Serving Endpoint Security
+
+When serving local files via `FileResponse`, string-based filename checks alone are insufficient — use `resolve()` + `startswith()` to verify the resolved path stays within the intended directory:
+
+```python
+# BAD — string checks can be bypassed on some platforms
+if ".." in filename or "/" in filename:
+    raise HTTPException(status_code=400)
+path = UPLOAD_DIR / "subdir" / filename
+return FileResponse(path)
+
+# GOOD — string checks + resolved path verification
+if ".." in filename or "/" in filename or "\\" in filename:
+    raise HTTPException(status_code=400)
+path = (UPLOAD_DIR / "subdir" / filename).resolve()
+if not str(path).startswith(str((UPLOAD_DIR / "subdir").resolve())):
+    raise HTTPException(status_code=404)
+return FileResponse(path)
+```
+
+### External Resource Anti-Hotlinking
+
+Some CDNs (e.g., Bilibili's `hdslb.com`) enforce Referer-based anti-hotlinking. Frontend `<img>` tags loading these URLs directly will get 403. **Always proxy external images through the backend** — download at ingestion time, serve via a local file endpoint.
+
+```python
+# BAD — frontend loads external CDN directly, blocked by anti-hotlinking
+thumbnail_url = info.get("thumbnail")  # e.g. https://i0.hdslb.com/...
+
+# GOOD — backend downloads and serves locally
+filename = download_thumbnail(info.get("thumbnail"))
+# For Bilibili URLs, set Referer: https://www.bilibili.com
+```
+
 ### Auth Error Handling
 
 - Token reuse detection: if a refresh token is used twice, revoke ALL user tokens (see `auth_routes.py`)
@@ -83,6 +116,10 @@ file_path = UPLOAD_DIR / file.filename
 # GOOD — extract basename only
 file_path = UPLOAD_DIR / Path(file.filename).name.replace("..", "")
 ```
+
+### Don't: Serve local files with only string-based path checks
+
+String checks (`".."`, `"/"`) can miss edge cases. Always verify the **resolved absolute path** stays within the target directory.
 
 ### Don't: Skip file type validation
 

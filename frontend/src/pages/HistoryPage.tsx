@@ -631,6 +631,11 @@ export function HistoryPage() {
             const isSelected = selectedIds.has(task.job_id);
             const taskFav = task.is_favorite;
             const ctxItems = getContextMenuItems(task);
+            const thumbSrc = task.thumbnail_url
+              ? task.thumbnail_url.startsWith("http")
+                ? task.thumbnail_url
+                : `/api/thumbnails/${task.thumbnail_url}`
+              : null;
 
             return (
               <ContextMenu key={task.job_id}>
@@ -643,9 +648,9 @@ export function HistoryPage() {
                       clickable ? "cursor-pointer hover:shadow-sm" : "cursor-default",
                     )}
                   >
-                    {task.thumbnail_url ? (
+                    {thumbSrc ? (
                       <img
-                        src={task.thumbnail_url}
+                        src={thumbSrc}
                         alt=""
                         className="w-full aspect-video object-cover"
                         loading="lazy"
