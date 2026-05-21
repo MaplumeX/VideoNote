@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index for conventions and patterns"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error handling patterns for thumbnail download failure graceful degradation"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "File placement conventions for new thumbnail service code"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec index for component patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer data flow: backend thumbnail API to frontend img src"}
