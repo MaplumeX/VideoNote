@@ -1,20 +1,44 @@
 """yt-dlp subtitle extraction for YouTube and Bilibili."""
 
 import logging
+import re
 import tempfile
 from pathlib import Path
 
 import yt_dlp
 
-from app.config import YT_DLP_PROXY
+from app.config import YT_DLP_COOKIES_FILE, YT_DLP_COOKIES_FROM_BROWSER, YT_DLP_PROXY
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_cookies_from_browser(value: str) -> tuple[str, str | None, str | None, str | None]:
+    mobj = re.fullmatch(
+        r"""(?x)
+        (?P<name>[^+:]+)
+        (?:\s*\+\s*(?P<keyring>[^:]+))?
+        (?:\s*:\s*(?!:)(?P<profile>.+?))?
+        (?:\s*::\s*(?P<container>.+))?
+        """,
+        value,
+    )
+    if mobj is None:
+        raise ValueError(f"Invalid YT_DLP_COOKIES_FROM_BROWSER value: {value}")
+
+    browser_name, keyring, profile, container = mobj.group(
+        "name", "keyring", "profile", "container"
+    )
+    return browser_name.lower(), profile, keyring.upper() if keyring else None, container
 
 
 def _ydl_opts(**extra: object) -> dict:
     opts: dict = {"quiet": True, "no_warnings": True, **extra}
     if YT_DLP_PROXY:
         opts["proxy"] = YT_DLP_PROXY
+    if YT_DLP_COOKIES_FROM_BROWSER:
+        opts["cookiesfrombrowser"] = _parse_cookies_from_browser(YT_DLP_COOKIES_FROM_BROWSER)
+    if YT_DLP_COOKIES_FILE:
+        opts["cookiefile"] = YT_DLP_COOKIES_FILE
     return opts
 
 
