@@ -42,6 +42,9 @@ export function NoteDetailPage() {
 
   const [editMarkdown, setEditMarkdown] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const editMarkdownRef = useRef(editMarkdown);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [platform, setPlatform] = useState<string | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
@@ -52,6 +55,11 @@ export function NoteDetailPage() {
   const { progress, result: sseResult, error: sseError } = useSSE(processing && jobId ? jobId : null);
 
   const hasUnsavedChanges = note !== null && editMarkdown !== note.markdown;
+
+  // Keep ref in sync so async callbacks (debounce auto-save) always read latest value
+  useEffect(() => {
+    editMarkdownRef.current = editMarkdown;
+  }, [editMarkdown]);
 
   useEffect(() => {
     if (!jobId) return;
@@ -150,21 +158,41 @@ export function NoteDetailPage() {
   const handleSave = useCallback(async () => {
     if (!jobId || !hasUnsavedChanges || saving) return;
     setSaving(true);
+    setSaveError(false);
     try {
-      const savedNote = await updateNoteContent(jobId, { markdown: editMarkdown });
+      const savedNote = await updateNoteContent(jobId, { markdown: editMarkdownRef.current });
       setNote(savedNote);
       setEditMarkdown(savedNote.markdown);
       setSaving(false);
     } catch {
       setSaving(false);
+      setSaveError(true);
     }
-  }, [jobId, editMarkdown, hasUnsavedChanges, saving]);
+  }, [jobId, hasUnsavedChanges, saving]);
+
+  const handleEditorChange = useCallback((value: string) => {
+    editMarkdownRef.current = value;
+    setEditMarkdown(value);
+    setSaveError(false);
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      void handleSave();
+    }, 1500);
+  }, [handleSave]);
+
+  // Clean up debounce timer on note switch or unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [jobId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
         if (hasUnsavedChanges) {
+          if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
           handleSave();
         }
       }
@@ -297,8 +325,14 @@ export function NoteDetailPage() {
             <Save size={16} />
             {saving ? t("noteDetail.saving") : t("noteDetail.save")}
           </Button>
-          {hasUnsavedChanges && (
-            <p className="text-xs text-muted-foreground text-center">{t("noteDetail.unsaved")}</p>
+          {saving && (
+            <p className="text-xs text-muted-foreground text-center">{t("noteDetail.saving")}</p>
+          )}
+          {!saving && saveError && (
+            <p className="text-xs text-destructive text-center">{t("noteDetail.saveFailed")}</p>
+          )}
+          {!saving && !saveError && !hasUnsavedChanges && (
+            <p className="text-xs text-muted-foreground text-center">{t("noteDetail.saved")}</p>
           )}
           <Button
             variant="outline"
@@ -447,7 +481,7 @@ export function NoteDetailPage() {
       <div className="flex-1 min-w-0" ref={previewRef}>
         <NoteEditor
           markdown={editMarkdown}
-          onChange={setEditMarkdown}
+          onChange={handleEditorChange}
           onTimestampClick={hasVideo ? handleTimestampClick : undefined}
           hasVideo={hasVideo}
         />
