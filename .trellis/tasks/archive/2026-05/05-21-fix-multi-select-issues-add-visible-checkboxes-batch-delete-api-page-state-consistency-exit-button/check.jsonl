@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify checkbox accessibility, event handling correctness, no regressions in existing batch operations"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Checkbox visual placement and interaction pattern compliance"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "selectedIds consistency: page change clears selection, Escape key clears selection, filter change clears selection"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Batch delete endpoint: ownership verification, cancel-then-delete logic, response format consistency with other batch endpoints"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "End-to-end batch delete flow: type → API client → route → schema → db function"}
