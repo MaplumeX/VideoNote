@@ -171,6 +171,8 @@ import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 
 **Key convention**: Milkdown editor instances are keyed for reset. When external markdown changes (e.g., switching notes), remount via a `key` prop rather than imperatively updating the editor.
 
+**Don't: Write save responses back to the markdown state prop.** After auto-save completes, do NOT call `setMarkdown(savedMarkdown)` — that changes the prop and triggers an editor remount mid-edit, losing cursor position and focus. Instead, track "last saved content" in a ref (`lastSavedMarkdownRef`) for dirty-state comparison. Only let the `markdown` prop change on intentional content loads (note switch, initial load).
+
 ### Custom TimestampBadge Node
 
 The video timestamp `[HH:MM:SS](#t=SECONDS)` format is handled as a custom ProseMirror inline atom node:

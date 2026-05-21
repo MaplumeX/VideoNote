@@ -44,6 +44,7 @@ export function NoteDetailPage() {
   const [saveError, setSaveError] = useState(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const editMarkdownRef = useRef(editMarkdown);
+  const lastSavedMarkdownRef = useRef("");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [platform, setPlatform] = useState<string | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
@@ -53,7 +54,7 @@ export function NoteDetailPage() {
 
   const { progress, result: sseResult, error: sseError } = useSSE(processing && jobId ? jobId : null);
 
-  const hasUnsavedChanges = note !== null && editMarkdown !== note.markdown;
+  const hasUnsavedChanges = note !== null && editMarkdown !== lastSavedMarkdownRef.current;
 
   // Keep ref in sync so async callbacks (debounce auto-save) always read latest value
   useEffect(() => {
@@ -68,6 +69,7 @@ export function NoteDetailPage() {
       .then((data) => {
         setNote(data);
         setEditMarkdown(data.markdown);
+        lastSavedMarkdownRef.current = data.markdown;
         setLoading(false);
       })
       .catch((err) => {
@@ -138,6 +140,7 @@ export function NoteDetailPage() {
         .then((data) => {
           setNote(data);
           setEditMarkdown(data.markdown);
+          lastSavedMarkdownRef.current = data.markdown;
           setProcessing(false);
         })
         .catch(() => {
@@ -161,7 +164,7 @@ export function NoteDetailPage() {
     try {
       const savedNote = await updateNoteContent(jobId, { markdown: editMarkdownRef.current });
       setNote(savedNote);
-      setEditMarkdown(savedNote.markdown);
+      lastSavedMarkdownRef.current = editMarkdownRef.current;
       setSaving(false);
     } catch {
       setSaving(false);
