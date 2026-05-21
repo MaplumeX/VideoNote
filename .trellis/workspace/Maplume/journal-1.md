@@ -783,3 +783,36 @@ Implemented desktop sidebar collapse to icon mode with Tooltip, Cmd/Ctrl+B short
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: Note auto-save feature
+
+**Date**: 2026-05-21
+**Task**: Note auto-save feature
+**Branch**: `Feat/auto-save-notes`
+
+### Summary
+
+Implemented auto-save for notes with 1.5s debounce, save status indicator (saving/saved/failed), and Cmd+S compatibility. Fixed stale closure bug with editMarkdownRef.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5adde6a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

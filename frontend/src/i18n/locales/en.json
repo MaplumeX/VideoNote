@@ -165,6 +165,8 @@
     "preview": "Preview",
     "save": "Save",
     "saving": "Saving...",
+    "saved": "Saved",
+    "saveFailed": "Save failed",
     "unsaved": "Unsaved changes",
     "playVideo": "Play Video"
   },
