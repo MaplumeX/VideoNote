@@ -925,15 +925,15 @@ Extended theme system from light/dark to light/dark/system. System mode listens 
 - None - task complete
 
 
-## Session 30: Fix double-layer container in note editor
+## Session 30: fix: video floating window drag and resize
 
 **Date**: 2026-05-21
-**Task**: Fix double-layer container in note editor
-**Branch**: `Feat/note-content-double-layer`
+**Task**: fix: video floating window drag and resize
+**Branch**: `Feat/video-floating-window-drag-broken`
 
 ### Summary
 
-Removed prose max-width: 65ch from milkdown editor by adding .milkdown-theme-nord.prose { max-width: none } in index.css, eliminating the inner container that created a double-layer visual effect.
+Fixed VideoPlayerFloat drag/resize bug caused by useEffect+ref pattern where ref mutations don't trigger effect re-execution. Introduced isDragging/isResizing state to drive listener registration. Updated hook guidelines with the anti-pattern.
 
 ### Main Changes
 
@@ -943,11 +943,71 @@ Removed prose max-width: 65ch from milkdown editor by adding .milkdown-theme-nor
 
 | Hash | Message |
 |------|---------|
-| `adb4207` | (see git log) |
+| `eadbaa8` | (see git log) |
+| `b098a1b` | (see git log) |
 
 ### Testing
 
 - [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 31: Fix auto-save editor focus loss
+
+**Date**: 2026-05-21
+**Task**: Fix auto-save editor focus loss
+**Branch**: `Feat/auto-save-editor-focus`
+
+### Summary
+
+Replaced internal editorKey + markdown-diff mechanism with explicit resetKey prop. useEditor deps changed from [markdown] to [] using initialMarkdownRef. Parent only increments resetKey on external changes (note switch, SSE complete), not during editing.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cf9e226` | (see git log) |
+| `9f98e8f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 32: Fix double-layer container in note editor
+
+**Date**: 2026-05-21
+**Task**: Fix double-layer container in note editor
+**Branch**: `Feat/note-content-double-layer`
+
+### Summary
+
+Removed prose max-width: 65ch from milkdown editor by adding .milkdown-theme-nord.prose { max-width: none } in index.css, eliminating the inner container that created a double-layer visual effect.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `adb4207` | (see git log) |
 
 ### Status
 

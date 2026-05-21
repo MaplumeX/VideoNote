@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "验证 NoteEditor 组件接口变更符合规范"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "lint/typecheck 检查"}
+{"file": ".trellis/tasks/05-21-fix-auto-save-causing-editor-focus-loss/prd.md", "reason": "check 子 agent 需要 PRD 验收标准"}

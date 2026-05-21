@@ -96,6 +96,8 @@ export const VideoPlayerFloat = forwardRef<
   const [minimized, setMinimized] = useState(false);
   const [currentSeconds, setCurrentSeconds] = useState(initialSeconds);
   const [iframeKey, setIframeKey] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Set initial position once after first mount so we can read viewport size
@@ -144,12 +146,13 @@ export const VideoPlayerFloat = forwardRef<
         originX: pos.x,
         originY: pos.y,
       };
+      setIsDragging(true);
     },
     [pos.x, pos.y],
   );
 
   useEffect(() => {
-    if (!dragRef.current) return;
+    if (!isDragging) return;
 
     const onMouseMove = (e: MouseEvent) => {
       if (!dragRef.current) return;
@@ -163,6 +166,7 @@ export const VideoPlayerFloat = forwardRef<
 
     const onMouseUp = () => {
       dragRef.current = null;
+      setIsDragging(false);
     };
 
     window.addEventListener("mousemove", onMouseMove);
@@ -171,7 +175,7 @@ export const VideoPlayerFloat = forwardRef<
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [pos.x, pos.y]);
+  }, [isDragging]);
 
   // -- Resize logic ----------------------------------------------------------
   const resizeRef = useRef<{
@@ -191,12 +195,13 @@ export const VideoPlayerFloat = forwardRef<
         originW: size.w,
         originH: size.h,
       };
+      setIsResizing(true);
     },
     [size.w, size.h],
   );
 
   useEffect(() => {
-    if (!resizeRef.current) return;
+    if (!isResizing) return;
 
     const onMouseMove = (e: MouseEvent) => {
       if (!resizeRef.current) return;
@@ -210,6 +215,7 @@ export const VideoPlayerFloat = forwardRef<
 
     const onMouseUp = () => {
       resizeRef.current = null;
+      setIsResizing(false);
     };
 
     window.addEventListener("mousemove", onMouseMove);
@@ -218,7 +224,7 @@ export const VideoPlayerFloat = forwardRef<
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [size.w, size.h]);
+  }, [isResizing]);
 
   // -- Invalid platform / URL guard ------------------------------------------
   if (!embedUrl) return null;
