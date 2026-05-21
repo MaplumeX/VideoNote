@@ -10,6 +10,7 @@ from app.auth import TokenData, get_current_user
 from app.db import (
     add_tags_to_note,
     batch_add_tag,
+    batch_delete_tasks,
     batch_move_to_folder,
     batch_remove_tag,
     batch_set_favorite,
@@ -35,6 +36,7 @@ from app.db import (
     update_tag,
 )
 from app.schemas import (
+    BatchDeleteRequest,
     BatchFavoriteRequest,
     BatchMoveRequest,
     BatchTagRequest,
@@ -422,3 +424,15 @@ async def batch_favorite_endpoint(req: BatchFavoriteRequest, user: CurrentUser):
 
     await batch_set_favorite(req.job_ids, req.is_favorite)
     return {"detail": "Favorites updated"}
+
+
+@router.post("/tasks/batch/delete")
+async def batch_delete_endpoint(req: BatchDeleteRequest, user: CurrentUser):
+    """Delete multiple tasks. Cancels in-progress tasks first."""
+    for job_id in req.job_ids:
+        task = await get_task(job_id)
+        if not task or task.get("user_id") != user.user_id:
+            raise HTTPException(status_code=404, detail=f"Task {job_id} not found")
+
+    deleted = await batch_delete_tasks(req.job_ids, user.user_id)
+    return {"detail": "Notes deleted", "deleted": deleted}

@@ -62,6 +62,7 @@
     "retry": "Retry",
     "cancel": "Cancel",
     "deleteConfirm": "Delete this task?",
+    "deleteConfirmCount": "Delete {{count}} selected notes?",
     "deleteFailed": "Failed to delete task",
     "retryFailed": "Failed to retry task",
     "cancelFailed": "Failed to cancel task",

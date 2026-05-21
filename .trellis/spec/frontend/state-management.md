@@ -117,3 +117,26 @@ The `authFetch` pattern (module-level variable + 401 auto-refresh) avoids the ne
 ### Don't: Fetch in render body
 
 Always use `useEffect` + `useCallback` or route `loader`/`action` for data fetching. Never call `fetch()` during component render.
+
+### Don't: Keep selection state when the data view changes
+
+When a list/table component tracks user selection (e.g., `selectedIds`), clear it whenever the visible items change — filter, search, or page change. Otherwise the UI shows "N selected" but no visible items are highlighted, confusing users.
+
+```tsx
+// BAD — page change keeps stale selections from previous page
+const handlePageChange = (p: number) => {
+  setPage(p);
+  loadTasks(p);
+};
+
+// GOOD — clear selection when visible items change
+const loadTasks = useCallback(async (p: number) => {
+  setSelectedIds(new Set());
+  // ... fetch data
+}, [...]);
+
+const handleFilterChange = (f: Filter) => {
+  setSelectedIds(new Set());
+  // ... apply filter
+};
+```

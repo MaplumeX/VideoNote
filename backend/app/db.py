@@ -1010,3 +1010,38 @@ async def batch_set_favorite(job_ids: list[str], is_favorite: bool) -> None:
         await db.commit()
     finally:
         await db.close()
+
+
+async def batch_delete_tasks(job_ids: list[str], user_id: str) -> int:
+    """Delete multiple tasks. Cancels in-progress tasks first. Returns count deleted."""
+    if not job_ids:
+        return 0
+    db = await _get_db()
+    try:
+        # Cancel in-progress tasks before deleting
+        terminal_stages = (
+            TaskStage.complete.value, TaskStage.failed.value, TaskStage.cancelled.value,
+        )
+        placeholders = ",".join("?" for _ in job_ids)
+        cursor = await db.execute(
+            f"SELECT job_id, stage FROM tasks WHERE job_id IN ({placeholders}) AND user_id = ?",
+            [*job_ids, user_id],
+        )
+        rows = await cursor.fetchall()
+        now = datetime.now(UTC).isoformat()
+        for row in rows:
+            if row["stage"] not in terminal_stages:
+                await db.execute(
+                    "UPDATE tasks SET stage = ?, progress = ?, "
+                    "message = ?, updated_at = ? WHERE job_id = ? AND user_id = ?",
+                    (TaskStage.cancelled.value, 0.0, "Cancelled", now, row["job_id"], user_id),
+                )
+        # Delete with user_id filter
+        cursor = await db.execute(
+            f"DELETE FROM tasks WHERE job_id IN ({placeholders}) AND user_id = ?",
+            [*job_ids, user_id],
+        )
+        await db.commit()
+        return cursor.rowcount
+    finally:
+        await db.close()
