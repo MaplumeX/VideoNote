@@ -849,3 +849,36 @@ Removed manual Save button from NoteDetailPage sidebar since auto-save (1.5s deb
 ### Next Steps
 
 - None - task complete
+
+
+## Session 28: feat: theme follows system mode
+
+**Date**: 2026-05-21
+**Task**: feat: theme follows system mode
+**Branch**: `Feat/theme-follow-system`
+
+### Summary
+
+Extended theme system from light/dark to light/dark/system. System mode listens to prefers-color-scheme and responds to OS theme changes in real-time. Sidebar toggle replaced with dropdown menu for three-way selection.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8bbefdb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
