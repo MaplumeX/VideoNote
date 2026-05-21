@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "NoteEditor 组件重构需遵循组件规范"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "useEditor/useCallback 依赖数组调整需遵循 hook 规范"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "resetKey state 管理和 editorKey 迁移需遵循状态管理规范"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "确保改动通过质量检查"}
+{"file": ".trellis/tasks/05-21-fix-auto-save-causing-editor-focus-loss/prd.md", "reason": "实现子 agent 需要 PRD 上下文"}
