@@ -64,6 +64,11 @@ export function DashboardPage() {
   const TaskRow = ({ task }: { task: TaskItem }) => {
     const clickable = task.stage === "complete" || isActiveTask(task);
     const taskFav = task.is_favorite;
+    const thumbSrc = task.thumbnail_url
+      ? task.thumbnail_url.startsWith("http")
+        ? task.thumbnail_url
+        : `/api/thumbnails/${task.thumbnail_url}`
+      : null;
     return (
       <Card
         onClick={clickable ? () => navigate(`/app/notes/${task.job_id}`) : undefined}
@@ -73,9 +78,9 @@ export function DashboardPage() {
         )}
       >
         <CardContent className="flex items-center gap-3 py-3">
-          {task.thumbnail_url ? (
+          {thumbSrc ? (
             <img
-              src={task.thumbnail_url}
+              src={thumbSrc}
               alt=""
               className="w-16 h-10 rounded object-cover shrink-0"
               loading="lazy"

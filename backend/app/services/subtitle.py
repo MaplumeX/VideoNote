@@ -3,11 +3,13 @@
 import logging
 import re
 import tempfile
+import uuid
 from pathlib import Path
 
+import httpx
 import yt_dlp
 
-from app.config import YT_DLP_COOKIES_FILE, YT_DLP_COOKIES_FROM_BROWSER, YT_DLP_PROXY
+from app.config import UPLOAD_DIR, YT_DLP_COOKIES_FILE, YT_DLP_COOKIES_FROM_BROWSER, YT_DLP_PROXY
 
 logger = logging.getLogger(__name__)
 
@@ -168,3 +170,43 @@ def get_video_info(url: str) -> dict:
     except Exception as e:
         logger.warning(f"Failed to get video info for {url}: {e}")
         return {"title": None, "thumbnail_url": None}
+
+
+def download_thumbnail(url: str) -> str | None:
+    """Download a thumbnail image to UPLOAD_DIR/thumbnails/.
+
+    For Bilibili URLs, sets Referer header to bypass anti-hotlinking.
+    Returns the local filename on success, None on failure.
+    """
+    if not url:
+        return None
+
+    headers: dict = {}
+    if "bilibili.com" in url or "b23.tv" in url or "hdslb.com" in url:
+        headers["Referer"] = "https://www.bilibili.com"
+
+    proxies = None
+    if YT_DLP_PROXY:
+        proxies = YT_DLP_PROXY
+
+    try:
+        with httpx.Client(proxy=proxies, follow_redirects=True, timeout=15) as client:
+            resp = client.get(url, headers=headers)
+            resp.raise_for_status()
+
+            content_type = resp.headers.get("content-type", "")
+            ext = ".jpg"
+            if "webp" in content_type:
+                ext = ".webp"
+            elif "png" in content_type:
+                ext = ".png"
+
+            thumb_dir = UPLOAD_DIR / "thumbnails"
+            thumb_dir.mkdir(parents=True, exist_ok=True)
+
+            filename = f"{uuid.uuid4().hex}{ext}"
+            (thumb_dir / filename).write_bytes(resp.content)
+            return filename
+    except Exception as e:
+        logger.warning(f"Failed to download thumbnail {url}: {e}")
+        return None

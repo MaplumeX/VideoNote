@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
 from app.auth import TokenData, get_current_user
@@ -54,7 +55,12 @@ from app.schemas import (
 from app.services.audio import download_audio_via_ytdlp, extract_audio
 from app.services.markdown import normalize_note_markdown
 from app.services.note_gen import generate_notes
-from app.services.subtitle import detect_video_platform, extract_subtitles, get_video_info
+from app.services.subtitle import (
+    detect_video_platform,
+    download_thumbnail,
+    extract_subtitles,
+    get_video_info,
+)
 from app.services.transcribe import transcribe_audio
 
 CurrentUser = Annotated[TokenData, Depends(get_current_user)]
@@ -250,10 +256,12 @@ async def process_video(
     language = _normalize_language(request.language)
     job_id = str(uuid.uuid4())
     video_info = await asyncio.to_thread(get_video_info, url)
+    ext_thumb = video_info.get("thumbnail_url") or ""
+    thumbnail_filename = await asyncio.to_thread(download_thumbnail, ext_thumb)
     await create_task(
         job_id, user_id=user.user_id,
         video_url=url, platform=platform, language=language, source_type="url",
-        thumbnail_url=video_info.get("thumbnail_url"),
+        thumbnail_url=thumbnail_filename,
     )
     asyncio.create_task(_process_video_url(job_id, url, language=language, user_id=user.user_id))
 
@@ -332,6 +340,17 @@ async def upload_video(
     )
 
     return {"job_id": job_id}
+
+
+@router.get("/thumbnails/{filename}")
+async def get_thumbnail(filename: str):
+    """Serve a locally cached thumbnail image."""
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    path = (UPLOAD_DIR / "thumbnails" / filename).resolve()
+    if not path.is_file() or not str(path).startswith(str((UPLOAD_DIR / "thumbnails").resolve())):
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    return FileResponse(path)
 
 
 @router.get("/tasks/{job_id}/progress")
@@ -510,10 +529,12 @@ async def retry_task(
 
     new_job_id = str(uuid.uuid4())
     video_info = await asyncio.to_thread(get_video_info, video_url)
+    ext_thumb = video_info.get("thumbnail_url") or ""
+    thumbnail_filename = await asyncio.to_thread(download_thumbnail, ext_thumb)
     await create_task(
         new_job_id, user_id=user.user_id,
         video_url=video_url, platform=platform, language=language, source_type="url",
-        thumbnail_url=video_info.get("thumbnail_url"),
+        thumbnail_url=thumbnail_filename,
     )
     asyncio.create_task(
         _process_video_url(new_job_id, video_url, language=language, user_id=user.user_id)
