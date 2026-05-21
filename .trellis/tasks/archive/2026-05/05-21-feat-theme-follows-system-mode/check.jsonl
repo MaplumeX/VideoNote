@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "检查 useTheme hook 是否符合规范"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "检查 Sidebar 下拉菜单组件是否符合规范"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "检查 Theme 类型扩展是否类型安全"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "检查整体实现质量"}
