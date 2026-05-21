@@ -156,6 +156,10 @@ export interface BatchFavoriteRequest {
   is_favorite: boolean;
 }
 
+export interface BatchDeleteRequest {
+  job_ids: string[];
+}
+
 // --- Filter state ---
 
 export interface HistoryFilter {

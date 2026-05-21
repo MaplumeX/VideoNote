@@ -62,6 +62,7 @@ import {
   batchAddTag,
   batchMoveToFolder,
   batchSetFavorite,
+  batchDelete,
 } from "@/api/client";
 import { ContentSidebar } from "@/components/ContentSidebar";
 import type {
@@ -226,6 +227,7 @@ export function HistoryPage() {
 
   const handleSearchChange = (value: string) => {
     setSearchInput(value);
+    setSelectedIds(new Set());
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const params = new URLSearchParams(searchParams);
@@ -264,6 +266,7 @@ export function HistoryPage() {
     (p: number) => {
       setLoading(true);
       setError(null);
+      setSelectedIds(new Set());
       const params: Record<string, string | number | boolean> = { page: p, limit };
       if (filter.folder) params.folder = filter.folder;
       if (filter.tag) params.tag = filter.tag;
@@ -296,6 +299,17 @@ export function HistoryPage() {
     if (searchParamValue !== searchInput) setSearchInput(searchParamValue);
     // searchInput intentionally excluded to avoid loop
   }, [searchParamValue]);
+
+  // Escape key clears selection (R4)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedIds.size > 0) {
+        setSelectedIds(new Set());
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIds.size]);
 
   const handleDelete = async (jobId: string) => {
     if (!window.confirm(t("history.deleteConfirm"))) return;
@@ -369,16 +383,9 @@ export function HistoryPage() {
   };
 
   const handleBatchDelete = async () => {
-    if (!window.confirm(t("history.deleteConfirm"))) return;
+    if (!window.confirm(t("history.deleteConfirmCount", { count: selectedIds.size }))) return;
     try {
-      const { authFetch } = await import("@/auth/api");
-      const results = await Promise.all(
-        Array.from(selectedIds).map((id) =>
-          authFetch(`/api/tasks/${id}`, { method: "DELETE" }),
-        ),
-      );
-      const failed = results.filter((r) => !r.ok).length;
-      if (failed > 0) throw new Error();
+      await batchDelete({ job_ids: Array.from(selectedIds) });
       setSelectedIds(new Set());
       loadTasks(page);
     } catch {
@@ -648,6 +655,22 @@ export function HistoryPage() {
                         <FileVideo size={32} className="text-muted-foreground/40" />
                       </div>
                     ) : null}
+                    {/* Checkbox - always visible, top-left corner */}
+                    <button
+                      className={cn(
+                        "absolute top-2 left-2 z-10 flex items-center justify-center rounded-md p-1 transition-colors",
+                        isSelected
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background/80 text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        toggleSelect(task.job_id);
+                      }}
+                    >
+                      {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                    </button>
                     <CardContent className="p-4">
                       {/* Favorite star - always visible */}
                       <div className="absolute top-2 right-2 flex items-center gap-1">
@@ -743,7 +766,8 @@ export function HistoryPage() {
         /* List view */
         <div className="rounded-lg border">
           {/* Header row */}
-          <div className="grid grid-cols-[1fr_100px_80px_120px_100px_40px] gap-2 px-4 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30">
+          <div className="grid grid-cols-[32px_1fr_100px_80px_120px_100px_40px] gap-2 px-4 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30">
+            <span></span>
             <span>{t("history.title")}</span>
             <span>{t("history.source")}</span>
             <span>{t("lang.label")}</span>
@@ -763,11 +787,27 @@ export function HistoryPage() {
                   <div
                     onClick={clickable ? () => navigate(`/app/notes/${task.job_id}`) : undefined}
                     className={cn(
-                      "grid grid-cols-[1fr_100px_80px_120px_100px_40px] gap-2 px-4 py-2.5 items-center text-sm border-b last:border-b-0 transition-colors",
+                      "grid grid-cols-[32px_1fr_100px_80px_120px_100px_40px] gap-2 px-4 py-2.5 items-center text-sm border-b last:border-b-0 transition-colors",
                       isSelected && "bg-primary/5",
                       clickable ? "cursor-pointer hover:bg-muted/50" : "cursor-default",
                     )}
                   >
+                    {/* Checkbox */}
+                    <button
+                      className={cn(
+                        "flex items-center justify-center rounded p-0.5 transition-colors",
+                        isSelected
+                          ? "text-primary"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        toggleSelect(task.job_id);
+                      }}
+                    >
+                      {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                    </button>
                     <span className="truncate font-medium">{getDisplayTitle(task)}</span>
                     <span className="truncate">
                       <SourceBadge task={task} />
@@ -865,6 +905,14 @@ export function HistoryPage() {
       {/* Batch action bar */}
       {selectedIds.size > 0 && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-lg border border-border bg-background shadow-lg px-4 py-2">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => setSelectedIds(new Set())}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X size={16} />
+          </Button>
           <span className="text-sm text-muted-foreground">
             {t("history.selected", { count: selectedIds.size })}
           </span>
