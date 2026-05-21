@@ -1016,3 +1016,36 @@ Removed prose max-width: 65ch from milkdown editor by adding .milkdown-theme-nor
 ### Next Steps
 
 - None - task complete
+
+
+## Session 32: Add video thumbnail to card view
+
+**Date**: 2026-05-21
+**Task**: Add video thumbnail to card view
+**Branch**: `Feat/card-view-video-thumbnail`
+
+### Summary
+
+Extract thumbnail URL from yt-dlp, store in DB, add to API schema, and render on HistoryPage/DashboardPage cards. Uploaded videos show placeholder. Updated type-safety spec (string|null vs ?:string).
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5ac32e9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
