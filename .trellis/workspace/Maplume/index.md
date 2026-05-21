@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
+- **Total Sessions**: 29
 - **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~884 | Active |
+| `journal-1.md` | ~914 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,7 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
-| 28 | 2026-05-21 | feat: theme follows system mode | `8bbefdb` | `Feat/theme-follow-system` |
+| 28 | 2026-05-21 | Fix auto-save remounting editor | `ee3bb73` | `Feat/auto-save-editing-experience` |
+| 29 | 2026-05-21 | feat: theme follows system mode | `8bbefdb` | `Feat/theme-follow-system` |
 | 27 | 2026-05-21 | Remove save button, replace with lightweight status indicator | `c3d6609` | `Feat/remove-save-button` |
 | 26 | 2026-05-21 | Note auto-save feature | `5adde6a` | `Feat/auto-save-notes` |
 | 25 | 2026-05-20 | 增强API模型选择方案 | `c706d86` | `Feat/api-model-selection` |

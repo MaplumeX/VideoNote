@@ -850,8 +850,49 @@ Removed manual Save button from NoteDetailPage sidebar since auto-save (1.5s deb
 
 - None - task complete
 
+---
 
-## Session 28: feat: theme follows system mode
+## 2026-05-21 — fix: auto-save interrupts editing state by remounting editor
+
+### Problem
+Auto-save完成后 `setEditMarkdown(savedNote.markdown)` 把后端返回的markdown写回状态 → NoteEditor检测到markdown prop变化 → editorKey递增 → 整个Milkdown编辑器销毁重建，导致光标丢失、IME输入打断、undo历史清除。
+
+### Root Cause
+后端 normalize_note_markdown 会规范化markdown（如去除外层代码围栏），返回内容与编辑器内容不同，保证触发重建。
+
+### Fix
+1. 新增 `lastSavedMarkdownRef` 追踪上次保存内容
+2. `hasUnsavedChanges` 改为对比 `lastSavedMarkdownRef.current` 而非 `note.markdown`
+3. 保存成功后用 `lastSavedMarkdownRef.current = editMarkdownRef.current` 替代 `setEditMarkdown(savedNote.markdown)` — 不再更新editMarkdown状态，避免触发编辑器重建
+4. 笔记加载时初始化 `lastSavedMarkdownRef`
+
+### Key Insight
+Milkdown编辑器重建只应在笔记切换时发生（markdown prop从note.markdown变化），不应在同笔记内保存时发生。用ref追踪"上次保存内容"而非依赖note状态，解耦了保存逻辑和编辑器渲染。
+
+### Files Changed
+- `frontend/src/pages/NoteDetailPage.tsx` — 4处精准修改
+
+### Testing
+- [OK] TypeCheck passed
+- [OK] Lint passed
+- [OK] Check agent verified correctness across all scenarios
+
+### Status
+[OK] **Completed**
+
+
+## Session 28: Fix auto-save remounting editor
+
+**Date**: 2026-05-21
+**Task**: Fix auto-save remounting editor
+**Branch**: `Feat/auto-save-editing-experience`
+
+### Summary
+
+Fixed auto-save interrupting editing state by using lastSavedMarkdownRef instead of writing back savedNote.markdown to editMarkdown state, preventing Milkdown editor remount on save.
+
+
+## Session 29: feat: theme follows system mode
 
 **Date**: 2026-05-21
 **Task**: feat: theme follows system mode

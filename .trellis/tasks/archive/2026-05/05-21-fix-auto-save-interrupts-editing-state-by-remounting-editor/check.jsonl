@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify ref-based tracking follows project state conventions"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify editor remount only on intentional content changes (note switch), not on save"}
