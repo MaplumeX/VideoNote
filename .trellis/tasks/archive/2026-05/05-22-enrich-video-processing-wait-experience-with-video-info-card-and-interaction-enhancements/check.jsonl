@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify title column migration follows existing ALTER TABLE patterns in init_db"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check schema changes and route handler quality"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify VideoInfoCard follows component conventions and accessibility"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check type definitions match backend response schemas"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend code quality for NewNotePage/NoteDetailPage changes"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify backend-frontend data contract consistency"}
