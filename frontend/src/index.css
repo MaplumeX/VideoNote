@@ -169,6 +169,11 @@
   color: var(--color-foreground);
 }
 
+/* Remove prose max-width so editor content fills the card width */
+.milkdown-theme-nord.prose {
+  max-width: none;
+}
+
 .milkdown-theme-nord h1 {
   margin-top: 1.5rem;
   font-size: 1.875rem;

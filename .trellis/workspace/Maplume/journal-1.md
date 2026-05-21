@@ -991,3 +991,28 @@ Replaced internal editorKey + markdown-diff mechanism with explicit resetKey pro
 ### Next Steps
 
 - None - task complete
+
+
+## Session 32: Fix double-layer container in note editor
+
+**Date**: 2026-05-21
+**Task**: Fix double-layer container in note editor
+**Branch**: `Feat/note-content-double-layer`
+
+### Summary
+
+Removed prose max-width: 65ch from milkdown editor by adding .milkdown-theme-nord.prose { max-width: none } in index.css, eliminating the inner container that created a double-layer visual effect.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `adb4207` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
