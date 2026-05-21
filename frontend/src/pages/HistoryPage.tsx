@@ -324,6 +324,7 @@ export function HistoryPage() {
   };
 
   const handleRetry = async (jobId: string) => {
+    if (!window.confirm(t("history.retryConfirm"))) return;
     try {
       const { authFetch } = await import("@/auth/api");
       const res = await authFetch(`/api/tasks/${jobId}/retry`, { method: "POST" });
@@ -336,6 +337,7 @@ export function HistoryPage() {
   };
 
   const handleCancel = async (jobId: string) => {
+    if (!window.confirm(t("history.cancelConfirm"))) return;
     try {
       const { authFetch } = await import("@/auth/api");
       const res = await authFetch(`/api/tasks/${jobId}/cancel`, { method: "POST" });
