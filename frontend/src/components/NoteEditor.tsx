@@ -340,6 +340,8 @@ function MilkdownEditorInner({ markdown, onChange }: MilkdownEditorInnerProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
+  const initialMarkdownRef = useRef(markdown);
+
   // Slash menu state
   const [slashVisible, setSlashVisible] = useState(false);
   const [slashPosition, setSlashPosition] = useState({ top: 0, left: 0 });
@@ -353,7 +355,7 @@ function MilkdownEditorInner({ markdown, onChange }: MilkdownEditorInnerProps) {
     return Editor.make()
       .config((ctx) => {
         ctx.set(rootCtx, container);
-        ctx.set(defaultValueCtx, markdown);
+        ctx.set(defaultValueCtx, initialMarkdownRef.current);
       })
       .config(nord)
       .use(commonmark)
@@ -375,7 +377,7 @@ function MilkdownEditorInner({ markdown, onChange }: MilkdownEditorInnerProps) {
           onChangeRef.current(updatedMarkdown);
         });
       });
-  }, [markdown]);
+  }, []);
 
   const [loading, getEditorInstance] = useInstance();
 
@@ -482,27 +484,17 @@ interface NoteEditorProps {
   onChange: (markdown: string) => void;
   onTimestampClick?: (seconds: number) => void;
   hasVideo?: boolean;
+  resetKey: number;
 }
 
-export function NoteEditor({ markdown, onChange, onTimestampClick, hasVideo }: NoteEditorProps) {
-  const [editorKey, setEditorKey] = useState(0);
-  const prevMarkdownRef = useRef(markdown);
-
+export function NoteEditor({ markdown, onChange, onTimestampClick, hasVideo, resetKey }: NoteEditorProps) {
   useEffect(() => {
     setTimestampContext({ onTimestampClick, hasVideo });
   }, [onTimestampClick, hasVideo]);
 
-  // Reset the editor when the markdown prop changes externally (e.g. switching notes)
-  useEffect(() => {
-    if (markdown !== prevMarkdownRef.current) {
-      prevMarkdownRef.current = markdown;
-      setEditorKey((k) => k + 1);
-    }
-  }, [markdown]);
-
   return (
     <div className="rounded-xl border border-border bg-background p-6">
-      <MilkdownProvider key={editorKey}>
+      <MilkdownProvider key={resetKey}>
         <MilkdownEditorInner markdown={markdown} onChange={onChange} />
       </MilkdownProvider>
     </div>
