@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 26
+- **Total Sessions**: 27
 - **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~818 | Active |
+| `journal-1.md` | ~851 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 27 | 2026-05-21 | Remove save button, replace with lightweight status indicator | `c3d6609` | `Feat/remove-save-button` |
 | 26 | 2026-05-21 | Note auto-save feature | `5adde6a` | `Feat/auto-save-notes` |
 | 25 | 2026-05-20 | 增强API模型选择方案 | `c706d86` | `Feat/api-model-selection` |
 | 24 | 2026-05-20 | Fix Milkdown raw markdown rendering | `a71fcb7` | `Feat/fix-note-style-rendering` |
