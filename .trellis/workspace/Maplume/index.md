@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 30
+- **Total Sessions**: 31
 - **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
@@ -30,6 +30,7 @@
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
 | 30 | 2026-05-21 | fix: video floating window drag and resize | `eadbaa8`, `b098a1b` | `Feat/video-floating-window-drag-broken` |
+| 31 | 2026-05-21 | Fix auto-save editor focus loss | `cf9e226`, `9f98e8f` | `Feat/auto-save-editor-focus` |
 | 28 | 2026-05-21 | Fix auto-save remounting editor | `ee3bb73` | `Feat/auto-save-editing-experience` |
 | 29 | 2026-05-21 | feat: theme follows system mode | `8bbefdb` | `Feat/theme-follow-system` |
 | 27 | 2026-05-21 | Remove save button, replace with lightweight status indicator | `c3d6609` | `Feat/remove-save-button` |

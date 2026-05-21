@@ -42,6 +42,7 @@ export function NoteDetailPage() {
   const [editMarkdown, setEditMarkdown] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const [editorResetKey, setEditorResetKey] = useState(0);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const editMarkdownRef = useRef(editMarkdown);
   const lastSavedMarkdownRef = useRef("");
@@ -65,6 +66,7 @@ export function NoteDetailPage() {
     if (!jobId) return;
 
     setLoading(true);
+    setEditorResetKey((k) => k + 1);
     fetchResult(jobId)
       .then((data) => {
         setNote(data);
@@ -141,6 +143,7 @@ export function NoteDetailPage() {
           setNote(data);
           setEditMarkdown(data.markdown);
           lastSavedMarkdownRef.current = data.markdown;
+          setEditorResetKey((k) => k + 1);
           setProcessing(false);
         })
         .catch(() => {
@@ -479,6 +482,7 @@ export function NoteDetailPage() {
           onChange={handleEditorChange}
           onTimestampClick={hasVideo ? handleTimestampClick : undefined}
           hasVideo={hasVideo}
+          resetKey={editorResetKey}
         />
       </div>
 

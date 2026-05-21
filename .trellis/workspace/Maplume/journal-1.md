@@ -957,3 +957,37 @@ Fixed VideoPlayerFloat drag/resize bug caused by useEffect+ref pattern where ref
 ### Next Steps
 
 - None - task complete
+
+
+## Session 31: Fix auto-save editor focus loss
+
+**Date**: 2026-05-21
+**Task**: Fix auto-save editor focus loss
+**Branch**: `Feat/auto-save-editor-focus`
+
+### Summary
+
+Replaced internal editorKey + markdown-diff mechanism with explicit resetKey prop. useEditor deps changed from [markdown] to [] using initialMarkdownRef. Parent only increments resetKey on external changes (note switch, SSE complete), not during editing.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cf9e226` | (see git log) |
+| `9f98e8f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
