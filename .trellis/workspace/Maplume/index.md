@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 31
+- **Total Sessions**: 32
 - **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1010 | Active |
+| `journal-1.md` | ~1051 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 32 | 2026-05-21 | Add video thumbnail to card view | `5ac32e9` | `Feat/card-view-video-thumbnail` |
 | 30 | 2026-05-21 | fix: video floating window drag and resize | `eadbaa8`, `b098a1b` | `Feat/video-floating-window-drag-broken` |
 | 31 | 2026-05-21 | Fix auto-save editor focus loss | `cf9e226`, `9f98e8f` | `Feat/auto-save-editor-focus` |
 | 28 | 2026-05-21 | Fix auto-save remounting editor | `ee3bb73` | `Feat/auto-save-editing-experience` |

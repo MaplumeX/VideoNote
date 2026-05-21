@@ -54,7 +54,7 @@ from app.schemas import (
 from app.services.audio import download_audio_via_ytdlp, extract_audio
 from app.services.markdown import normalize_note_markdown
 from app.services.note_gen import generate_notes
-from app.services.subtitle import detect_video_platform, extract_subtitles, get_video_title
+from app.services.subtitle import detect_video_platform, extract_subtitles, get_video_info
 from app.services.transcribe import transcribe_audio
 
 CurrentUser = Annotated[TokenData, Depends(get_current_user)]
@@ -120,7 +120,8 @@ async def _process_video_url(
         llm_api_base = llm_cfg["api_base"] if llm_cfg and llm_cfg["api_base"] else LLM_API_BASE
         llm_model = llm_cfg["model"] if llm_cfg and llm_cfg["model"] else LLM_MODEL
 
-        video_title = await asyncio.to_thread(get_video_title, url)
+        video_info = await asyncio.to_thread(get_video_info, url)
+        video_title = video_info["title"]
 
         await update_progress(
             job_id, TaskStage.extracting_subtitles, 0.1, "Extracting subtitles..."
@@ -248,9 +249,11 @@ async def process_video(
 
     language = _normalize_language(request.language)
     job_id = str(uuid.uuid4())
+    video_info = await asyncio.to_thread(get_video_info, url)
     await create_task(
         job_id, user_id=user.user_id,
         video_url=url, platform=platform, language=language, source_type="url",
+        thumbnail_url=video_info.get("thumbnail_url"),
     )
     asyncio.create_task(_process_video_url(job_id, url, language=language, user_id=user.user_id))
 
@@ -506,9 +509,11 @@ async def retry_task(
     platform = task.get("platform") or detect_video_platform(video_url)
 
     new_job_id = str(uuid.uuid4())
+    video_info = await asyncio.to_thread(get_video_info, video_url)
     await create_task(
         new_job_id, user_id=user.user_id,
         video_url=video_url, platform=platform, language=language, source_type="url",
+        thumbnail_url=video_info.get("thumbnail_url"),
     )
     asyncio.create_task(
         _process_video_url(new_job_id, video_url, language=language, user_id=user.user_id)

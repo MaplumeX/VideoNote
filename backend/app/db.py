@@ -141,6 +141,7 @@ async def init_db() -> None:
             "ALTER TABLE tasks ADD COLUMN folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL",
             "ALTER TABLE tasks ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE tasks ADD COLUMN favorited_at TEXT",
+            "ALTER TABLE tasks ADD COLUMN thumbnail_url TEXT",
         ]:
             try:
                 await db.execute(col_def)
@@ -167,16 +168,17 @@ async def create_task(
     platform: str | None = None,
     language: str | None = None,
     source_type: str | None = None,
+    thumbnail_url: str | None = None,
 ) -> None:
     """Create a new task record with pending status."""
     db = await _get_db()
     try:
         await db.execute(
             "INSERT INTO tasks (job_id, user_id, stage, progress, message, "
-            "video_url, file_name, platform, language, source_type) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "video_url, file_name, platform, language, source_type, thumbnail_url) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (job_id, user_id, TaskStage.pending.value, 0.0, message,
-             video_url, file_name, platform, language, source_type),
+             video_url, file_name, platform, language, source_type, thumbnail_url),
         )
         await db.commit()
     finally:
@@ -215,7 +217,7 @@ async def get_user_tasks(
         query = (
             "SELECT t.job_id, t.stage, t.progress, t.message, t.created_at, t.updated_at, "
             "t.video_url, t.file_name, t.platform, t.language, t.source_type, t.result_json, "
-            "t.folder_id, t.is_favorite, t.favorited_at "
+            "t.folder_id, t.is_favorite, t.favorited_at, t.thumbnail_url "
             "FROM tasks t"
         )
         params: list = []
