@@ -33,6 +33,18 @@ class TaskProgress(BaseModel):
     message: str = ""
 
 
+class ProcessResponse(BaseModel):
+    job_id: str
+    title: str = ""
+    thumbnail_url: str = ""
+    platform: str = ""
+
+
+class UploadResponse(BaseModel):
+    job_id: str
+    file_name: str = ""
+
+
 class NoteResponse(BaseModel):
     job_id: str
     markdown: str

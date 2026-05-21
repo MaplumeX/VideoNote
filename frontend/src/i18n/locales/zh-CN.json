@@ -156,6 +156,7 @@
     "addTag": "添加标签...",
     "moveToFolder": "移入文件夹",
     "removeFolder": "移出文件夹",
+    "loadFailed": "加载笔记失败",
     "tags": "标签",
     "folder": "文件夹",
     "favorite": "收藏",
@@ -191,5 +192,16 @@
   },
   "videoPlayer": {
     "title": "视频播放器"
+  },
+  "processing": {
+    "cancelConfirm": "确定要取消处理吗？",
+    "retryConfirm": "重试此任务？",
+    "cancel": "取消",
+    "retry": "重试",
+    "cancelled": "任务已取消"
+  },
+  "videoInfo": {
+    "untitled": "无标题",
+    "unknownFile": "未知文件"
   }
 }

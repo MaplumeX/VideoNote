@@ -22,6 +22,22 @@ export interface NoteResult {
 
 export interface ProcessResponse {
   job_id: string;
+  title: string;
+  thumbnail_url: string;
+  platform: string;
+}
+
+export interface UploadResponse {
+  job_id: string;
+  file_name: string;
+}
+
+export interface TaskMeta {
+  title?: string;
+  thumbnail_url?: string;
+  platform?: string;
+  file_name?: string;
+  source_type?: string;
 }
 
 export interface ProviderPreset {

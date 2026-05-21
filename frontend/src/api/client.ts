@@ -257,3 +257,13 @@ export async function batchDelete(req: BatchDeleteRequest): Promise<{ deleted: n
     body: JSON.stringify(req),
   });
 }
+
+// --- Task actions ---
+
+export async function cancelTask(jobId: string): Promise<void> {
+  await apiFetch(`${API_BASE}/tasks/${jobId}/cancel`, { method: "POST" });
+}
+
+export async function retryTask(jobId: string): Promise<ProcessResponse> {
+  return apiFetch<ProcessResponse>(`${API_BASE}/tasks/${jobId}/retry`, { method: "POST" });
+}

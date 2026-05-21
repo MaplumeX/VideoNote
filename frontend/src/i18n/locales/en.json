@@ -156,6 +156,7 @@
     "addTag": "Add tag...",
     "moveToFolder": "Move to folder",
     "removeFolder": "Remove from folder",
+    "loadFailed": "Failed to load note",
     "tags": "Tags",
     "folder": "Folder",
     "favorite": "Favorite",
@@ -191,5 +192,16 @@
   },
   "videoPlayer": {
     "title": "Video Player"
+  },
+  "processing": {
+    "cancelConfirm": "Are you sure you want to cancel processing?",
+    "retryConfirm": "Retry this task?",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "cancelled": "Task cancelled"
+  },
+  "videoInfo": {
+    "untitled": "Untitled",
+    "unknownFile": "Unknown file"
   }
 }

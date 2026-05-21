@@ -42,6 +42,7 @@ from app.schemas import (
     ModelsRequest,
     ModelsResponse,
     NoteResponse,
+    ProcessResponse,
     ProviderConfigResponse,
     ProviderPreset,
     ProvidersResponse,
@@ -50,6 +51,7 @@ from app.schemas import (
     TaskListItem,
     TaskListResponse,
     TaskStage,
+    UploadResponse,
     VideoRequest,
 )
 from app.services.audio import download_audio_via_ytdlp, extract_audio
@@ -239,7 +241,7 @@ async def _process_video_file(
         Path(file_path).unlink(missing_ok=True)
 
 
-@router.post("/process")
+@router.post("/process", response_model=ProcessResponse)
 async def process_video(
     request: VideoRequest,
     user: CurrentUser,
@@ -261,11 +263,16 @@ async def process_video(
     await create_task(
         job_id, user_id=user.user_id,
         video_url=url, platform=platform, language=language, source_type="url",
-        thumbnail_url=thumbnail_filename,
+        thumbnail_url=thumbnail_filename, title=video_info["title"],
     )
     asyncio.create_task(_process_video_url(job_id, url, language=language, user_id=user.user_id))
 
-    return {"job_id": job_id}
+    return ProcessResponse(
+        job_id=job_id,
+        title=video_info["title"],
+        thumbnail_url=thumbnail_filename or "",
+        platform=platform,
+    )
 
 
 ALLOWED_VIDEO_TYPES = {
@@ -293,7 +300,7 @@ ALLOWED_EXTENSIONS = {
 }
 
 
-@router.post("/upload")
+@router.post("/upload", response_model=UploadResponse)
 async def upload_video(
     file: UploadFile,
     user: CurrentUser,
@@ -339,7 +346,10 @@ async def upload_video(
         _process_video_file(job_id, str(file_path), language=language, user_id=user.user_id)
     )
 
-    return {"job_id": job_id}
+    return UploadResponse(
+        job_id=job_id,
+        file_name=safe_name,
+    )
 
 
 @router.get("/thumbnails/{filename}")
@@ -470,9 +480,9 @@ async def get_single_task(
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
         raise HTTPException(status_code=404, detail="Task not found")
-    # Extract title from result_json
-    title = None
-    if task.get("result_json"):
+    # Extract title: prefer DB column, fall back to result_json
+    title = task.get("title") or None
+    if not title and task.get("result_json"):
         try:
             parsed = json.loads(task["result_json"])
             title = parsed.get("title")
@@ -504,7 +514,7 @@ async def cancel_or_delete_task(
     return {"detail": "Task deleted"}
 
 
-@router.post("/tasks/{job_id}/retry")
+@router.post("/tasks/{job_id}/retry", response_model=ProcessResponse)
 async def retry_task(
     job_id: str,
     user: CurrentUser,
@@ -534,12 +544,17 @@ async def retry_task(
     await create_task(
         new_job_id, user_id=user.user_id,
         video_url=video_url, platform=platform, language=language, source_type="url",
-        thumbnail_url=thumbnail_filename,
+        thumbnail_url=thumbnail_filename, title=video_info["title"],
     )
     asyncio.create_task(
         _process_video_url(new_job_id, video_url, language=language, user_id=user.user_id)
     )
-    return {"job_id": new_job_id}
+    return ProcessResponse(
+        job_id=new_job_id,
+        title=video_info["title"],
+        thumbnail_url=thumbnail_filename or "",
+        platform=platform,
+    )
 
 
 @router.post("/tasks/{job_id}/cancel")
