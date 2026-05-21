@@ -104,10 +104,6 @@
   "note": {
     "untitled": "Untitled Note"
   },
-  "theme": {
-    "light": "Light",
-    "dark": "Dark"
-  },
   "dashboard": {
     "newNote": "New Video Note",
     "recentNotes": "Recent Notes",
@@ -177,6 +173,7 @@
   "theme": {
     "light": "Light",
     "dark": "Dark",
+    "system": "System",
     "toggle": "Toggle theme"
   },
   "mermaid": {
