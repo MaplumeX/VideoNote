@@ -501,12 +501,10 @@ export function NoteEditor({ markdown, onChange, onTimestampClick, hasVideo }: N
   }, [markdown]);
 
   return (
-    <div className="w-full">
-      <div className="rounded-xl border border-border bg-background p-6 milkdown-editor-wrapper">
-        <MilkdownProvider key={editorKey}>
-          <MilkdownEditorInner markdown={markdown} onChange={onChange} />
-        </MilkdownProvider>
-      </div>
+    <div className="rounded-xl border border-border bg-background p-6">
+      <MilkdownProvider key={editorKey}>
+        <MilkdownEditorInner markdown={markdown} onChange={onChange} />
+      </MilkdownProvider>
     </div>
   );
 }
