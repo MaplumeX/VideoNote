@@ -923,3 +923,37 @@ Extended theme system from light/dark to light/dark/system. System mode listens 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 30: fix: video floating window drag and resize
+
+**Date**: 2026-05-21
+**Task**: fix: video floating window drag and resize
+**Branch**: `Feat/video-floating-window-drag-broken`
+
+### Summary
+
+Fixed VideoPlayerFloat drag/resize bug caused by useEffect+ref pattern where ref mutations don't trigger effect re-execution. Introduced isDragging/isResizing state to drive listener registration. Updated hook guidelines with the anti-pattern.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `eadbaa8` | (see git log) |
+| `b098a1b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
