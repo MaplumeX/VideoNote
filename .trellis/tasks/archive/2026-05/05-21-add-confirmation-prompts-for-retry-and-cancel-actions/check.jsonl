@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "确认 lint/typecheck 检查标准"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "确认 UI 交互一致性规范"}
