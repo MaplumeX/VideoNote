@@ -783,3 +783,36 @@ Implemented desktop sidebar collapse to icon mode with Tooltip, Cmd/Ctrl+B short
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: Remove double-wrapping in NoteEditor layout
+
+**Date**: 2026-05-21
+**Task**: Remove double-wrapping in NoteEditor layout
+**Branch**: `Feat/auto-save-notes`
+
+### Summary
+
+移除 NoteEditor 组件中的双层 div 包裹（外层 w-full + 内层 rounded-xl border p-6），让笔记内容直接填充编辑区域，无边框无 padding。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `70d81b7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

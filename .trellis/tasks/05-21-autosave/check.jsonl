@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify useAutoSave follows hook conventions: use prefix, return object, ref for stale closures"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "tsc --noEmit and eslint must pass; i18n for user-visible save status strings"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Confirm autosave uses local state only, no global store introduced"}

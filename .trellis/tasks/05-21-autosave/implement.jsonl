@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Hook patterns and conventions — useAutoSave hook must follow naming, return object, ref-for-stale-closure patterns"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "No global state lib — autosave must use local useState/useRef; debounce pattern with useRef+setTimeout already documented for search"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Tailwind-only styling, cn() for conditional classes, named exports"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "tsc/eslint zero errors, no any types, i18n t() for user-visible strings"}

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 25
-- **Last Active**: 2026-05-20
+- **Total Sessions**: 26
+- **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~785 | Active |
+| `journal-1.md` | ~818 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 26 | 2026-05-21 | Remove double-wrapping in NoteEditor layout | `70d81b7` | `Feat/auto-save-notes` |
 | 25 | 2026-05-20 | 增强API模型选择方案 | `c706d86` | `Feat/api-model-selection` |
 | 24 | 2026-05-20 | Fix Milkdown raw markdown rendering | `a71fcb7` | `Feat/fix-note-style-rendering` |
 | 24 | 2026-05-20 | Sidebar Collapsible Feature | `c8217dc` | `Feat/sidebar-collapsible` |
