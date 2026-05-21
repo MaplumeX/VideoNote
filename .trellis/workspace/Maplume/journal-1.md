@@ -816,3 +816,36 @@ Implemented auto-save for notes with 1.5s debounce, save status indicator (savin
 ### Next Steps
 
 - None - task complete
+
+
+## Session 27: Remove save button, replace with lightweight status indicator
+
+**Date**: 2026-05-21
+**Task**: Remove save button, replace with lightweight status indicator
+**Branch**: `Feat/remove-save-button`
+
+### Summary
+
+Removed manual Save button from NoteDetailPage sidebar since auto-save (1.5s debounce) already handles persistence. Replaced with subtle text-only save status indicator showing saving/saved/failed. Preserved Cmd+S shortcut.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c3d6609` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
