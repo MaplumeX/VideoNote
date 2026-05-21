@@ -19,9 +19,9 @@ export function TableOfContents({ containerRef, contentKey }: TableOfContentsPro
   const [headings, setHeadings] = useState<TOCItem[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const mutationTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Extract headings from the rendered DOM
-  useEffect(() => {
+  const extractHeadings = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
 
@@ -34,7 +34,28 @@ export function TableOfContents({ containerRef, contentKey }: TableOfContentsPro
         level: parseInt(el.tagName[1], 10),
       }));
     setHeadings(items);
-  }, [containerRef, contentKey]);
+  }, [containerRef]);
+
+  // Extract headings when contentKey changes
+  useEffect(() => {
+    // Delay slightly to allow Milkdown async render to complete
+    const timer = setTimeout(extractHeadings, 100);
+    return () => clearTimeout(timer);
+  }, [contentKey, extractHeadings]);
+
+  // Watch DOM mutations so TOC updates after Milkdown finishes async rendering
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const mo = new MutationObserver(() => {
+      if (mutationTimerRef.current) clearTimeout(mutationTimerRef.current);
+      mutationTimerRef.current = setTimeout(extractHeadings, 50);
+    });
+
+    mo.observe(container, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, [containerRef, extractHeadings]);
 
   // Track active heading with IntersectionObserver
   useEffect(() => {
