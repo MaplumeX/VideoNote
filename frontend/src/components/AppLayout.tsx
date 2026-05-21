@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "./Sidebar";
 import { ThemeProvider } from "@/hooks/useTheme";
+import { ConfirmProvider } from "@/hooks/useConfirm";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getAccessToken } from "@/auth/token";
 
@@ -47,6 +48,7 @@ export function AppLayout() {
 
   return (
     <ThemeProvider>
+    <ConfirmProvider>
     <TooltipProvider>
     <div className="h-screen flex bg-background">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
@@ -75,6 +77,7 @@ export function AppLayout() {
       </div>
     </div>
     </TooltipProvider>
+    </ConfirmProvider>
     </ThemeProvider>
   );
 }

@@ -189,6 +189,10 @@
     "generate": "生成笔记",
     "inProgress": "处理中 {{percent}}%"
   },
+  "confirm": {
+    "ok": "确认",
+    "cancel": "取消"
+  },
   "videoPlayer": {
     "title": "视频播放器"
   }

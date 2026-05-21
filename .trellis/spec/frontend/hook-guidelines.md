@@ -119,6 +119,77 @@ export function useVideoUpload() {
 }
 ```
 
+### Confirm Hook (useConfirm)
+
+Promise-based confirmation dialog. `ConfirmProvider` wraps `AppLayout`; components consume via `useConfirm()`.
+
+**Pattern**: Context + `resolveRef` to prevent double-resolve when `@base-ui/react` Close fires both `onClick` and `onOpenChange`.
+
+```tsx
+interface ConfirmState {
+  title: string;
+  description?: string;
+  destructive?: boolean;
+  resolve: (value: boolean) => void;
+}
+
+const ConfirmContext = createContext<ConfirmContextValue>({
+  confirm: () => Promise.resolve(false),
+});
+
+export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<ConfirmState | null>(null);
+  const resolveRef = useRef<((value: boolean) => void) | null>(null);
+
+  const confirm = useCallback((options) => {
+    return new Promise<boolean>((resolve) => {
+      resolveRef.current = resolve; // ref for double-resolve guard
+      setState({ ...options, resolve });
+    });
+  }, []);
+
+  const handleClose = useCallback((value: boolean) => {
+    if (resolveRef.current) {  // guard: only resolve once
+      resolveRef.current(value);
+      resolveRef.current = null;
+      setState(null);
+    }
+  }, []);
+
+  return (
+    <ConfirmContext.Provider value={{ confirm }}>
+      {children}
+      {state && (
+        <AlertDialog open onOpenChange={(open) => { if (!open) handleClose(false); }}>
+          {/* ... */}
+          <AlertDialogAction
+            variant={state.destructive ? "destructive" : "default"}
+            onClick={() => handleClose(true)}
+          >
+            {t("confirm.ok")}
+          </AlertDialogAction>
+        </AlertDialog>
+      )}
+    </ConfirmContext.Provider>
+  );
+}
+
+export function useConfirm() {
+  return useContext(ConfirmContext);
+}
+```
+
+**Usage in components** (all handlers must be `async`):
+
+```tsx
+const { confirm } = useConfirm();
+
+const handleDelete = async (id: string) => {
+  if (!await confirm({ title: t("deleteConfirm"), destructive: true })) return;
+  // proceed with delete
+};
+```
+
 ---
 
 ## Naming Conventions
@@ -169,6 +240,28 @@ xhr.upload.onprogress = (e) => setProgress(e.loaded / e.total * 100);
 
 // GOOD — handles \r\n, \n, and \r line endings
 } else if (line.trim() === "" && currentData) {
+```
+
+### Don't: Let @base-ui Close double-fire resolve a Promise
+
+`@base-ui/react` Close components (AlertDialogAction, AlertDialogCancel, SheetClose) fire `onClick` and then `onOpenChange(false)` in the same React batch. If both call a resolve function, the Promise resolves twice.
+
+```tsx
+// BAD — onClick resolves(true), then onOpenChange(false) resolves(false) again
+const handleClose = useCallback((value: boolean) => {
+  state.resolve(value); // called twice!
+  setState(null);
+}, [state]);
+
+// GOOD — use a ref to guard, only the first call resolves
+const resolveRef = useRef<((value: boolean) => void) | null>(null);
+const handleClose = useCallback((value: boolean) => {
+  if (resolveRef.current) {
+    resolveRef.current(value);
+    resolveRef.current = null;
+    setState(null);
+  }
+}, []);
 ```
 
 ### Don't: Gate useEffect listener registration on a ref

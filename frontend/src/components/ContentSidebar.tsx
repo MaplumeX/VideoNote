@@ -14,6 +14,7 @@ import {
   Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/hooks/useConfirm";
 import {
   fetchTags,
   fetchFolderTree,
@@ -40,6 +41,7 @@ type EditState =
 
 export function ContentSidebar({ filter, onFilterChange }: ContentSidebarProps) {
   const { t } = useTranslation();
+  const { confirm } = useConfirm();
   const [tags, setTags] = useState<TagWithCount[]>([]);
   const [folders, setFolders] = useState<FolderTreeNode[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -122,7 +124,7 @@ export function ContentSidebar({ filter, onFilterChange }: ContentSidebarProps) 
   };
 
   const handleDeleteTag = async (id: string, name: string) => {
-    if (!window.confirm(t("contentSidebar.deleteTagConfirm", { name }))) return;
+    if (!await confirm({ title: t("contentSidebar.deleteTagConfirm", { name }), destructive: true })) return;
     try {
       await deleteTag(id);
       // If currently filtering by this tag, clear filter
@@ -136,7 +138,7 @@ export function ContentSidebar({ filter, onFilterChange }: ContentSidebarProps) 
   };
 
   const handleDeleteFolder = async (id: string, name: string) => {
-    if (!window.confirm(t("contentSidebar.deleteFolderConfirm", { name }))) return;
+    if (!await confirm({ title: t("contentSidebar.deleteFolderConfirm", { name }), destructive: true })) return;
     try {
       await deleteFolder(id);
       if (filter.folder === id) {
