@@ -1214,3 +1214,36 @@ Proxy video thumbnails through backend to bypass Bilibili CDN Referer check. Add
 ### Next Steps
 
 - None - task complete
+
+
+## Session 38: Replace window.confirm with useConfirm hook and AlertDialog
+
+**Date**: 2026-05-22
+**Task**: Replace window.confirm with useConfirm hook and AlertDialog
+**Branch**: `Feat/replace-windows-confirm`
+
+### Summary
+
+Replaced all 5 window.confirm calls with useConfirm hook + shadcn AlertDialog (base-ui). Added ConfirmProvider to AppLayout, resolveRef to prevent double-resolve, confirm.ok/cancel i18n keys. Updated component-guidelines and hook-guidelines specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a7bc2ff` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

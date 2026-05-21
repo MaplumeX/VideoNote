@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "shadcn/ui 组件规范（base-ui 而非 Radix，render prop 代替 asChild）、命名导出、Tailwind-only 样式"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "自定义 hook 模式（Context+Provider），命名约定 use 前缀，含 JSX 用 .tsx"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "质量标准：lint/typecheck 要求"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "状态管理约定，Provider 层级结构参考"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "代码复用思维：useConfirm 作为共享 hook 的设计参考"}

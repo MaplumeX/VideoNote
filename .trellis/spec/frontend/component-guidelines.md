@@ -47,7 +47,7 @@ import { cn } from "@/lib/utils";
 <div className={cn("rounded-lg border p-4", isActive && "border-blue-500")} />
 ```
 
-shadcn/ui components in `components/ui/` — install via CLI, don't hand-write. Available: `Button`, `Input`, `Select`, `Card`, `Badge`, `Separator`, `DropdownMenu`, `ContextMenu`, `Sheet`, `Pagination`, `Tooltip`.
+shadcn/ui components in `components/ui/` — install via CLI, don't hand-write. Available: `Button`, `Input`, `Select`, `Card`, `Badge`, `Separator`, `DropdownMenu`, `ContextMenu`, `Sheet`, `AlertDialog`, `Pagination`, `Tooltip`.
 
 > **Warning**: This project uses **@base-ui/react** (not Radix) as the headless primitive layer for shadcn. `@base-ui` components use `render` prop instead of `asChild`. When a shadcn component needs to wrap a custom element (e.g., `TooltipTrigger` wrapping a `Button`), use `render` prop:
 >
