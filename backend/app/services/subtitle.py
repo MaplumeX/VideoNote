@@ -32,7 +32,7 @@ def _parse_cookies_from_browser(value: str) -> tuple[str, str | None, str | None
 
 
 def _ydl_opts(**extra: object) -> dict:
-    opts: dict = {"quiet": True, "no_warnings": True, **extra}
+    opts: dict = {"quiet": True, "no_warnings": True, "remote_components": ["ejs:github"], **extra}
     if YT_DLP_PROXY:
         opts["proxy"] = YT_DLP_PROXY
     if YT_DLP_COOKIES_FROM_BROWSER:
