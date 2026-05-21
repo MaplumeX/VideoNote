@@ -879,3 +879,36 @@ Milkdown编辑器重建只应在笔记切换时发生（markdown prop从note.mar
 
 ### Status
 [OK] **Completed**
+
+
+## Session 28: Fix auto-save remounting editor
+
+**Date**: 2026-05-21
+**Task**: Fix auto-save remounting editor
+**Branch**: `Feat/auto-save-editing-experience`
+
+### Summary
+
+Fixed auto-save interrupting editing state by using lastSavedMarkdownRef instead of writing back savedNote.markdown to editMarkdown state, preventing Milkdown editor remount on save.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ee3bb73` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
