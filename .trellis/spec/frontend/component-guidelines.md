@@ -169,9 +169,59 @@ import { commonmark, gfm } from "@milkdown/kit/preset";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 ```
 
-**Key convention**: Milkdown editor instances are keyed for reset. When external markdown changes (e.g., switching notes), remount via a `key` prop rather than imperatively updating the editor.
+**Key convention**: Milkdown editor instances are keyed for reset. Use an explicit `resetKey` prop from the parent to control when the editor remounts — never let the editor component internally diff `markdown` to decide when to rebuild.
 
-**Don't: Write save responses back to the markdown state prop.** After auto-save completes, do NOT call `setMarkdown(savedMarkdown)` — that changes the prop and triggers an editor remount mid-edit, losing cursor position and focus. Instead, track "last saved content" in a ref (`lastSavedMarkdownRef`) for dirty-state comparison. Only let the `markdown` prop change on intentional content loads (note switch, initial load).
+> **Warning**: Milkdown v7's `useEditor((container) => {...}, [deps])` — changing `deps` triggers `editor.destroy()` + full ProseMirror `EditorView` teardown + rebuild. Focus, cursor, IME state, and undo history are all lost. Do NOT put `markdown` in the deps array; use `useRef(markdown)` for `defaultValueCtx` instead. Remounting is handled by the `MilkdownProvider key={resetKey}` mechanism.
+
+**Don't: Put `markdown` in `useEditor` deps.** The editor will rebuild on every keystroke if `markdown` changes during editing. Use `useRef` to capture the initial value:
+
+```tsx
+// BAD — markdown changes on every keystroke → editor rebuilds → focus lost
+useEditor((container) => {
+  return Editor.make().config((ctx) => {
+    ctx.set(defaultValueCtx, markdown);
+  })// ...
+}, [markdown]);
+
+// GOOD — ref only reads the value at mount time; remount via resetKey
+const initialMarkdownRef = useRef(markdown);
+useEditor((container) => {
+  return Editor.make().config((ctx) => {
+    ctx.set(defaultValueCtx, initialMarkdownRef.current);
+  })// ...
+}, []);
+```
+
+**Don't: Let the editor component diff markdown to trigger remount.** When `onChange` updates the parent's state, the `markdown` prop changes, and an internal diff effect would fire on every keystroke. Use `resetKey` instead:
+
+```tsx
+// BAD — internal diff triggers remount during editing
+function NoteEditor({ markdown, onChange }) {
+  const [editorKey, setEditorKey] = useState(0);
+  const prevRef = useRef(markdown);
+  useEffect(() => {
+    if (markdown !== prevRef.current) {
+      prevRef.current = markdown;
+      setEditorKey(k => k + 1); // fires on every keystroke!
+    }
+  }, [markdown]);
+  return <MilkdownProvider key={editorKey}>...</MilkdownProvider>;
+}
+
+// GOOD — parent explicitly controls when to remount
+function NoteEditor({ markdown, onChange, resetKey }) {
+  return <MilkdownProvider key={resetKey}>...</MilkdownProvider>;
+}
+
+// Parent: only increment on external changes (note switch, SSE complete)
+const [resetKey, setResetKey] = useState(0);
+useEffect(() => { // note switch
+  setResetKey(k => k + 1);
+  fetchResult(jobId).then(...);
+}, [jobId]);
+```
+
+**Don't: Write save responses back to the markdown state prop.** After auto-save completes, do NOT call `setMarkdown(savedMarkdown)` — that changes the prop and triggers an editor remount mid-edit, losing cursor position and focus. Instead, track "last saved content" in a ref (`lastSavedMarkdownRef`) for dirty-state comparison. Only let the `resetKey` increment on intentional content loads (note switch, initial load).
 
 ### Custom TimestampBadge Node
 
