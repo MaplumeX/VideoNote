@@ -1115,3 +1115,36 @@ Removed the inner Milkdown/ProseMirror border, outline, and focus shadow from th
 ### Next Steps
 
 - None - task complete
+
+
+## Session 35: Support yt-dlp cookies configuration
+
+**Date**: 2026-05-21
+**Task**: Support yt-dlp cookies configuration
+**Branch**: `Feat/provo`
+
+### Summary
+
+Added shared yt-dlp cookie configuration through browser or cookies file env vars, documented usage, covered option parsing with tests, and confirmed yt-dlp is already on the latest stable release.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a673249` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

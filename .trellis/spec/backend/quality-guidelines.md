@@ -63,6 +63,49 @@ async def hash_password(password: str) -> str:
 
 ## Required Patterns
 
+### Scenario: yt-dlp Shared Options
+
+#### 1. Scope / Trigger
+- Trigger: Any backend code that calls `yt_dlp.YoutubeDL`.
+- Keep yt-dlp integration options centralized so audio, subtitles, title lookup, and metadata lookup behave consistently.
+
+#### 2. Signatures
+- Use `app.services.subtitle._ydl_opts(**extra: object) -> dict` to construct `YoutubeDL` options.
+
+#### 3. Contracts
+- `YT_DLP_PROXY`: optional proxy URL passed as `proxy`.
+- `YT_DLP_COOKIES_FROM_BROWSER`: optional browser cookie spec using yt-dlp syntax `BROWSER[+KEYRING][:PROFILE][::CONTAINER]`, passed as `cookiesfrombrowser`.
+- `YT_DLP_COOKIES_FILE`: optional Netscape cookies file path, passed as `cookiefile`.
+
+#### 4. Validation & Error Matrix
+- Invalid `YT_DLP_COOKIES_FROM_BROWSER` format -> service raises `ValueError`; route-level task processing records failed status.
+- Unsupported browser/keyring -> yt-dlp raises during extraction; route-level task processing records failed status.
+
+#### 5. Good/Base/Bad Cases
+- Good: `YT_DLP_COOKIES_FROM_BROWSER=chrome` and all yt-dlp calls inherit browser cookies.
+- Base: no cookie env vars set and yt-dlp runs anonymously.
+- Bad: a new `yt_dlp.YoutubeDL({...})` call bypasses `_ydl_opts`, so proxy/cookies work in one feature but fail in another.
+
+#### 6. Tests Required
+- Unit tests for `_ydl_opts` must assert proxy, browser cookies, cookies file, and caller-provided options are preserved.
+- Parser tests must cover browser profile/keyring/container syntax and invalid syntax.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```python
+with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
+    ...
+```
+
+Correct:
+
+```python
+with yt_dlp.YoutubeDL(_ydl_opts(quiet=True)) as ydl:
+    ...
+```
+
 ### Annotated type alias for FastAPI Depends
 
 Use `Annotated` type aliases instead of `Depends()` in parameter defaults (avoids B008 ruff violation):

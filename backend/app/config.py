@@ -22,6 +22,8 @@ LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o")
 
 # yt-dlp proxy (e.g. "http://127.0.0.1:7890")
 YT_DLP_PROXY: str = os.getenv("YT_DLP_PROXY", "")
+YT_DLP_COOKIES_FROM_BROWSER: str = os.getenv("YT_DLP_COOKIES_FROM_BROWSER", "")
+YT_DLP_COOKIES_FILE: str = os.getenv("YT_DLP_COOKIES_FILE", "")
 
 # Upload
 UPLOAD_DIR: Path = Path(os.getenv("UPLOAD_DIR", "/tmp/videonote_uploads"))
