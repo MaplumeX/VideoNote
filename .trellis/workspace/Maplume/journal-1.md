@@ -923,3 +923,36 @@ Extended theme system from light/dark to light/dark/system. System mode listens 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 30: Fix double-layer container in note editor
+
+**Date**: 2026-05-21
+**Task**: Fix double-layer container in note editor
+**Branch**: `Feat/note-content-double-layer`
+
+### Summary
+
+Removed prose max-width: 65ch from milkdown editor by adding .milkdown-theme-nord.prose { max-width: none } in index.css, eliminating the inner container that created a double-layer visual effect.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `adb4207` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
