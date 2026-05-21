@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 37
+- **Total Sessions**: 38
 - **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1216 | Active |
+| `journal-1.md` | ~1250 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 38 | 2026-05-22 | Enrich video processing wait experience with video info card and interaction enhancements | `cfbdc53`, `18d98da` | `Feat/waiting-experience-video-cover-title` |
 | 37 | 2026-05-22 | Add confirmation prompts for retry and cancel actions | `fa00cf0` | `Feat/retry-delete-cancel-confirmation` |
 | 36 | 2026-05-21 | Fix Bilibili thumbnail anti-hotlinking | `c6f1968` | `Feat/bilibili-cover-fetch-fail` |
 | 35 | 2026-05-21 | Support yt-dlp cookies configuration | `a673249` | `Feat/provo` |
