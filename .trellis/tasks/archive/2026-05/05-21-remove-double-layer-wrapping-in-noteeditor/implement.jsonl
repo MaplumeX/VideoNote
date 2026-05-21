@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component patterns and styling conventions for NoteEditor changes"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality checks — tsc, eslint, build verification"}
