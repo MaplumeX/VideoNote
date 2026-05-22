@@ -114,7 +114,24 @@ await db.execute("SELECT * FROM tasks WHERE job_id = ?", (job_id,))
 
 ### Don't: Store secrets in plaintext
 
-API keys must be encrypted via `app/crypto.py` (Fernet) before storing in `user_providers.api_key_encrypted`.
+API keys and cookies must be encrypted via `app/crypto.py` (Fernet) before storing in `user_providers.api_key_encrypted` or `user_cookies.cookie_encrypted`.
+
+### Don't: Return encrypted secrets to the frontend
+
+When querying tables with encrypted columns, **never include the encrypted column in SELECT** for API responses. Only return existence/metadata:
+
+```python
+# BAD — leaks encrypted content to frontend
+cursor = await db.execute("SELECT * FROM user_cookies WHERE user_id = ?", (user_id,))
+
+# GOOD — exclude encrypted column
+cursor = await db.execute(
+    "SELECT user_id, platform, updated_at FROM user_cookies WHERE user_id = ?",
+    (user_id,),
+)
+```
+
+For single-row lookups needed server-side (e.g., decrypting cookies for yt-dlp), use a dedicated internal function that returns the full row but is **never exposed via API**.
 
 ---
 

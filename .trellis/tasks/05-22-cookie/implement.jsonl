@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index — implement agent needs to know available guidelines"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Cookie storage requires new DB table/columns — must follow existing SQLite + aiosqlite patterns"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Cookie API endpoints need consistent error handling"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Cookie operations (upload/delete) need appropriate logging"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend code standards and forbidden patterns"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec index — implement agent needs to know available guidelines"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Cookie management UI component must follow existing component patterns (Settings page)"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Cookie-related TypeScript types need to follow project type patterns"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend code standards"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Feature spans frontend → API → service → DB layers — cross-layer data flow guidance"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Cookie encryption should reuse existing Fernet/crypto patterns; Settings page reuse"}
+{"file": ".trellis/tasks/05-22-cookie/prd.md", "reason": "Task PRD with confirmed requirements and acceptance criteria"}

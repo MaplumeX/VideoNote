@@ -1,15 +1,17 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchProviders, fetchSettings, saveSettings, fetchModels } from "@/api/client";
+import { fetchProviders, fetchSettings, saveSettings, fetchModels, fetchCookies, saveCookie, deleteCookie } from "@/api/client";
 import type {
   ProviderPreset,
   ProvidersResponse,
   SettingsResponse,
   ProviderConfig,
+  CookieInfo,
 } from "@/types";
-import { Mic, Brain, Save, Settings, Globe } from "lucide-react";
+import { Mic, Brain, Save, Settings, Globe, Cookie, Trash2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SUPPORTED_LANGS } from "@/i18n";
+import { useConfirm } from "@/hooks/useConfirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDropzone } from "react-dropzone";
 
 interface ConfigFormState {
   provider: string;
@@ -260,6 +263,259 @@ const LANG_LABELS: Record<string, string> = {
   "zh-CN": "中文",
 };
 
+const PLATFORM_LABELS: Record<string, string> = {
+  youtube: "YouTube",
+  bilibili: "Bilibili",
+};
+
+interface CookiePlatformSectionProps {
+  platform: string;
+  cookieInfo: CookieInfo | undefined;
+  onUpload: (platform: string, file: File) => void;
+  onPaste: (platform: string, text: string) => void;
+  onDelete: (platform: string) => void;
+  loading: boolean;
+}
+
+function CookiePlatformSection({
+  platform,
+  cookieInfo,
+  onUpload,
+  onPaste,
+  onDelete,
+  loading,
+}: CookiePlatformSectionProps) {
+  const { t } = useTranslation();
+  const [pasteText, setPasteText] = useState("");
+  const [pasteMode, setPasteMode] = useState(false);
+
+  const platformLabel = PLATFORM_LABELS[platform] ?? platform;
+
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length > 0) {
+        onUpload(platform, acceptedFiles[0]);
+      }
+    },
+    [onUpload, platform],
+  );
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { "text/plain": [".txt"] },
+    maxFiles: 1,
+    disabled: loading,
+  });
+
+  const handlePasteSave = () => {
+    if (pasteText.trim()) {
+      onPaste(platform, pasteText.trim());
+      setPasteText("");
+      setPasteMode(false);
+    }
+  };
+
+  const hasCookie = cookieInfo?.has_cookie ?? false;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{platformLabel}</span>
+        <span
+          className={cn(
+            "text-xs px-2 py-0.5 rounded-full",
+            hasCookie
+              ? "bg-green-500/10 text-green-600 dark:text-green-400"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
+          {hasCookie ? t("settings.cookieSet") : t("settings.cookieNotSet")}
+        </span>
+      </div>
+
+      <div className="flex gap-2">
+        <div {...getRootProps()} className="flex-1">
+          <input {...getInputProps()} />
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn("w-full gap-1.5", isDragActive && "border-primary")}
+            disabled={loading}
+            onClick={(e) => { e.preventDefault(); getRootProps().onClick?.(e); }}
+          >
+            <Upload size={14} />
+            {t("settings.cookieUpload")}
+          </Button>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={loading}
+          onClick={() => setPasteMode(!pasteMode)}
+        >
+          {t("settings.cookiePaste")}
+        </Button>
+        {hasCookie && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-destructive hover:text-destructive"
+            disabled={loading}
+            onClick={() => onDelete(platform)}
+          >
+            <Trash2 size={14} />
+            {t("settings.cookieDelete")}
+          </Button>
+        )}
+      </div>
+
+      {pasteMode && (
+        <div className="space-y-2">
+          <textarea
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm min-h-[80px] resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+            placeholder={t("settings.cookiePastePlaceholder")}
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            disabled={loading}
+          />
+          <Button
+            size="sm"
+            className="gap-1.5"
+            disabled={loading || !pasteText.trim()}
+            onClick={handlePasteSave}
+          >
+            {t("settings.cookieSave")}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CookieCard() {
+  const { t } = useTranslation();
+  const { confirm } = useConfirm();
+  const [cookies, setCookies] = useState<CookieInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const loadCookies = useCallback(async () => {
+    try {
+      const data = await fetchCookies();
+      setCookies(data);
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCookies();
+  }, [loadCookies]);
+
+  const handleUpload = async (platform: string, file: File) => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      await saveCookie(platform, formData);
+      setMessage({ type: "success", text: t("settings.cookieSaved") });
+      await loadCookies();
+    } catch {
+      setMessage({ type: "error", text: t("settings.cookieSaveFailed") });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePaste = async (platform: string, text: string) => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      await saveCookie(platform, { cookie_text: text });
+      setMessage({ type: "success", text: t("settings.cookieSaved") });
+      await loadCookies();
+    } catch {
+      setMessage({ type: "error", text: t("settings.cookieSaveFailed") });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (platform: string) => {
+    const platformLabel = PLATFORM_LABELS[platform] ?? platform;
+    const ok = await confirm({
+      title: t("settings.cookieDelete"),
+      description: t("settings.cookieDeleteConfirm", { platform: platformLabel }),
+      destructive: true,
+    });
+    if (!ok) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      await deleteCookie(platform);
+      setMessage({ type: "success", text: t("settings.cookieDeleted") });
+      await loadCookies();
+    } catch {
+      setMessage({ type: "error", text: t("settings.cookieDeleteFailed") });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCookieInfo = (platform: string) => cookies.find((c) => c.platform === platform);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Cookie size={18} className="text-muted-foreground" />
+          <CardTitle>{t("settings.cookieTitle")}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <p className="text-sm text-muted-foreground">{t("settings.cookieDesc")}</p>
+
+        {message && (
+          <div
+            className={cn(
+              "rounded-lg border px-4 py-3 text-sm",
+              message.type === "success"
+                ? "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400"
+                : "bg-destructive/10 border-destructive/20 text-destructive",
+            )}
+          >
+            {message.text}
+          </div>
+        )}
+
+        <CookiePlatformSection
+          platform="youtube"
+          cookieInfo={getCookieInfo("youtube")}
+          onUpload={handleUpload}
+          onPaste={handlePaste}
+          onDelete={handleDelete}
+          loading={loading}
+        />
+
+        <CookiePlatformSection
+          platform="bilibili"
+          cookieInfo={getCookieInfo("bilibili")}
+          onUpload={handleUpload}
+          onPaste={handlePaste}
+          onDelete={handleDelete}
+          loading={loading}
+        />
+
+        <p className="text-xs text-muted-foreground">{t("settings.cookieFileHint")}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function SettingsPage() {
   const { t, i18n } = useTranslation();
 
@@ -386,6 +642,8 @@ export function SettingsPage() {
         form={llmForm}
         onChange={setLlmForm}
       />
+
+      <CookieCard />
 
       <div className="flex justify-end">
         <Button

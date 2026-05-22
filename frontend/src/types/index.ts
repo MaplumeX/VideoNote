@@ -176,6 +176,14 @@ export interface BatchDeleteRequest {
   job_ids: string[];
 }
 
+// --- Cookie types ---
+
+export interface CookieInfo {
+  platform: string;
+  has_cookie: boolean;
+  updated_at: string | null;
+}
+
 // --- Filter state ---
 
 export interface HistoryFilter {

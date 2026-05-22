@@ -32,6 +32,7 @@ from app.db import (
     delete_task,
     get_all_provider_configs,
     get_task,
+    get_user_cookie,
     get_user_tasks,
     save_provider_config,
     set_result,
@@ -110,10 +111,41 @@ def _normalize_language(lang: str) -> str:
     return "en"
 
 
+async def _get_user_cookiefile(user_id: str, url: str) -> str | None:
+    """Get a temp cookie file path for the user's per-user cookie matching the URL's platform.
+
+    Returns None if no per-user cookie exists for the detected platform.
+    The caller must clean up the temp file after use.
+    """
+    platform = detect_video_platform(url)
+    if platform not in ("youtube", "bilibili"):
+        return None
+    record = await get_user_cookie(user_id, platform)
+    if not record or not record.get("cookie_encrypted"):
+        return None
+    try:
+        cookie_content = decrypt_api_key(record["cookie_encrypted"])
+    except Exception:
+        logger.warning(f"Failed to decrypt cookie for user {user_id} platform {platform}")
+        return None
+    if not cookie_content:
+        return None
+    # Write decrypted cookie to a temp file
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, prefix="cookie_")
+    tmp.write(cookie_content)
+    tmp.close()
+    return tmp.name
+
+
 async def _process_video_url(
     job_id: str, url: str, language: str = "en", user_id: str | None = None
 ) -> None:
     """Process a video URL: extract subtitles or transcribe, then generate notes."""
+    # Resolve per-user cookie file
+    cookiefile_path: str | None = None
+    if user_id:
+        cookiefile_path = await _get_user_cookiefile(user_id, url)
+
     try:
         # Read user provider config, fallback to env defaults
         asr_cfg = await _get_user_provider(user_id, "asr") if user_id else None
@@ -128,14 +160,16 @@ async def _process_video_url(
         llm_api_base = llm_cfg["api_base"] if llm_cfg and llm_cfg["api_base"] else LLM_API_BASE
         llm_model = llm_cfg["model"] if llm_cfg and llm_cfg["model"] else LLM_MODEL
 
-        video_info = await asyncio.to_thread(get_video_info, url)
+        video_info = await asyncio.to_thread(get_video_info, url, cookiefile_path=cookiefile_path)
         video_title = video_info["title"]
 
         await update_progress(
             job_id, TaskStage.extracting_subtitles, 0.1, "Extracting subtitles..."
         )
 
-        subtitle_text = await asyncio.to_thread(extract_subtitles, url)
+        subtitle_text = await asyncio.to_thread(
+            extract_subtitles, url, cookiefile_path=cookiefile_path,
+        )
 
         if subtitle_text:
             transcript = subtitle_text
@@ -146,7 +180,9 @@ async def _process_video_url(
             )
 
             with tempfile.TemporaryDirectory() as tmpdir:
-                audio_path = await asyncio.to_thread(download_audio_via_ytdlp, url, tmpdir)
+                audio_path = await asyncio.to_thread(
+                    download_audio_via_ytdlp, url, tmpdir, cookiefile_path=cookiefile_path,
+                )
 
                 await update_progress(job_id, TaskStage.transcribing, 0.4, "Transcribing audio...")
                 transcript = await asyncio.to_thread(
@@ -180,6 +216,10 @@ async def _process_video_url(
     except Exception as e:
         logger.exception(f"Task {job_id} failed: {e}")
         await update_progress(job_id, TaskStage.failed, 0.0, f"Error: {str(e)}")
+    finally:
+        # Clean up temp cookie file
+        if cookiefile_path:
+            Path(cookiefile_path).unlink(missing_ok=True)
 
 
 async def _process_video_file(
@@ -257,7 +297,15 @@ async def process_video(
 
     language = _normalize_language(request.language)
     job_id = str(uuid.uuid4())
-    video_info = await asyncio.to_thread(get_video_info, url)
+
+    # Get per-user cookie for initial video info lookup
+    cookiefile_path = await _get_user_cookiefile(user.user_id, url)
+    try:
+        video_info = await asyncio.to_thread(get_video_info, url, cookiefile_path=cookiefile_path)
+    finally:
+        if cookiefile_path:
+            Path(cookiefile_path).unlink(missing_ok=True)
+
     ext_thumb = video_info.get("thumbnail_url") or ""
     thumbnail_filename = await asyncio.to_thread(download_thumbnail, ext_thumb)
     await create_task(
@@ -538,7 +586,15 @@ async def retry_task(
     platform = task.get("platform") or detect_video_platform(video_url)
 
     new_job_id = str(uuid.uuid4())
-    video_info = await asyncio.to_thread(get_video_info, video_url)
+    # Get per-user cookie for retry
+    cookiefile_path = await _get_user_cookiefile(user.user_id, video_url)
+    try:
+        video_info = await asyncio.to_thread(
+            get_video_info, video_url, cookiefile_path=cookiefile_path,
+        )
+    finally:
+        if cookiefile_path:
+            Path(cookiefile_path).unlink(missing_ok=True)
     ext_thumb = video_info.get("thumbnail_url") or ""
     thumbnail_filename = await asyncio.to_thread(download_thumbnail, ext_thumb)
     await create_task(

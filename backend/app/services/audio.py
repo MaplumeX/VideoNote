@@ -32,7 +32,9 @@ def extract_audio(video_path: str, output_path: str) -> str:
     return output_path
 
 
-def download_audio_via_ytdlp(url: str, output_dir: str) -> str:
+def download_audio_via_ytdlp(
+    url: str, output_dir: str, *, cookiefile_path: str | None = None,
+) -> str:
     """Download only the audio stream from a URL using yt-dlp.
 
     Returns the path to the downloaded WAV file.
@@ -47,6 +49,7 @@ def download_audio_via_ytdlp(url: str, output_dir: str) -> str:
     # That postprocessor uses ffprobe to detect the codec and fails on
     # some formats. We convert to WAV separately via extract_audio().
     ydl_opts = _ydl_opts(
+        cookiefile_path=cookiefile_path,
         format="bestaudio/best",
         outtmpl=output_path,
     )

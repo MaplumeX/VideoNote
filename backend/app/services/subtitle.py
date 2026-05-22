@@ -33,18 +33,28 @@ def _parse_cookies_from_browser(value: str) -> tuple[str, str | None, str | None
     return browser_name.lower(), profile, keyring.upper() if keyring else None, container
 
 
-def _ydl_opts(**extra: object) -> dict:
+def _ydl_opts(
+    *,
+    cookiefile_path: str | None = None,
+    **extra: object,
+) -> dict:
     opts: dict = {"quiet": True, "no_warnings": True, "remote_components": ["ejs:github"], **extra}
     if YT_DLP_PROXY:
         opts["proxy"] = YT_DLP_PROXY
-    if YT_DLP_COOKIES_FROM_BROWSER:
-        opts["cookiesfrombrowser"] = _parse_cookies_from_browser(YT_DLP_COOKIES_FROM_BROWSER)
-    if YT_DLP_COOKIES_FILE:
-        opts["cookiefile"] = YT_DLP_COOKIES_FILE
+    # Per-user cookie file takes priority
+    if cookiefile_path:
+        opts["cookiefile"] = cookiefile_path
+    else:
+        if YT_DLP_COOKIES_FROM_BROWSER:
+            opts["cookiesfrombrowser"] = _parse_cookies_from_browser(YT_DLP_COOKIES_FROM_BROWSER)
+        if YT_DLP_COOKIES_FILE:
+            opts["cookiefile"] = YT_DLP_COOKIES_FILE
     return opts
 
 
-def extract_subtitles(url: str, languages: list[str] | None = None) -> str | None:
+def extract_subtitles(
+    url: str, languages: list[str] | None = None, *, cookiefile_path: str | None = None
+) -> str | None:
     """Extract subtitles from a video URL using yt-dlp.
 
     Tries manual subtitles first, then auto-generated captions.
@@ -54,6 +64,7 @@ def extract_subtitles(url: str, languages: list[str] | None = None) -> str | Non
         languages = ["en", "zh-Hans", "zh", "ja"]
 
     ydl_opts = _ydl_opts(
+        cookiefile_path=cookiefile_path,
         writesubtitles=True,
         writeautomaticsub=True,
         subtitleslangs=languages,
@@ -77,7 +88,8 @@ def extract_subtitles(url: str, languages: list[str] | None = None) -> str | Non
                             # yt-dlp with download=False doesn't get the
                             # actual content, need to re-run with download
                             return _download_and_read_subtitle(
-                                url, lang, auto=False, languages=languages
+                                url, lang, auto=False, languages=languages,
+                                cookiefile_path=cookiefile_path,
                             )
 
             # Try auto-generated captions
@@ -85,7 +97,8 @@ def extract_subtitles(url: str, languages: list[str] | None = None) -> str | Non
             for lang in languages:
                 if lang in auto_captions:
                     return _download_and_read_subtitle(
-                        url, lang, auto=True, languages=languages
+                        url, lang, auto=True, languages=languages,
+                        cookiefile_path=cookiefile_path,
                     )
 
             logger.info(f"No subtitles found for {url}")
@@ -97,11 +110,13 @@ def extract_subtitles(url: str, languages: list[str] | None = None) -> str | Non
 
 
 def _download_and_read_subtitle(
-    url: str, lang: str, auto: bool, languages: list[str]
+    url: str, lang: str, auto: bool, languages: list[str],
+    *, cookiefile_path: str | None = None,
 ) -> str | None:
     """Download subtitle file via yt-dlp and read its content."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ydl_opts = _ydl_opts(
+            cookiefile_path=cookiefile_path,
             writesubtitles=not auto,
             writeautomaticsub=auto,
             subtitleslangs=[lang],
@@ -140,9 +155,9 @@ def detect_video_platform(url: str) -> str:
     return "unknown"
 
 
-def get_video_title(url: str) -> str | None:
+def get_video_title(url: str, *, cookiefile_path: str | None = None) -> str | None:
     """Get the title of a video from its URL using yt-dlp."""
-    ydl_opts = _ydl_opts()
+    ydl_opts = _ydl_opts(cookiefile_path=cookiefile_path)
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -152,12 +167,12 @@ def get_video_title(url: str) -> str | None:
         return None
 
 
-def get_video_info(url: str) -> dict:
+def get_video_info(url: str, *, cookiefile_path: str | None = None) -> dict:
     """Get video metadata (title, thumbnail) from its URL using yt-dlp.
 
     Returns a dict with keys 'title' (str | None) and 'thumbnail_url' (str | None).
     """
-    ydl_opts = _ydl_opts()
+    ydl_opts = _ydl_opts(cookiefile_path=cookiefile_path)
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)

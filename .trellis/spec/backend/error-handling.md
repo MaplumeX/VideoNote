@@ -129,6 +129,33 @@ Uploading a `.exe` or `.sh` disguised as video could execute on the server.
 
 Always propagate errors to the task progress system so the user sees what went wrong.
 
+### Don't: Use FastAPI's `UploadFile | None` + `PydanticModel | None` together
+
+FastAPI cannot parse both a file upload and a JSON body in the same endpoint. If you declare both, one will always be `None`. Instead, use `request: Request` and manually parse by `Content-Type`:
+
+```python
+# BAD — body is always None when file is present, and vice versa
+@router.put("/{platform}")
+async def save_cookie(
+    platform: str,
+    file: UploadFile | None = None,
+    body: CookieSaveRequest | None = None,
+):
+    ...
+
+# GOOD — manually parse by Content-Type
+@router.put("/{platform}")
+async def save_cookie(platform: str, request: Request):
+    content_type = request.headers.get("content-type", "")
+    if content_type.startswith("multipart/form-data"):
+        form = await request.form()
+        file = form.get("file")
+        ...
+    elif "application/json" in content_type:
+        body = await request.json()
+        ...
+```
+
 ### Don't: Forget `from exc` when re-raising
 
 ```python

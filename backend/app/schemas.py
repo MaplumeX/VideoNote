@@ -251,3 +251,12 @@ class BatchFavoriteRequest(BaseModel):
 
 class BatchDeleteRequest(BaseModel):
     job_ids: list[str]
+
+
+# Cookie schemas
+
+
+class CookieInfoResponse(BaseModel):
+    platform: str
+    has_cookie: bool
+    updated_at: str | None = None

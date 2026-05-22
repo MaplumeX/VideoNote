@@ -96,6 +96,15 @@ CREATE TABLE IF NOT EXISTS note_tags (
 
 CREATE INDEX IF NOT EXISTS idx_note_tags_tag_id ON note_tags(tag_id);
 
+CREATE TABLE IF NOT EXISTS user_cookies (
+    user_id TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    cookie_encrypted TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, platform),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER NOT NULL,
     applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -1044,5 +1053,69 @@ async def batch_delete_tasks(job_ids: list[str], user_id: str) -> int:
         )
         await db.commit()
         return cursor.rowcount
+    finally:
+        await db.close()
+
+
+# --- Cookie operations ---
+
+
+async def save_user_cookie(user_id: str, platform: str, cookie_encrypted: str) -> None:
+    """UPSERT a user's encrypted cookie for a given platform (youtube/bilibili)."""
+    now = datetime.now(UTC).isoformat()
+    db = await _get_db()
+    try:
+        await db.execute(
+            "INSERT INTO user_cookies (user_id, platform, cookie_encrypted, updated_at) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(user_id, platform) DO UPDATE SET "
+            "cookie_encrypted=excluded.cookie_encrypted, updated_at=excluded.updated_at",
+            (user_id, platform, cookie_encrypted, now),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+async def get_user_cookie(user_id: str, platform: str) -> dict | None:
+    """Get a user's cookie record for a platform. Returns dict or None."""
+    db = await _get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM user_cookies WHERE user_id = ? AND platform = ?",
+            (user_id, platform),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+    finally:
+        await db.close()
+
+
+async def get_all_user_cookies(user_id: str) -> list[dict]:
+    """Get all cookie records for a user. Returns list of dicts with platform and updated_at."""
+    db = await _get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT user_id, platform, updated_at FROM user_cookies WHERE user_id = ?",
+            (user_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        await db.close()
+
+
+async def delete_user_cookie(user_id: str, platform: str) -> bool:
+    """Delete a user's cookie for a platform. Returns True if deleted."""
+    db = await _get_db()
+    try:
+        cursor = await db.execute(
+            "DELETE FROM user_cookies WHERE user_id = ? AND platform = ?",
+            (user_id, platform),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
     finally:
         await db.close()
