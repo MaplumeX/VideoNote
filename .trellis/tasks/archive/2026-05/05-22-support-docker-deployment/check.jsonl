@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify Docker config follows backend conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Verify frontend build and nginx serve config follows conventions"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify nginx routing correctly handles frontend-backend communication"}
+{"file": ".trellis/tasks/05-22-support-docker-deployment/prd.md", "reason": "Check against PRD acceptance criteria and requirements"}
