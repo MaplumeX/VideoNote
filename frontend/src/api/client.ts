@@ -18,6 +18,7 @@ import type {
   BatchFavoriteRequest,
   BatchDeleteRequest,
   ModelsResponse,
+  CookieInfo,
 } from "../types";
 import { authFetch } from "../auth/api";
 
@@ -266,4 +267,31 @@ export async function cancelTask(jobId: string): Promise<void> {
 
 export async function retryTask(jobId: string): Promise<ProcessResponse> {
   return apiFetch<ProcessResponse>(`${API_BASE}/tasks/${jobId}/retry`, { method: "POST" });
+}
+
+// --- Cookie endpoints ---
+
+export async function fetchCookies(): Promise<CookieInfo[]> {
+  return apiFetch<CookieInfo[]>(`${API_BASE}/cookies`);
+}
+
+export async function saveCookie(
+  platform: string,
+  data: { cookie_text: string } | FormData,
+): Promise<void> {
+  let options: RequestInit;
+  if (data instanceof FormData) {
+    options = { method: "PUT", body: data };
+  } else {
+    options = {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    };
+  }
+  await apiFetch(`${API_BASE}/cookies/${platform}`, options);
+}
+
+export async function deleteCookie(platform: string): Promise<void> {
+  await apiFetch(`${API_BASE}/cookies/${platform}`, { method: "DELETE" });
 }

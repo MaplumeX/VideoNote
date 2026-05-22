@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth_routes import router as auth_router
+from app.api.cookie_routes import router as cookie_router
 from app.api.note_routes import router as note_router
 from app.api.routes import router
 from app.db import init_db
@@ -28,6 +29,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api")
+app.include_router(cookie_router, prefix="/api")
 app.include_router(note_router, prefix="/api")
 app.include_router(router, prefix="/api")
 

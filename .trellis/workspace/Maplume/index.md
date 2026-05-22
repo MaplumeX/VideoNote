@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 40
+- **Total Sessions**: 41
 - **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1315 | Active |
+| `journal-1.md` | ~1348 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 41 | 2026-05-22 | Add per-user cookie upload for YouTube/Bilibili | `11afb98` | `Feat/upload-cookie` |
 | 40 | 2026-05-22 | Add Docker deployment support | `a15d445` | `Feat/docker-deployment` |
 | 39 | 2026-05-22 | Enrich video processing wait experience with video info card and interaction enhancements | `cfbdc53`, `18d98da` | `Feat/waiting-experience-video-cover-title` |
 | 38 | 2026-05-22 | Replace window.confirm with useConfirm hook and AlertDialog | `a7bc2ff` | `Feat/replace-windows-confirm` |

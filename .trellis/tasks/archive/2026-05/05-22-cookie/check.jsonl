@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index for check agent"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify DB schema changes follow existing patterns"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify error handling consistency on new endpoints"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify backend code quality"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify logging patterns on new cookie operations"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec index for check agent"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify Cookie UI follows existing component patterns"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify TypeScript type patterns"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify frontend code quality"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify cross-layer data flow consistency (frontend ↔ API ↔ DB)"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify reuse of existing crypto/encryption patterns rather than reinventing"}
+{"file": ".trellis/tasks/05-22-cookie/prd.md", "reason": "PRD with acceptance criteria — check agent validates against these"}

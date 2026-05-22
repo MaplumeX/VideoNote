@@ -1313,3 +1313,36 @@ Added dual-container Docker deployment (nginx + backend) with multi-stage builds
 ### Next Steps
 
 - None - task complete
+
+
+## Session 41: Add per-user cookie upload for YouTube/Bilibili
+
+**Date**: 2026-05-22
+**Task**: Add per-user cookie upload for YouTube/Bilibili
+**Branch**: `Feat/upload-cookie`
+
+### Summary
+
+Implemented per-user cookie management: backend DB table with Fernet encryption, cookie CRUD API with domain filtering and raw cookie conversion, yt-dlp pipeline integration with env var fallback, frontend Settings page Cookie section with file upload and text paste, i18n, spec updates for FastAPI UploadFile pitfall and encrypted data security pattern.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `11afb98` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
