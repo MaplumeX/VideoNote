@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
 import {
   Download,
   ChevronRight,
@@ -13,9 +13,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fetchResult, fetchTags, fetchFolderTree, fetchTaskById, fetchNoteTags, addTagsToNote, removeTagFromNote, moveNoteToFolder, toggleFavorite, updateNoteContent } from "@/api/client";
+import { fetchResult, fetchTags, fetchFolderTree, fetchTaskById, fetchNoteTags, addTagsToNote, removeTagFromNote, moveNoteToFolder, toggleFavorite, updateNoteContent, cancelTask, retryTask } from "@/api/client";
 import { useSSE } from "@/hooks/useSSE";
 import { StepIndicator } from "@/components/StepIndicator";
+import { VideoInfoCard } from "@/components/VideoInfoCard";
 import { NoteEditor } from "@/components/NoteEditor";
 import { TableOfContents } from "@/components/TableOfContents";
 import { VideoPlayerFloat } from "@/components/VideoPlayerFloat";
@@ -25,6 +26,7 @@ import type { NoteResult, Tag as TagType, TagWithCount, FolderTreeNode } from "@
 export function NoteDetailPage() {
   const { t } = useTranslation();
   const { id: jobId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [note, setNote] = useState<NoteResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -48,6 +50,9 @@ export function NoteDetailPage() {
   const lastSavedMarkdownRef = useRef("");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [platform, setPlatform] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [taskTitle, setTaskTitle] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
   const playerRef = useRef<VideoPlayerFloatHandle>(null);
 
@@ -79,7 +84,7 @@ export function NoteDetailPage() {
           setProcessing(true);
           setLoading(false);
         } else {
-          setError(err.message || "Failed to load note");
+          setError(err.message || t("noteDetail.loadFailed"));
           setLoading(false);
         }
       });
@@ -102,6 +107,9 @@ export function NoteDetailPage() {
         setFolderId(task.folder_id);
         setVideoUrl(task.video_url);
         setPlatform(task.platform);
+        setThumbnailUrl(task.thumbnail_url);
+        setTaskTitle(task.title);
+        setFileName(task.file_name);
       })
       .catch(() => {});
 
@@ -127,14 +135,14 @@ export function NoteDetailPage() {
 
   useEffect(() => {
     if (progress?.stage === "failed" && processing) {
-      setError(progress.message || "Processing failed");
+      setError(progress.message || t("error.processingFailed"));
       setProcessing(false);
     }
     if (progress?.stage === "cancelled" && processing) {
-      setError("Task cancelled");
+      setError(t("processing.cancelled"));
       setProcessing(false);
     }
-  }, [progress?.stage, processing]);
+  }, [progress?.stage, processing, t]);
 
   useEffect(() => {
     if (sseResult && processing && jobId) {
@@ -147,7 +155,7 @@ export function NoteDetailPage() {
           setProcessing(false);
         })
         .catch(() => {
-          setError("Failed to load note");
+          setError(t("noteDetail.loadFailed"));
           setProcessing(false);
         });
     }
@@ -297,9 +305,61 @@ export function NoteDetailPage() {
   }
 
   if (processing) {
+    const isFailed = progress?.stage === "failed" || progress?.stage === "cancelled";
+    const showCancelButton = !isFailed;
+    const showRetryButton = isFailed;
+
+    const handleCancel = async () => {
+      if (!jobId) return;
+      if (!window.confirm(t("processing.cancelConfirm"))) return;
+      try {
+        await cancelTask(jobId);
+        setError(t("processing.cancelled"));
+        setProcessing(false);
+      } catch {
+        setError(t("history.cancelFailed"));
+      }
+    };
+
+    const handleRetry = async () => {
+      if (!jobId) return;
+      if (!window.confirm(t("processing.retryConfirm"))) return;
+      try {
+        const data = await retryTask(jobId);
+        // Navigate to the new task so SSE tracks the correct job
+        navigate(`/app/notes/${data.job_id}`);
+      } catch {
+        setError(t("history.retryFailed"));
+      }
+    };
+
     return (
-      <div className="flex justify-center pt-12">
-        <StepIndicator stage={progress?.stage ?? null} progress={progress?.progress ?? 0} />
+      <div className="max-w-lg mx-auto space-y-6 pt-12">
+        {(thumbnailUrl || taskTitle || fileName) && (
+          <VideoInfoCard
+            title={taskTitle ?? undefined}
+            thumbnailUrl={thumbnailUrl ?? undefined}
+            platform={platform ?? undefined}
+            fileName={fileName ?? undefined}
+          />
+        )}
+        <div className="flex justify-center">
+          <StepIndicator stage={progress?.stage ?? null} progress={progress?.progress ?? 0} />
+        </div>
+        {(showCancelButton || showRetryButton) && (
+          <div className="flex justify-center gap-3">
+            {showCancelButton && (
+              <Button variant="outline" onClick={handleCancel}>
+                {t("processing.cancel")}
+              </Button>
+            )}
+            {showRetryButton && (
+              <Button variant="outline" onClick={handleRetry}>
+                {t("processing.retry")}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

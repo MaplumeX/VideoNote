@@ -19,6 +19,7 @@ Most state lives in the component that uses it. No lifting unless two siblings n
 | Component | State | Type |
 |-----------|-------|------|
 | `VideoNoteApp` | `step`, `jobId`, `noteMarkdown`, `error` | string/enum |
+| `NewNotePage` | `taskMeta` | `TaskMeta` (title/thumbnail/platform from POST response) |
 | `VideoInput` | `url`, `tab` | string |
 | `SettingsPage` | `providers`, `asrForm`, `llmForm`, `loading`, `saving`, `message` | mixed |
 | `HistoryPage` | `tasks`, `loading`, `error` | list/bool |

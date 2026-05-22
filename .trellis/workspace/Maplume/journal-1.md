@@ -1247,3 +1247,36 @@ Replaced all 5 window.confirm calls with useConfirm hook + shadcn AlertDialog (b
 ### Next Steps
 
 - None - task complete
+
+## Session 39: Enrich video processing wait experience with video info card and interaction enhancements
+
+**Date**: 2026-05-22
+**Task**: Enrich video processing wait experience with video info card and interaction enhancements
+**Branch**: `Feat/waiting-experience-video-cover-title`
+
+### Summary
+
+Added VideoInfoCard component (thumbnail+title+platform badge for URL tasks, file icon+name for upload tasks), cancel/retry buttons with confirmation, title DB column migration, ProcessResponse/UploadResponse schemas, i18n keys, spec updates for DB migration pattern and POST-vs-SSE metadata delivery pattern.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cfbdc53` | (see git log) |
+| `18d98da` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

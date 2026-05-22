@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 38
+- **Total Sessions**: 39
 - **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1249 | Active |
+| `journal-1.md` | ~1260 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 39 | 2026-05-22 | Enrich video processing wait experience with video info card and interaction enhancements | `cfbdc53`, `18d98da` | `Feat/waiting-experience-video-cover-title` |
 | 38 | 2026-05-22 | Replace window.confirm with useConfirm hook and AlertDialog | `a7bc2ff` | `Feat/replace-windows-confirm` |
 | 37 | 2026-05-22 | Add confirmation prompts for retry and cancel actions | `fa00cf0` | `Feat/retry-delete-cancel-confirmation` |
 | 36 | 2026-05-21 | Fix Bilibili thumbnail anti-hotlinking | `c6f1968` | `Feat/bilibili-cover-fetch-fail` |

@@ -3,10 +3,13 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import { VideoInput } from "@/components/VideoInput";
 import { StepIndicator } from "@/components/StepIndicator";
+import { VideoInfoCard } from "@/components/VideoInfoCard";
+import { Button } from "@/components/ui/button";
 import { useSSE } from "@/hooks/useSSE";
 import { useVideoUpload } from "@/hooks/useVideoUpload";
-import { submitUrl } from "@/api/client";
+import { submitUrl, cancelTask, retryTask } from "@/api/client";
 import { getAccessToken } from "@/auth/token";
+import type { TaskMeta } from "@/types";
 
 export function NewNotePage() {
   const { t, i18n } = useTranslation();
@@ -14,6 +17,7 @@ export function NewNotePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [jobId, setJobId] = useState<string | null>(searchParams.get("job"));
   const [error, setError] = useState<string | null>(null);
+  const [taskMeta, setTaskMeta] = useState<TaskMeta | null>(null);
   const appLanguage = i18n.resolvedLanguage === "zh-CN" ? "zh-CN" : "en";
 
   const { progress, result, error: sseError } = useSSE(jobId);
@@ -21,6 +25,7 @@ export function NewNotePage() {
     useVideoUpload();
 
   const isProcessing = !!jobId;
+  const isFailed = progress?.stage === "failed" || progress?.stage === "cancelled";
 
   useEffect(() => {
     if (result && jobId) {
@@ -31,10 +36,9 @@ export function NewNotePage() {
   useEffect(() => {
     if (sseError) {
       setError(t("error.processingFailed"));
-      setJobId(null);
-      setSearchParams({}, { replace: true });
+      // Keep jobId and taskMeta so user can see the info card and retry
     }
-  }, [sseError, t, setSearchParams]);
+  }, [sseError, t]);
 
   useEffect(() => {
     if (uploadError) {
@@ -47,6 +51,12 @@ export function NewNotePage() {
     try {
       const data = await submitUrl(url, appLanguage);
       setJobId(data.job_id);
+      setTaskMeta({
+        title: data.title,
+        thumbnail_url: data.thumbnail_url,
+        platform: data.platform,
+        source_type: "url",
+      });
       setSearchParams({ job: data.job_id }, { replace: true });
     } catch {
       setError(t("error.submitUrlFailed"));
@@ -61,8 +71,48 @@ export function NewNotePage() {
       return;
     }
     setJobId(id);
+    setTaskMeta({
+      file_name: file.name,
+      source_type: "upload",
+    });
     setSearchParams({ job: id }, { replace: true });
   };
+
+  const handleCancel = async () => {
+    if (!jobId) return;
+    if (!window.confirm(t("processing.cancelConfirm"))) return;
+    try {
+      await cancelTask(jobId);
+      setJobId(null);
+      setTaskMeta(null);
+      setError(null);
+      setSearchParams({}, { replace: true });
+    } catch {
+      setError(t("history.cancelFailed"));
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!jobId) return;
+    if (!window.confirm(t("processing.retryConfirm"))) return;
+    try {
+      const data = await retryTask(jobId);
+      setJobId(data.job_id);
+      setTaskMeta({
+        title: data.title,
+        thumbnail_url: data.thumbnail_url,
+        platform: data.platform,
+        source_type: "url",
+      });
+      setError(null);
+      setSearchParams({ job: data.job_id }, { replace: true });
+    } catch {
+      setError(t("history.retryFailed"));
+    }
+  };
+
+  const showCancelButton = isProcessing && !isFailed && !uploading;
+  const showRetryButton = isFailed;
 
   return (
     <div className="max-w-lg mx-auto space-y-8">
@@ -81,11 +131,40 @@ export function NewNotePage() {
       {!isProcessing ? (
         <VideoInput onSubmitUrl={handleUrlSubmit} onUploadFile={handleFileUpload} />
       ) : (
-        <div className="flex justify-center pt-8">
-          {uploading ? (
-            <StepIndicator stage="downloading" progress={uploadProgress} />
-          ) : (
-            <StepIndicator stage={progress?.stage ?? null} progress={progress?.progress ?? 0} />
+        <div className="space-y-6 pt-8">
+          {/* Video info card */}
+          {taskMeta && (
+            <VideoInfoCard
+              title={taskMeta.title}
+              thumbnailUrl={taskMeta.thumbnail_url}
+              platform={taskMeta.platform}
+              fileName={taskMeta.file_name}
+            />
+          )}
+
+          {/* Step indicator */}
+          <div className="flex justify-center">
+            {uploading ? (
+              <StepIndicator stage="downloading" progress={uploadProgress} />
+            ) : (
+              <StepIndicator stage={progress?.stage ?? null} progress={progress?.progress ?? 0} />
+            )}
+          </div>
+
+          {/* Action buttons */}
+          {(showCancelButton || showRetryButton) && (
+            <div className="flex justify-center gap-3">
+              {showCancelButton && (
+                <Button variant="outline" onClick={handleCancel}>
+                  {t("processing.cancel")}
+                </Button>
+              )}
+              {showRetryButton && (
+                <Button variant="outline" onClick={handleRetry}>
+                  {t("processing.retry")}
+                </Button>
+              )}
+            </div>
           )}
         </div>
       )}

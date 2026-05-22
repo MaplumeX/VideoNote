@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "DB migration pattern for adding title column to tasks table"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Cancel/retry endpoint error handling patterns"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend code quality standards for schema/route changes"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "New VideoInfoCard component conventions and existing component patterns"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "How to manage taskMeta state in NewNotePage alongside existing SSE state"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Type definitions for extended ProcessResponse/UploadResponse"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Backend-to-frontend schema alignment for new response fields"}

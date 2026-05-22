@@ -16,7 +16,8 @@ export type TaskStage =
   | "transcribing"
   | "generating_notes"
   | "complete"
-  | "failed";
+  | "failed"
+  | "cancelled";
 
 export interface TaskProgress {
   stage: TaskStage;
@@ -43,6 +44,9 @@ Manually keep TypeScript types in sync with backend Pydantic schemas (`backend/a
 | `TaskStage` (StrEnum) | `TaskStage` (union type) |
 | `TaskProgress` (BaseModel) | `TaskProgress` (interface) |
 | `NoteResponse` (BaseModel) | `NoteResult` (interface) |
+| `ProcessResponse` (BaseModel) | `ProcessResponse` (interface) |
+| `UploadResponse` (BaseModel) | `UploadResponse` (interface) |
+| — | `TaskMeta` (interface, frontend-only aggregate) |
 
 | `TaskListItem.thumbnail_url` (str \| None) | `TaskItem.thumbnail_url` (string \| null) |
 

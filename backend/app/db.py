@@ -142,6 +142,7 @@ async def init_db() -> None:
             "ALTER TABLE tasks ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE tasks ADD COLUMN favorited_at TEXT",
             "ALTER TABLE tasks ADD COLUMN thumbnail_url TEXT",
+            "ALTER TABLE tasks ADD COLUMN title TEXT",
         ]:
             try:
                 await db.execute(col_def)
@@ -169,16 +170,17 @@ async def create_task(
     language: str | None = None,
     source_type: str | None = None,
     thumbnail_url: str | None = None,
+    title: str | None = None,
 ) -> None:
     """Create a new task record with pending status."""
     db = await _get_db()
     try:
         await db.execute(
             "INSERT INTO tasks (job_id, user_id, stage, progress, message, "
-            "video_url, file_name, platform, language, source_type, thumbnail_url) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "video_url, file_name, platform, language, source_type, thumbnail_url, title) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (job_id, user_id, TaskStage.pending.value, 0.0, message,
-             video_url, file_name, platform, language, source_type, thumbnail_url),
+             video_url, file_name, platform, language, source_type, thumbnail_url, title),
         )
         await db.commit()
     finally:
@@ -217,7 +219,7 @@ async def get_user_tasks(
         query = (
             "SELECT t.job_id, t.stage, t.progress, t.message, t.created_at, t.updated_at, "
             "t.video_url, t.file_name, t.platform, t.language, t.source_type, t.result_json, "
-            "t.folder_id, t.is_favorite, t.favorited_at, t.thumbnail_url "
+            "t.folder_id, t.is_favorite, t.favorited_at, t.thumbnail_url, t.title "
             "FROM tasks t"
         )
         params: list = []
@@ -251,9 +253,8 @@ async def get_user_tasks(
 
         allowed_sort = {"created_at", "title", "stage"}
         if sort_by == "title":
-            # title in result_json JSON; sort by extracted title,
-            # fallback to empty string for NULLs
-            sort_expr = "COALESCE(json_extract(t.result_json, '$.title'), '')"
+            # Prefer DB title column, fall back to result_json
+            sort_expr = "COALESCE(t.title, json_extract(t.result_json, '$.title'), '')"
 
         elif sort_by in allowed_sort:
             sort_expr = f"t.{sort_by}"
@@ -273,9 +274,9 @@ async def get_user_tasks(
         result = []
         for row in rows:
             d = dict(row)
-            # Extract title from result_json if available
-            title = None
-            if d.get("result_json"):
+            # Extract title: prefer DB column, fall back to result_json
+            title = d.get("title") or None
+            if not title and d.get("result_json"):
                 try:
                     parsed = json.loads(d["result_json"])
                     title = parsed.get("title")
