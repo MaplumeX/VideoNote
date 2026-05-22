@@ -1280,3 +1280,36 @@ Added VideoInfoCard component (thumbnail+title+platform badge for URL tasks, fil
 ### Next Steps
 
 - None - task complete
+
+
+## Session 40: Add Docker deployment support
+
+**Date**: 2026-05-22
+**Task**: Add Docker deployment support
+**Branch**: `Feat/docker-deployment`
+
+### Summary
+
+Added dual-container Docker deployment (nginx + backend) with multi-stage builds, docker-compose.yml, nginx.conf with SSE proxy support, and .dockerignore files. Check fixed FRONTEND_URL override issue and .dockerignore placement.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a15d445` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

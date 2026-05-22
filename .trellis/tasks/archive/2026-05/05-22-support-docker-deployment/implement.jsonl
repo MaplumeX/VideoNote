@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index for Dockerfile structure, dependencies, config patterns"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Understand backend file layout for COPY paths in Dockerfile"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Ensure error handling patterns are compatible with containerized deployment"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec index for build config, static file output"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Understand frontend file layout for build stage COPY and nginx serve paths"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Understand frontend-backend communication patterns for nginx routing"}
+{"file": ".trellis/tasks/05-22-support-docker-deployment/prd.md", "reason": "Task PRD with requirements, decisions, and technical notes"}
