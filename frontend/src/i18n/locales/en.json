@@ -190,6 +190,10 @@
     "generate": "Generate Notes",
     "inProgress": "Processing {{percent}}%"
   },
+  "confirm": {
+    "ok": "Confirm",
+    "cancel": "Cancel"
+  },
   "videoPlayer": {
     "title": "Video Player"
   },

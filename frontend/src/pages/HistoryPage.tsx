@@ -54,6 +54,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { StatusBadge, isActiveTask } from "@/components/StatusBadge";
+import { useConfirm } from "@/hooks/useConfirm";
 import {
   fetchTasks,
   fetchTags,
@@ -135,6 +136,7 @@ function getPageNumbers(current: number, total: number): (number | "ellipsis")[]
 export function HistoryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -312,7 +314,7 @@ export function HistoryPage() {
   }, [selectedIds.size]);
 
   const handleDelete = async (jobId: string) => {
-    if (!window.confirm(t("history.deleteConfirm"))) return;
+    if (!await confirm({ title: t("history.deleteConfirm"), destructive: true })) return;
     try {
       const { authFetch } = await import("@/auth/api");
       const res = await authFetch(`/api/tasks/${jobId}`, { method: "DELETE" });
@@ -324,7 +326,7 @@ export function HistoryPage() {
   };
 
   const handleRetry = async (jobId: string) => {
-    if (!window.confirm(t("history.retryConfirm"))) return;
+    if (!await confirm({ title: t("history.retryConfirm") })) return;
     try {
       const { authFetch } = await import("@/auth/api");
       const res = await authFetch(`/api/tasks/${jobId}/retry`, { method: "POST" });
@@ -337,7 +339,7 @@ export function HistoryPage() {
   };
 
   const handleCancel = async (jobId: string) => {
-    if (!window.confirm(t("history.cancelConfirm"))) return;
+    if (!await confirm({ title: t("history.cancelConfirm"), destructive: true })) return;
     try {
       const { authFetch } = await import("@/auth/api");
       const res = await authFetch(`/api/tasks/${jobId}/cancel`, { method: "POST" });
@@ -385,7 +387,7 @@ export function HistoryPage() {
   };
 
   const handleBatchDelete = async () => {
-    if (!window.confirm(t("history.deleteConfirmCount", { count: selectedIds.size }))) return;
+    if (!await confirm({ title: t("history.deleteConfirmCount", { count: selectedIds.size }), destructive: true })) return;
     try {
       await batchDelete({ job_ids: Array.from(selectedIds) });
       setSelectedIds(new Set());
