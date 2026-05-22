@@ -1,0 +1,20 @@
+services:
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      - UPLOAD_DIR=/data/videonote
+    volumes:
+      - videonote-data:/data/videonote
+    expose:
+      - "8000"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  videonote-data:
