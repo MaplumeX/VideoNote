@@ -47,10 +47,11 @@ Services raise exceptions with descriptive messages. Route-level `_process_video
 async def _process_video_url(job_id, url, ...):
     try:
         try:
-            video_info = await asyncio.to_thread(get_video_info, url, ...)
-        except Exception:
+            video_info = await asyncio.to_thread(get_video_info_strict, url, ...)
+        except Exception as e:
             logger.exception("...")
-            await update_progress(job_id, TaskStage.failed, 0.0, "VIDEO_FETCH_FAILED")
+            code = getattr(e, "code", None) or "VIDEO_FETCH_FAILED"
+            await update_progress(job_id, TaskStage.failed, 0.0, code)
             return
         try:
             transcript = await asyncio.to_thread(transcribe_audio, ...)
@@ -72,10 +73,29 @@ async def _process_video_url(job_id, url, ...):
         await update_progress(job_id, TaskStage.failed, 0.0, "PROCESSING_FAILED")
 ```
 
+### Video Fetch Error Classification
+
+`get_video_info_strict` (in `services/subtitle.py`) raises an exception with a `.code` attribute set by `classify_ytdlp_error(exc)`. The route layer reads it via `getattr(e, "code", None) or "VIDEO_FETCH_FAILED"` and uses it as the progress message.
+
+| Error code | yt-dlp exception signal |
+|------------|------------------------|
+| `VIDEO_PRIVATE` | "private", "login required" |
+| `VIDEO_GEO_RESTRICTED` | "geo", "not available in your country", "region" |
+| `VIDEO_NOT_FOUND` | "404", "not found", "unavailable", "deleted" |
+| `VIDEO_COOKIE_INVALID` | "cookie", "login" + "required" |
+| `VIDEO_FETCH_FAILED` | catch-all fallback |
+
+All five codes must be added to the frontend `TASK_MESSAGE_ERROR_CODES` set and `i18n` locales (`errors.<camelCase>`).
+
+### Non-fatal failures
+
+Thumbnail download failure is non-fatal: wrap `download_thumbnail` in its own try/except, log a warning, and set the thumbnail to `None` — the task continues to generate notes.
+
 Rules:
 - Progress `message` MUST be a `SCREAMING_SNAKE_CASE` error code for known failure modes — never `str(e)` (it may leak internal paths, key fragments, or stack details to the frontend).
 - The frontend's `translateTaskMessage()` maps these codes to i18n keys via `errors.<camelCase>`.
 - Raw exception text stays in server logs only (`logger.exception`).
+- **LLM calls** (`note_gen.py`) use `_call_llm()` which retries up to 3 times with exponential backoff (2s, 4s) on `RateLimitError`, `APITimeoutError`, `APIConnectionError`, and 5xx `APIStatusError`. 4xx errors are not retried. Long transcripts are split into chunks (≤ 60000 chars each at line boundaries), each chunk generates a sub-note, and a final LLM call merges them via `_merge_notes()`.
 - Each stage-specific `except` block MUST `return` so the outer catch-all doesn't overwrite the specific code.
 - The outer `except Exception` is a last-resort catch-all with a generic `PROCESSING_FAILED` code.
 

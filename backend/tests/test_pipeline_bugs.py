@@ -126,7 +126,7 @@ async def test_process_video_does_not_call_get_video_info(
         get_info_calls.append(args)
         return {"title": "should not be called", "thumbnail_url": None}
 
-    monkeypatch.setattr(routes, "get_video_info", fake_get_video_info)
+    monkeypatch.setattr(routes, "get_video_info_strict", fake_get_video_info)
     monkeypatch.setattr(routes.task_runner, "schedule", lambda job_id, factory: True)
 
     request = VideoRequest(
@@ -411,19 +411,35 @@ def test_generate_notes_max_tokens_is_8192(monkeypatch: pytest.MonkeyPatch) -> N
     assert kwargs["max_tokens"] == 8192
 
 
-def test_generate_notes_truncates_long_transcript(
+def test_generate_notes_splits_long_transcript(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """R9: long transcripts are chunked, not truncated."""
+    # Build a transcript with many short lines so _split_transcript can split at
+    # line boundaries.
+    line = "[00:00:01](#t=1) some content here\n"
+    # Enough lines to exceed MAX_TRANSCRIPT_CHARS multiple times.
+    lines_needed = (note_gen.MAX_TRANSCRIPT_CHARS // len(line)) + 10
+    long_transcript = (line * lines_needed).rstrip("\n")
+
+    chunks = note_gen._split_transcript(long_transcript)
+    assert len(chunks) >= 2
+    for chunk in chunks:
+        assert len(chunk) <= note_gen.MAX_TRANSCRIPT_CHARS
+
     mock_response = MagicMock()
     mock_response.choices = [MagicMock(message=MagicMock(content="# Notes"))]
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = mock_response
     monkeypatch.setattr(note_gen, "OpenAI", lambda **kwargs: mock_client)
 
-    long_transcript = "x" * (note_gen.MAX_TRANSCRIPT_CHARS + 5000)
     note_gen.generate_notes(long_transcript)
 
-    _, kwargs = mock_client.chat.completions.create.call_args
-    user_content = kwargs["messages"][1]["content"]
-    assert "x" * (note_gen.MAX_TRANSCRIPT_CHARS + 1) not in user_content
-    assert user_content.count("x") <= note_gen.MAX_TRANSCRIPT_CHARS + 1000
+    # One call per chunk + one merge call.
+    assert mock_client.chat.completions.create.call_count == len(chunks) + 1
+
+    # No single user message should contain the entire transcript.
+    for call in mock_client.chat.completions.create.call_args_list:
+        _, kwargs = call
+        user_content = kwargs["messages"][1]["content"]
+        assert len(user_content) < len(long_transcript)

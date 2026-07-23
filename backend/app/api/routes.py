@@ -68,7 +68,7 @@ from app.services.subtitle import (
     detect_video_platform,
     download_thumbnail,
     extract_subtitles,
-    get_video_info,
+    get_video_info_strict,
 )
 from app.services.transcribe import transcribe_audio
 from app.task_runner import task_runner
@@ -135,6 +135,13 @@ def _normalize_language(lang: str) -> str:
     return "en"
 
 
+def _subtitle_languages(note_lang: str) -> list[str]:
+    """Reorder subtitle language preference based on user's note language."""
+    if note_lang.startswith("zh"):
+        return ["zh-Hans", "zh", "en", "ja"]
+    return ["en", "zh-Hans", "zh", "ja"]
+
+
 def _asr_language(note_lang: str) -> str:
     """Map note-language code to a Whisper language code."""
     return "zh" if note_lang.startswith("zh") else "en"
@@ -190,29 +197,39 @@ async def _process_video_url(
         llm_api_base = llm_cfg["api_base"] if llm_cfg and llm_cfg["api_base"] else LLM_API_BASE
         llm_model = llm_cfg["model"] if llm_cfg and llm_cfg["model"] else LLM_MODEL
 
-        # Video info + thumbnail (called once, in background)
+        # Video info (fatal) + thumbnail (non-fatal)
         try:
             video_info = await asyncio.to_thread(
-                get_video_info, url, cookiefile_path=cookiefile_path
+                get_video_info_strict, url, cookiefile_path=cookiefile_path
             )
             await _cancellation_checkpoint(job_id)
             video_title = video_info["title"]
             ext_thumb = video_info.get("thumbnail_url") or ""
-            thumbnail_filename = await asyncio.to_thread(download_thumbnail, ext_thumb)
-            await update_task_meta(job_id, video_title, thumbnail_filename)
         except asyncio.CancelledError:
             raise
         except Exception as e:
             logger.exception(f"Task {job_id} video fetch failed: {e}")
-            await update_progress(job_id, TaskStage.failed, 0.0, "VIDEO_FETCH_FAILED")
+            code = getattr(e, "code", None) or "VIDEO_FETCH_FAILED"
+            await update_progress(job_id, TaskStage.failed, 0.0, code)
             return
 
+        # Thumbnail download is non-fatal.
+        thumbnail_filename = None
+        if ext_thumb:
+            try:
+                thumbnail_filename = await asyncio.to_thread(download_thumbnail, ext_thumb)
+            except Exception:
+                logger.warning(f"Thumbnail download failed for {job_id}", exc_info=True)
+        await update_task_meta(job_id, video_title, thumbnail_filename)
+
         await update_progress(
-            job_id, TaskStage.extracting_subtitles, 0.1, "Extracting subtitles..."
+            job_id, TaskStage.extracting_subtitles, 0.2, "Extracting subtitles..."
         )
 
         subtitle_text = await asyncio.to_thread(
-            extract_subtitles, url, cookiefile_path=cookiefile_path,
+            extract_subtitles, url,
+            languages=_subtitle_languages(language),
+            cookiefile_path=cookiefile_path,
         )
         await _cancellation_checkpoint(job_id)
 
@@ -241,6 +258,15 @@ async def _process_video_url(
                 await _cancellation_checkpoint(job_id)
 
                 await update_progress(job_id, TaskStage.transcribing, 0.4, "Transcribing audio...")
+                loop = asyncio.get_running_loop()
+
+                def _asr_progress_cb(fraction: float, msg: str) -> None:
+                    progress = 0.4 + fraction * 0.2  # map to 0.4–0.6 range
+                    asyncio.run_coroutine_threadsafe(
+                        update_progress(job_id, TaskStage.transcribing, progress, msg),
+                        loop,
+                    )
+
                 try:
                     transcript = await asyncio.to_thread(
                         transcribe_audio,
@@ -250,6 +276,7 @@ async def _process_video_url(
                         api_base=asr_api_base,
                         model=asr_model,
                         provider=asr_provider,
+                        progress_cb=_asr_progress_cb,
                     )
                 except asyncio.CancelledError:
                     raise
@@ -337,6 +364,15 @@ async def _process_video_file(
             await _cancellation_checkpoint(job_id)
 
             await update_progress(job_id, TaskStage.transcribing, 0.3, "Transcribing audio...")
+            loop = asyncio.get_running_loop()
+
+            def _asr_progress_cb(fraction: float, msg: str) -> None:
+                progress = 0.4 + fraction * 0.2  # map to 0.4–0.6 range
+                asyncio.run_coroutine_threadsafe(
+                    update_progress(job_id, TaskStage.transcribing, progress, msg),
+                    loop,
+                )
+
             try:
                 transcript = await asyncio.to_thread(
                     transcribe_audio,
@@ -346,6 +382,7 @@ async def _process_video_file(
                     api_base=asr_api_base,
                     model=asr_model,
                     provider=asr_provider,
+                    progress_cb=_asr_progress_cb,
                 )
             except asyncio.CancelledError:
                 raise
@@ -539,6 +576,11 @@ async def task_progress(
         raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     async def event_generator():
+        start_time = asyncio.get_running_loop().time()
+        MAX_DURATION = 30 * 60  # 30 minutes
+        HEARTBEAT_INTERVAL = 15
+        last_heartbeat = start_time
+
         while True:
             task = await get_task(job_id)
             if not task:
@@ -565,6 +607,13 @@ async def task_progress(
                         "data": result_raw,
                     }
                 break
+
+            now = asyncio.get_running_loop().time()
+            if now - start_time > MAX_DURATION:
+                return  # Close connection; frontend reconnects automatically
+            if now - last_heartbeat >= HEARTBEAT_INTERVAL:
+                yield {"event": "ping", "data": ""}
+                last_heartbeat = now
             await asyncio.sleep(1)
 
     return EventSourceResponse(event_generator())

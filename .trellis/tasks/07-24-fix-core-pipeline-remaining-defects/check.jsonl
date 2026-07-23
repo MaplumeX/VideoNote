@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "检查错误码符合规范、per-stage except 块 return、from exc 链"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "检查服务层无状态、routes 薄包装、命名约定"}

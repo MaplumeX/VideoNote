@@ -9,27 +9,52 @@
 - **Database**: SQLite with WAL mode, accessed via `aiosqlite`
 - **ORM**: None — raw SQL with parameterized queries
 - **Migrations**: Manual `ALTER TABLE` in `init_db()`, no migration framework
-- **Connection pattern**: Open/close per operation (`aiosqlite.connect` as context manager)
+- **Connection pattern**: Application-level singleton connection (managed by `init_db()` / `close_db()`)
 
 ---
 
 ## Query Patterns
 
-### One-off queries
+### Singleton connection
 
-Each DB function opens its own connection. No connection pooling (aiosqlite handles this internally with WAL).
+All DB functions use a single shared `aiosqlite.Connection` managed by `init_db()` / `close_db()`. Functions call `_get_db()` to access the shared connection; they MUST NOT close it. aiosqlite serializes operations on a single connection internally, so this is thread-safe. WAL mode allows concurrent reads.
 
 ```python
 # db.py
+_db_conn: aiosqlite.Connection | None = None
+
+async def _get_db() -> aiosqlite.Connection:
+    global _db_conn
+    if _db_conn is None:  # lazy init
+        _db_conn = await aiosqlite.connect(str(DB_PATH))
+        await _db_conn.execute("PRAGMA foreign_keys = ON")
+        _db_conn.row_factory = aiosqlite.Row
+    return _db_conn
+
+async def init_db() -> None:
+    global _db_conn
+    _db_conn = await aiosqlite.connect(str(DB_PATH))
+    await _db_conn.execute("PRAGMA journal_mode=WAL")
+    await _db_conn.execute("PRAGMA foreign_keys = ON")
+    _db_conn.row_factory = aiosqlite.Row
+    # ... schema + migrations ...
+
+async def close_db() -> None:
+    global _db_conn
+    if _db_conn is not None:
+        await _db_conn.close()
+        _db_conn = None
+
 async def get_task(job_id: str) -> dict | None:
-    async with aiosqlite.connect(str(DB_PATH)) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM tasks WHERE job_id = ?", (job_id,))
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return dict(row)
+    db = await _get_db()  # shared connection — do NOT close
+    cursor = await db.execute("SELECT * FROM tasks WHERE job_id = ?", (job_id,))
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
 ```
+
+`close_db()` is called in `main.py` lifespan `finally` block alongside `task_runner.shutdown()`. `init_db()` must run before any DB query.
 
 ### Row factory
 
@@ -51,14 +76,13 @@ Fetch multiple rows with `fetchall()`, convert with list comprehension:
 
 ```python
 async def get_user_tasks(user_id: str) -> list[dict]:
-    async with aiosqlite.connect(str(DB_PATH)) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT ... FROM tasks WHERE user_id = ? ORDER BY created_at DESC",
-            (user_id,),
-        )
-        rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
+    db = await _get_db()
+    cursor = await db.execute(
+        "SELECT ... FROM tasks WHERE user_id = ? ORDER BY created_at DESC",
+        (user_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
 ```
 
 ---
@@ -69,14 +93,23 @@ Migrations are ad-hoc `ALTER TABLE` statements inside `init_db()`, wrapped in tr
 
 ```python
 async def init_db() -> None:
-    async with aiosqlite.connect(str(DB_PATH)) as db:
-        await db.execute("PRAGMA journal_mode=WAL")
+    global _db_conn
+    _db_conn = await aiosqlite.connect(str(DB_PATH))
+    await _db_conn.execute("PRAGMA journal_mode=WAL")
+    await _db_conn.execute("PRAGMA foreign_keys = ON")
+    _db_conn.row_factory = aiosqlite.Row
+    try:
+        await _db_conn.executescript(_CREATE_TABLE_SQL)
         try:
-            await db.execute("ALTER TABLE tasks ADD COLUMN user_id TEXT REFERENCES users(id)")
+            await _db_conn.execute("ALTER TABLE tasks ADD COLUMN user_id TEXT REFERENCES users(id)")
         except aiosqlite.OperationalError:
             pass  # Column already exists
-        await db.executescript(_CREATE_TABLE_SQL)
-        await db.commit()
+        await _db_conn.commit()
+    except Exception:
+        await _db_conn.close()
+        _db_conn = None
+        raise
+    await _cleanup_expired_tokens()
 ```
 
 - `CREATE TABLE IF NOT EXISTS` for initial schema
@@ -98,9 +131,9 @@ async def init_db() -> None:
 
 ## Common Mistakes
 
-### Don't: Forget `await db.commit()` after writes
+### Don't: Close the shared connection inside a DB function
 
-aiosqlite does not auto-commit. Without `commit()`, changes are lost.
+The singleton connection is owned by `init_db()` / `close_db()`. Individual DB functions MUST NOT call `await db.close()` — it breaks all subsequent queries. For transactional functions using `BEGIN IMMEDIATE`, keep `await db.rollback()` on failure (rolls back the transaction without closing the connection).
 
 ### Don't: Use string formatting for queries
 

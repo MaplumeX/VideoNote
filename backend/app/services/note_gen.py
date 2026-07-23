@@ -1,8 +1,15 @@
 """LLM-based note generation from transcript text."""
 
 import logging
+import time
 
-from openai import OpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    OpenAI,
+    RateLimitError,
+)
 
 from app.config import LLM_API_BASE, LLM_API_KEY, LLM_MODEL
 from app.services.markdown import normalize_note_markdown
@@ -95,6 +102,155 @@ _PROMPTS_WITHOUT_TIMESTAMPS: dict[str, dict[str, str]] = {
 }
 
 
+def _is_retryable(exc: Exception) -> bool:
+    """Return True if the LLM exception is worth retrying."""
+    if isinstance(exc, (RateLimitError, APITimeoutError, APIConnectionError)):
+        return True
+    if isinstance(exc, APIStatusError):
+        return exc.status_code >= 500
+    return False
+
+
+def _call_llm(
+    client: OpenAI,
+    messages: list[dict[str, str]],
+    model: str,
+    temperature: float = 0.3,
+    max_tokens: int = 8192,
+) -> str:
+    """Call LLM with exponential-backoff retry for transient failures."""
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            if attempt + 1 >= max_attempts or not _is_retryable(e):
+                raise
+            wait = 2 ** (attempt + 1)  # 2s, 4s
+            logger.warning(
+                f"LLM call attempt {attempt + 1} failed, retrying in {wait}s: {e}"
+            )
+            time.sleep(wait)
+    return ""  # unreachable
+
+
+def _split_transcript(transcript: str, max_chars: int = MAX_TRANSCRIPT_CHARS) -> list[str]:
+    """Split transcript at line boundaries, each chunk <= max_chars.
+
+    If a single line exceeds max_chars it is kept as-is (cannot split further
+    without breaking a timestamp entry).
+    """
+    if len(transcript) <= max_chars:
+        return [transcript]
+    lines = transcript.split("\n")
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for line in lines:
+        line_len = len(line) + 1  # +1 for the \n we'll rejoin with
+        if current_len + line_len > max_chars and current:
+            chunks.append("\n".join(current))
+            current = []
+            current_len = 0
+        current.append(line)
+        current_len += line_len
+    if current:
+        chunks.append("\n".join(current))
+    return chunks
+
+
+def _generate_notes_single(
+    transcript: str,
+    video_title: str | None,
+    language: str,
+    api_key: str,
+    api_base: str,
+    model: str,
+    has_timestamps: bool,
+) -> str:
+    """Generate notes for a single transcript chunk (no truncation, no normalize)."""
+    client = OpenAI(api_key=api_key, base_url=api_base)
+
+    prompts_map = _PROMPTS_WITH_TIMESTAMPS if has_timestamps else _PROMPTS_WITHOUT_TIMESTAMPS
+    prompts = prompts_map.get(language, prompts_map["en"])
+
+    if video_title:
+        title_context = (
+            f"\n\nVideo title: {video_title}"
+            if language == "en"
+            else f"\n\n视频标题：{video_title}"
+        )
+    else:
+        title_context = ""
+
+    transcript_label = "转录文本" if language == "zh-CN" else "Transcript"
+    user_content = f"{prompts['user']}{title_context}\n\n{transcript_label}:\n{transcript}"
+
+    return _call_llm(
+        client,
+        [
+            {"role": "system", "content": prompts["system"]},
+            {"role": "user", "content": user_content},
+        ],
+        model,
+    ) or ""
+
+
+def _merge_notes(
+    sub_notes: list[str],
+    video_title: str | None,
+    language: str,
+    api_key: str,
+    api_base: str,
+    model: str,
+) -> str:
+    """Merge sub-notes by unifying heading hierarchy and adding an overview."""
+    client = OpenAI(api_key=api_key, base_url=api_base)
+
+    if language == "zh-CN":
+        system = (
+            "你是一位笔记整合助手。下面是同一视频的多段笔记草稿，按时间顺序拼接。"
+            "请整合为一篇连贯的 Markdown 笔记：\n"
+            "1. 统一标题层级（## 用于大主题，### 用于子主题）\n"
+            "2. 去除重复内容\n"
+            "3. 在顶部添加简要总览\n"
+            "4. 保留所有时间戳链接\n"
+            "5. 只返回 Markdown 文档本身，不要包裹在代码块中。\n"
+        )
+        user_prefix = "请整合以下多段笔记草稿："
+    else:
+        system = (
+            "You are a note integration assistant. Below are multiple note drafts "
+            "from the same video, concatenated in order. "
+            "Merge them into a single coherent Markdown note:\n"
+            "1. Unify heading hierarchy (## for major topics, ### for subtopics)\n"
+            "2. Remove duplicates\n"
+            "3. Add a brief overview at the top\n"
+            "4. Preserve all timestamp links\n"
+            "5. Return only the Markdown document. Do not wrap it in a code block.\n"
+        )
+        user_prefix = "Please integrate the following note drafts:"
+
+    combined = "\n\n---\n\n".join(sub_notes)
+    user_content = f"{user_prefix}\n\n{combined}"
+
+    return _call_llm(
+        client,
+        [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_content},
+        ],
+        model,
+        temperature=0.3,
+    ) or ""
+
+
 def generate_notes(
     transcript: str,
     video_title: str | None = None,
@@ -105,6 +261,11 @@ def generate_notes(
     has_timestamps: bool = True,
 ) -> str:
     """Generate structured Markdown notes from a transcript using LLM.
+
+    For transcripts exceeding ``MAX_TRANSCRIPT_CHARS`` the text is split at
+    line boundaries into multiple chunks.  Each chunk is sent to the LLM
+    independently, then the resulting sub-notes are merged with a final LLM
+    call that unifies heading hierarchy and adds an overview.
 
     Args:
         transcript: The transcript text, optionally with timestamps.
@@ -122,36 +283,36 @@ def generate_notes(
     _api_key = api_key or LLM_API_KEY
     _api_base = api_base or LLM_API_BASE
     _model = model or LLM_MODEL
-    client = OpenAI(api_key=_api_key, base_url=_api_base)
 
-    prompts_map = _PROMPTS_WITH_TIMESTAMPS if has_timestamps else _PROMPTS_WITHOUT_TIMESTAMPS
-    prompts = prompts_map.get(language, prompts_map["en"])
+    chunks = _split_transcript(transcript)
 
-    title_context = (
-        f"\n\nVideo title: {video_title}"
-        if language == "en" and video_title
-        else f"\n\n视频标题：{video_title}"
-        if video_title
-        else ""
-    )
-
-    transcript_label = "转录文本" if language == "zh-CN" else "Transcript"
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        logger.warning(
-            f"Transcript truncated: {len(transcript)} -> {MAX_TRANSCRIPT_CHARS} chars"
+    if len(chunks) == 1:
+        notes = _generate_notes_single(
+            chunks[0],
+            video_title,
+            language,
+            _api_key,
+            _api_base,
+            _model,
+            has_timestamps,
         )
-        transcript = transcript[:MAX_TRANSCRIPT_CHARS]
-    user_content = f"{prompts['user']}{title_context}\n\n{transcript_label}:\n{transcript}"
+        return normalize_note_markdown(notes)
 
-    response = client.chat.completions.create(
-        model=_model,
-        messages=[
-            {"role": "system", "content": prompts["system"]},
-            {"role": "user", "content": user_content},
-        ],
-        temperature=0.3,
-        max_tokens=8192,
-    )
+    # Multi-chunk: generate sub-notes per chunk, then merge.
+    sub_notes: list[str] = []
+    for i, chunk in enumerate(chunks):
+        logger.info(f"Generating notes for chunk {i + 1}/{len(chunks)}")
+        sub_notes.append(
+            _generate_notes_single(
+                chunk,
+                video_title,
+                language,
+                _api_key,
+                _api_base,
+                _model,
+                has_timestamps,
+            )
+        )
 
-    notes = response.choices[0].message.content
-    return normalize_note_markdown(notes or "")
+    merged = _merge_notes(sub_notes, video_title, language, _api_key, _api_base, _model)
+    return normalize_note_markdown(merged)

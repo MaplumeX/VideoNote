@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import tempfile
+from collections.abc import Callable
 
 from openai import OpenAI
 
@@ -52,6 +53,7 @@ def transcribe_audio(
     api_base: str | None = None,
     model: str | None = None,
     provider: str | None = None,
+    progress_cb: Callable[[float, str], None] | None = None,
 ) -> str:
     """Transcribe an audio file using configured ASR provider.
 
@@ -74,11 +76,16 @@ def transcribe_audio(
     audio_size = os.path.getsize(audio_path)
 
     if audio_size <= max_size:
-        return _transcribe_file(client, audio_path, language, _model, _provider)
+        result = _transcribe_file(client, audio_path, language, _model, _provider)
+        if progress_cb:
+            progress_cb(1.0, "Transcription complete")
+        return result
 
     size_mb = audio_size / 1024 / 1024
     logger.info(f"Audio file {audio_path} is {size_mb:.1f}MB, splitting")
-    return _transcribe_large_file(client, audio_path, language, _model, _provider)
+    return _transcribe_large_file(
+        client, audio_path, language, _model, _provider, progress_cb
+    )
 
 
 def _transcribe_file(
@@ -115,7 +122,12 @@ def _transcribe_file(
 
 
 def _transcribe_large_file(
-    client: OpenAI, audio_path: str, language: str, model: str, provider: str
+    client: OpenAI,
+    audio_path: str,
+    language: str,
+    model: str,
+    provider: str,
+    progress_cb: Callable[[float, str], None] | None = None,
 ) -> str:
     """Split a large audio file into chunks and transcribe each."""
     probe_cmd = [
@@ -129,13 +141,22 @@ def _transcribe_large_file(
         audio_path,
     ]
     result = subprocess.run(probe_cmd, capture_output=True, text=True)
-    total_seconds = float(result.stdout.strip())
+    if result.returncode != 0 or not result.stdout.strip():
+        raise RuntimeError(f"ffprobe failed: {result.stderr.strip()}")
+    try:
+        total_seconds = float(result.stdout.strip())
+    except ValueError as e:
+        raise RuntimeError(
+            f"ffprobe returned invalid duration: {result.stdout!r}"
+        ) from e
+    if total_seconds <= 0:
+        raise RuntimeError(f"Invalid audio duration: {total_seconds}")
 
     max_size = (
         MAX_FILE_SIZE_BYTES_SILICONFLOW if provider == "siliconflow" else MAX_FILE_SIZE_BYTES_OPENAI
     )
     ratio = max_size / os.path.getsize(audio_path) * 0.9
-    chunk_duration = min(total_seconds * ratio, 600)
+    chunk_duration = max(min(total_seconds * ratio, 600), 30.0)
 
     full_transcript_parts = []
 
@@ -167,6 +188,12 @@ def _transcribe_large_file(
             text = _transcribe_file(client, chunk_path, language, model, provider)
             if text:
                 full_transcript_parts.append(_shift_timestamps(text, start))
+
+            if progress_cb:
+                progress_cb(
+                    start / total_seconds if total_seconds > 0 else 1.0,
+                    f"Transcribing chunk {chunk_idx + 1}...",
+                )
 
             start += chunk_duration
             chunk_idx += 1

@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -11,18 +12,23 @@ from app.api.auth_routes import router as auth_router
 from app.api.cookie_routes import router as cookie_router
 from app.api.note_routes import router as note_router
 from app.api.routes import recover_incomplete_tasks, router
-from app.db import init_db
+from app.db import cleanup_failed_task_files, close_db, init_db
 from app.task_runner import task_runner
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger = logging.getLogger(__name__)
     await init_db()
     await recover_incomplete_tasks()
+    cleaned = await cleanup_failed_task_files()
+    if cleaned:
+        logger.info("Cleaned up %d failed task files", cleaned)
     try:
         yield
     finally:
         await task_runner.shutdown()
+        await close_db()
 
 
 app = FastAPI(title="VideoNote", version="1.0.0", lifespan=lifespan)

@@ -229,6 +229,45 @@ def detect_video_platform(url: str) -> str:
     return "unknown"
 
 
+def classify_ytdlp_error(exc: Exception) -> str:
+    """Map a yt-dlp / download exception to a stable error code.
+
+    The returned code is one of ``VIDEO_PRIVATE``, ``VIDEO_GEO_RESTRICTED``,
+    ``VIDEO_NOT_FOUND``, ``VIDEO_COOKIE_INVALID``, or ``VIDEO_FETCH_FAILED``
+    (the catch-all fallback).
+    """
+    msg = str(exc).lower()
+    if "private" in msg or "login required" in msg:
+        return "VIDEO_PRIVATE"
+    if "geo" in msg or "not available in your country" in msg or "region" in msg:
+        return "VIDEO_GEO_RESTRICTED"
+    if "404" in msg or "not found" in msg or "unavailable" in msg or "deleted" in msg:
+        return "VIDEO_NOT_FOUND"
+    if "cookie" in msg or ("login" in msg and "required" in msg):
+        return "VIDEO_COOKIE_INVALID"
+    return "VIDEO_FETCH_FAILED"
+
+
+def get_video_info_strict(url: str, *, cookiefile_path: str | None = None) -> dict:
+    """Like :func:`get_video_info` but raises on failure with a classified error code.
+
+    The raised exception has a ``code`` attribute set to the stable error code
+    (e.g. ``VIDEO_PRIVATE``), falling back to ``VIDEO_FETCH_FAILED``.
+    """
+    ydl_opts = _ydl_opts(cookiefile_path=cookiefile_path)
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if info is None:
+                raise RuntimeError("yt-dlp returned no info")
+            return {"title": info.get("title"), "thumbnail_url": info.get("thumbnail")}
+    except Exception as e:
+        code = classify_ytdlp_error(e)
+        err = RuntimeError(f"{code}: {e}")
+        err.code = code
+        raise err from e
+
+
 def get_video_title(url: str, *, cookiefile_path: str | None = None) -> str | None:
     """Get the title of a video from its URL using yt-dlp."""
     ydl_opts = _ydl_opts(cookiefile_path=cookiefile_path)

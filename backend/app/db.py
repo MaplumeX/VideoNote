@@ -111,26 +111,34 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 """
 
+# Application-level singleton connection (managed by init_db / close_db).
+_db_conn: aiosqlite.Connection | None = None
+
 
 async def _get_db() -> aiosqlite.Connection:
-    """Open a database connection with foreign keys enabled and row factory set."""
-    db = await aiosqlite.connect(str(DB_PATH))
-    await db.execute("PRAGMA foreign_keys = ON")
-    db.row_factory = aiosqlite.Row
-    return db
+    """Return the shared singleton connection (lazy-init if not yet opened)."""
+    global _db_conn
+    if _db_conn is None:
+        _db_conn = await aiosqlite.connect(str(DB_PATH))
+        await _db_conn.execute("PRAGMA foreign_keys = ON")
+        _db_conn.row_factory = aiosqlite.Row
+    return _db_conn
 
 
 async def init_db() -> None:
-    """Initialize database and create all tables."""
+    """Initialize the singleton database connection and create all tables."""
+    global _db_conn
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    db = await _get_db()
+    _db_conn = await aiosqlite.connect(str(DB_PATH))
+    await _db_conn.execute("PRAGMA journal_mode=WAL")
+    await _db_conn.execute("PRAGMA foreign_keys = ON")
+    _db_conn.row_factory = aiosqlite.Row
     try:
-        await db.execute("PRAGMA journal_mode=WAL")
         # Create all tables first (including new tags, folders, note_tags, schema_version)
-        await db.executescript(_CREATE_TABLE_SQL)
+        await _db_conn.executescript(_CREATE_TABLE_SQL)
         # Add user_id column to tasks if it doesn't exist (migration)
         try:
-            await db.execute("ALTER TABLE tasks ADD COLUMN user_id TEXT REFERENCES users(id)")
+            await _db_conn.execute("ALTER TABLE tasks ADD COLUMN user_id TEXT REFERENCES users(id)")
         except aiosqlite.OperationalError:
             pass  # Column already exists
         # Add metadata columns to tasks
@@ -142,7 +150,7 @@ async def init_db() -> None:
             "ALTER TABLE tasks ADD COLUMN source_type TEXT",
         ]:
             try:
-                await db.execute(col_def)
+                await _db_conn.execute(col_def)
             except aiosqlite.OperationalError:
                 pass
         # Add organization columns to tasks
@@ -157,11 +165,11 @@ async def init_db() -> None:
             "ALTER TABLE tasks ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0",
         ]:
             try:
-                await db.execute(col_def)
+                await _db_conn.execute(col_def)
             except aiosqlite.OperationalError:
                 pass
         # Add indexes for new columns
-        await db.executescript("""
+        await _db_conn.executescript("""
             CREATE INDEX IF NOT EXISTS idx_tasks_folder_id ON tasks(folder_id);
             CREATE INDEX IF NOT EXISTS idx_tasks_is_favorite ON tasks(is_favorite);
             DELETE FROM note_tags
@@ -173,10 +181,53 @@ async def init_db() -> None:
                   AND n.user_id != t.user_id
             );
         """)
-        await db.commit()
-    finally:
-        await db.close()
+        await _db_conn.commit()
+    except Exception:
+        await _db_conn.close()
+        _db_conn = None
+        raise
     await _cleanup_expired_tokens()
+
+
+async def close_db() -> None:
+    """Close the singleton connection (called during application shutdown)."""
+    global _db_conn
+    if _db_conn is not None:
+        await _db_conn.close()
+        _db_conn = None
+
+
+async def cleanup_failed_task_files(max_age_days: int = 7) -> int:
+    """Delete input files for failed tasks older than ``max_age_days``.
+
+    Only files residing under ``UPLOAD_DIR`` are deleted, and the corresponding
+    ``input_file_path`` column is nullified.  Returns the number of files
+    removed.
+    """
+    cutoff = (datetime.now(UTC) - timedelta(days=max_age_days)).isoformat()
+    db = await _get_db()
+    cursor = await db.execute(
+        "SELECT job_id, input_file_path FROM tasks "
+        "WHERE stage = ? AND created_at < ? AND input_file_path IS NOT NULL",
+        (TaskStage.failed.value, cutoff),
+    )
+    rows = await cursor.fetchall()
+    upload_root = UPLOAD_DIR.resolve()
+    count = 0
+    for row in rows:
+        resolved = Path(row["input_file_path"]).resolve()
+        # Path safety: must be strictly inside UPLOAD_DIR.
+        if resolved == upload_root or upload_root not in resolved.parents:
+            continue
+        resolved.unlink(missing_ok=True)
+        await db.execute(
+            "UPDATE tasks SET input_file_path = NULL WHERE job_id = ?",
+            (row["job_id"],),
+        )
+        count += 1
+    if count:
+        await db.commit()
+    return count
 
 
 async def create_task(
@@ -195,32 +246,26 @@ async def create_task(
 ) -> None:
     """Create a new task record with pending status."""
     db = await _get_db()
-    try:
-        await db.execute(
-            "INSERT INTO tasks (job_id, user_id, stage, progress, message, "
-            "video_url, file_name, platform, language, source_type, thumbnail_url, title, "
-            "input_file_path) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (job_id, user_id, TaskStage.pending.value, 0.0, message,
-             video_url, file_name, platform, language, source_type, thumbnail_url, title,
-             input_file_path),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    await db.execute(
+        "INSERT INTO tasks (job_id, user_id, stage, progress, message, "
+        "video_url, file_name, platform, language, source_type, thumbnail_url, title, "
+        "input_file_path) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (job_id, user_id, TaskStage.pending.value, 0.0, message,
+         video_url, file_name, platform, language, source_type, thumbnail_url, title,
+         input_file_path),
+    )
+    await db.commit()
 
 
 async def get_task(job_id: str) -> dict | None:
     """Get a task record by job_id. Returns dict or None."""
     db = await _get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM tasks WHERE job_id = ?", (job_id,))
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return dict(row)
-    finally:
-        await db.close()
+    cursor = await db.execute("SELECT * FROM tasks WHERE job_id = ?", (job_id,))
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
 
 
 async def get_recoverable_tasks() -> list[dict]:
@@ -231,15 +276,12 @@ async def get_recoverable_tasks() -> list[dict]:
         TaskStage.cancelled.value,
     )
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM tasks WHERE stage NOT IN (?, ?, ?) AND cancel_requested = 0 "
-            "ORDER BY created_at",
-            terminal_stages,
-        )
-        return [dict(row) for row in await cursor.fetchall()]
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT * FROM tasks WHERE stage NOT IN (?, ?, ?) AND cancel_requested = 0 "
+        "ORDER BY created_at",
+        terminal_stages,
+    )
+    return [dict(row) for row in await cursor.fetchall()]
 
 
 async def increment_attempt(job_id: str) -> bool:
@@ -250,73 +292,61 @@ async def increment_attempt(job_id: str) -> bool:
         TaskStage.cancelled.value,
     )
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "UPDATE tasks SET attempt_count = attempt_count + 1, updated_at = ? "
-            "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?)",
-            (datetime.now(UTC).isoformat(), job_id, *terminal_stages),
-        )
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "UPDATE tasks SET attempt_count = attempt_count + 1, updated_at = ? "
+        "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?)",
+        (datetime.now(UTC).isoformat(), job_id, *terminal_stages),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def is_task_cancelled(job_id: str) -> bool:
     """Return True when a task is missing, cancelled, or has a persisted cancel request."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT stage, cancel_requested FROM tasks WHERE job_id = ?", (job_id,)
-        )
-        row = await cursor.fetchone()
-        return (
-            row is None
-            or bool(row["cancel_requested"])
-            or row["stage"] == TaskStage.cancelled.value
-        )
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT stage, cancel_requested FROM tasks WHERE job_id = ?", (job_id,)
+    )
+    row = await cursor.fetchone()
+    return (
+        row is None
+        or bool(row["cancel_requested"])
+        or row["stage"] == TaskStage.cancelled.value
+    )
 
 
 async def request_task_cancel(job_id: str, user_id: str | None = None) -> bool:
     """Persist cancellation intent and terminal state atomically."""
     db = await _get_db()
-    try:
-        query = (
-            "UPDATE tasks SET cancel_requested = 1, stage = ?, progress = 0, "
-            "message = ?, updated_at = ? WHERE job_id = ? AND cancel_requested = 0 "
-            "AND stage NOT IN (?, ?, ?)"
-        )
-        params: list[object] = [
-            TaskStage.cancelled.value,
-            "Cancelled",
-            datetime.now(UTC).isoformat(),
-            job_id,
-            TaskStage.complete.value,
-            TaskStage.failed.value,
-            TaskStage.cancelled.value,
-        ]
-        if user_id is not None:
-            query += " AND user_id = ?"
-            params.append(user_id)
-        cursor = await db.execute(query, params)
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    query = (
+        "UPDATE tasks SET cancel_requested = 1, stage = ?, progress = 0, "
+        "message = ?, updated_at = ? WHERE job_id = ? AND cancel_requested = 0 "
+        "AND stage NOT IN (?, ?, ?)"
+    )
+    params: list[object] = [
+        TaskStage.cancelled.value,
+        "Cancelled",
+        datetime.now(UTC).isoformat(),
+        job_id,
+        TaskStage.complete.value,
+        TaskStage.failed.value,
+        TaskStage.cancelled.value,
+    ]
+    if user_id is not None:
+        query += " AND user_id = ?"
+        params.append(user_id)
+    cursor = await db.execute(query, params)
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def clear_task_input_file(job_id: str) -> None:
     """Forget a persisted upload path after its file has been cleaned up."""
     db = await _get_db()
-    try:
-        await db.execute(
-            "UPDATE tasks SET input_file_path = NULL WHERE job_id = ?", (job_id,)
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    await db.execute(
+        "UPDATE tasks SET input_file_path = NULL WHERE job_id = ?", (job_id,)
+    )
+    await db.commit()
 
 
 async def get_user_tasks(
@@ -334,79 +364,76 @@ async def get_user_tasks(
 ) -> list[dict]:
     """Get tasks for a user with pagination and optional filters, newest first."""
     db = await _get_db()
-    try:
-        query = (
-            "SELECT t.job_id, t.stage, t.progress, t.message, t.created_at, t.updated_at, "
-            "t.video_url, t.file_name, t.platform, t.language, t.source_type, t.result_json, "
-            "t.folder_id, t.is_favorite, t.favorited_at, t.thumbnail_url, t.title "
-            "FROM tasks t"
+    query = (
+        "SELECT t.job_id, t.stage, t.progress, t.message, t.created_at, t.updated_at, "
+        "t.video_url, t.file_name, t.platform, t.language, t.source_type, t.result_json, "
+        "t.folder_id, t.is_favorite, t.favorited_at, t.thumbnail_url, t.title "
+        "FROM tasks t"
+    )
+    params: list = []
+    joins = ""
+    conditions = ["t.user_id = ?"]
+    params.append(user_id)
+
+    if tag_id is not None:
+        joins += " JOIN note_tags nt ON t.job_id = nt.job_id"
+        conditions.append("nt.tag_id = ?")
+        params.append(tag_id)
+
+    if folder_id is not None:
+        conditions.append("t.folder_id = ?")
+        params.append(folder_id)
+
+    if folder_null:
+        conditions.append("t.folder_id IS NULL")
+
+    if is_favorite is not None:
+        conditions.append("t.is_favorite = ?")
+        params.append(1 if is_favorite else 0)
+
+    if search is not None:
+        conditions.append(
+            "(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ? "
+            "OR json_extract(t.result_json, '$.title') LIKE ?)"
         )
-        params: list = []
-        joins = ""
-        conditions = ["t.user_id = ?"]
-        params.append(user_id)
+        like = f"%{search}%"
+        params.extend([like, like, like, like])
 
-        if tag_id is not None:
-            joins += " JOIN note_tags nt ON t.job_id = nt.job_id"
-            conditions.append("nt.tag_id = ?")
-            params.append(tag_id)
+    allowed_sort = {"created_at", "title", "stage"}
+    if sort_by == "title":
+        # Prefer DB title column, fall back to result_json
+        sort_expr = "COALESCE(t.title, json_extract(t.result_json, '$.title'), '')"
 
-        if folder_id is not None:
-            conditions.append("t.folder_id = ?")
-            params.append(folder_id)
+    elif sort_by in allowed_sort:
+        sort_expr = f"t.{sort_by}"
+    else:
+        sort_expr = "t.created_at"
+    order_dir = "ASC" if sort_order.lower() == "asc" else "DESC"
 
-        if folder_null:
-            conditions.append("t.folder_id IS NULL")
+    where = " AND ".join(conditions)
+    query = f"{query}{joins} WHERE {where} ORDER BY {sort_expr} {order_dir} LIMIT ? OFFSET ?"
 
-        if is_favorite is not None:
-            conditions.append("t.is_favorite = ?")
-            params.append(1 if is_favorite else 0)
+    if tag_id is not None:
+        query = f"SELECT DISTINCT * FROM ({query})"
 
-        if search is not None:
-            conditions.append(
-                "(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ? "
-                "OR json_extract(t.result_json, '$.title') LIKE ?)"
-            )
-            like = f"%{search}%"
-            params.extend([like, like, like, like])
-
-        allowed_sort = {"created_at", "title", "stage"}
-        if sort_by == "title":
-            # Prefer DB title column, fall back to result_json
-            sort_expr = "COALESCE(t.title, json_extract(t.result_json, '$.title'), '')"
-
-        elif sort_by in allowed_sort:
-            sort_expr = f"t.{sort_by}"
-        else:
-            sort_expr = "t.created_at"
-        order_dir = "ASC" if sort_order.lower() == "asc" else "DESC"
-
-        where = " AND ".join(conditions)
-        query = f"{query}{joins} WHERE {where} ORDER BY {sort_expr} {order_dir} LIMIT ? OFFSET ?"
-
-        if tag_id is not None:
-            query = f"SELECT DISTINCT * FROM ({query})"
-
-        params.extend([limit, offset])
-        cursor = await db.execute(query, params)
-        rows = await cursor.fetchall()
-        result = []
-        for row in rows:
-            d = dict(row)
-            # Extract title: prefer DB column, fall back to result_json
-            title = d.get("title") or None
-            if not title and d.get("result_json"):
-                try:
-                    parsed = json.loads(d["result_json"])
-                    title = parsed.get("title")
-                except (json.JSONDecodeError, TypeError):
-                    pass
-            d["title"] = title
-            del d["result_json"]  # Don't return full result_json in list API
-            result.append(d)
-        return result
-    finally:
-        await db.close()
+    params.extend([limit, offset])
+    cursor = await db.execute(query, params)
+    rows = await cursor.fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        # Extract title: prefer DB column, fall back to result_json
+        title = d.get("title") or None
+        if not title and d.get("result_json"):
+            try:
+                parsed = json.loads(d["result_json"])
+                title = parsed.get("title")
+            except (json.JSONDecodeError, TypeError):
+                pass
+        d["title"] = title
+        del d["result_json"]  # Don't return full result_json in list API
+        result.append(d)
+    return result
 
 
 async def count_user_tasks(
@@ -420,60 +447,54 @@ async def count_user_tasks(
 ) -> int:
     """Count total tasks for a user with optional filters."""
     db = await _get_db()
-    try:
-        query = "SELECT COUNT(DISTINCT t.job_id) FROM tasks t"
-        params: list = []
-        joins = ""
-        conditions = ["t.user_id = ?"]
-        params.append(user_id)
+    query = "SELECT COUNT(DISTINCT t.job_id) FROM tasks t"
+    params: list = []
+    joins = ""
+    conditions = ["t.user_id = ?"]
+    params.append(user_id)
 
-        if tag_id is not None:
-            joins += " JOIN note_tags nt ON t.job_id = nt.job_id"
-            conditions.append("nt.tag_id = ?")
-            params.append(tag_id)
+    if tag_id is not None:
+        joins += " JOIN note_tags nt ON t.job_id = nt.job_id"
+        conditions.append("nt.tag_id = ?")
+        params.append(tag_id)
 
-        if folder_id is not None:
-            conditions.append("t.folder_id = ?")
-            params.append(folder_id)
+    if folder_id is not None:
+        conditions.append("t.folder_id = ?")
+        params.append(folder_id)
 
-        if folder_null:
-            conditions.append("t.folder_id IS NULL")
+    if folder_null:
+        conditions.append("t.folder_id IS NULL")
 
-        if is_favorite is not None:
-            conditions.append("t.is_favorite = ?")
-            params.append(1 if is_favorite else 0)
+    if is_favorite is not None:
+        conditions.append("t.is_favorite = ?")
+        params.append(1 if is_favorite else 0)
 
-        if search is not None:
-            conditions.append(
-                "(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ? "
-                "OR json_extract(t.result_json, '$.title') LIKE ?)"
-            )
-            like = f"%{search}%"
-            params.extend([like, like, like, like])
+    if search is not None:
+        conditions.append(
+            "(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ? "
+            "OR json_extract(t.result_json, '$.title') LIKE ?)"
+        )
+        like = f"%{search}%"
+        params.extend([like, like, like, like])
 
-        where = " AND ".join(conditions)
-        query = f"{query}{joins} WHERE {where}"
-        cursor = await db.execute(query, params)
-        row = await cursor.fetchone()
-        return row[0]  # type: ignore[index]
-    finally:
-        await db.close()
+    where = " AND ".join(conditions)
+    query = f"{query}{joins} WHERE {where}"
+    cursor = await db.execute(query, params)
+    row = await cursor.fetchone()
+    return row[0]  # type: ignore[index]
 
 
 async def delete_task(job_id: str, user_id: str | None = None) -> bool:
     """Delete a task record. Returns True if deleted, False if not found."""
     db = await _get_db()
-    try:
-        if user_id:
-            cursor = await db.execute(
-                "DELETE FROM tasks WHERE job_id = ? AND user_id = ?", (job_id, user_id)
-            )
-        else:
-            cursor = await db.execute("DELETE FROM tasks WHERE job_id = ?", (job_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    if user_id:
+        cursor = await db.execute(
+            "DELETE FROM tasks WHERE job_id = ? AND user_id = ?", (job_id, user_id)
+        )
+    else:
+        cursor = await db.execute("DELETE FROM tasks WHERE job_id = ?", (job_id,))
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def update_task_meta(
@@ -481,15 +502,12 @@ async def update_task_meta(
 ) -> None:
     """Persist title and thumbnail_url after background video-info fetch."""
     db = await _get_db()
-    try:
-        now = datetime.now(UTC).isoformat()
-        await db.execute(
-            "UPDATE tasks SET title = ?, thumbnail_url = ?, updated_at = ? WHERE job_id = ?",
-            (title, thumbnail_url, now, job_id),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "UPDATE tasks SET title = ?, thumbnail_url = ?, updated_at = ? WHERE job_id = ?",
+        (title, thumbnail_url, now, job_id),
+    )
+    await db.commit()
 
 
 async def update_progress(
@@ -504,52 +522,46 @@ async def update_progress(
     a dedicated interface overrides the guard.
     """
     db = await _get_db()
-    try:
-        now = datetime.now(UTC).isoformat()
-        await db.execute(
-            "UPDATE tasks SET stage = ?, progress = ?, message = ?, updated_at = ? "
-            "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?)",
-            (
-                stage.value,
-                progress,
-                message,
-                now,
-                job_id,
-                TaskStage.complete.value,
-                TaskStage.failed.value,
-                TaskStage.cancelled.value,
-            ),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "UPDATE tasks SET stage = ?, progress = ?, message = ?, updated_at = ? "
+        "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?)",
+        (
+            stage.value,
+            progress,
+            message,
+            now,
+            job_id,
+            TaskStage.complete.value,
+            TaskStage.failed.value,
+            TaskStage.cancelled.value,
+        ),
+    )
+    await db.commit()
 
 
 async def set_result(job_id: str, markdown: str, title: str | None = None) -> None:
     """Atomically store the result only while the task remains runnable."""
     db = await _get_db()
-    try:
-        now = datetime.now(UTC).isoformat()
-        result_json = json.dumps({"markdown": markdown, "title": title})
-        await db.execute(
-            "UPDATE tasks SET stage=?, progress=?, message=?, "
-            "result_json=?, updated_at=? "
-            "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?)",
-            (
-                TaskStage.complete.value,
-                1.0,
-                "Done",
-                result_json,
-                now,
-                job_id,
-                TaskStage.complete.value,
-                TaskStage.failed.value,
-                TaskStage.cancelled.value,
-            ),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    now = datetime.now(UTC).isoformat()
+    result_json = json.dumps({"markdown": markdown, "title": title})
+    await db.execute(
+        "UPDATE tasks SET stage=?, progress=?, message=?, "
+        "result_json=?, updated_at=? "
+        "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?)",
+        (
+            TaskStage.complete.value,
+            1.0,
+            "Done",
+            result_json,
+            now,
+            job_id,
+            TaskStage.complete.value,
+            TaskStage.failed.value,
+            TaskStage.cancelled.value,
+        ),
+    )
+    await db.commit()
 
 
 # --- User operations ---
@@ -557,38 +569,29 @@ async def set_result(job_id: str, markdown: str, title: str | None = None) -> No
 
 async def create_user(user_id: str, email: str, password_hash: str) -> None:
     db = await _get_db()
-    try:
-        await db.execute(
-            "INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)",
-            (user_id, email, password_hash),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    await db.execute(
+        "INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)",
+        (user_id, email, password_hash),
+    )
+    await db.commit()
 
 
 async def get_user_by_email(email: str) -> dict | None:
     db = await _get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM users WHERE email = ?", (email,))
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return dict(row)
-    finally:
-        await db.close()
+    cursor = await db.execute("SELECT * FROM users WHERE email = ?", (email,))
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
 
 
 async def get_user_by_id(user_id: str) -> dict | None:
     db = await _get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return dict(row)
-    finally:
-        await db.close()
+    cursor = await db.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
 
 
 # --- Refresh token operations ---
@@ -598,68 +601,53 @@ async def create_refresh_token(
     token_id: str, user_id: str, token_hash: str, expires_at: str
 ) -> None:
     db = await _get_db()
-    try:
-        await db.execute(
-            "INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)",
-            (token_id, user_id, token_hash, expires_at),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    await db.execute(
+        "INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)",
+        (token_id, user_id, token_hash, expires_at),
+    )
+    await db.commit()
 
 
 async def get_refresh_token_by_hash(token_hash: str) -> dict | None:
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM refresh_tokens WHERE token_hash = ?", (token_hash,)
-        )
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return dict(row)
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT * FROM refresh_tokens WHERE token_hash = ?", (token_hash,)
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
 
 
 async def revoke_refresh_token(token_hash: str) -> bool:
     """Revoke a refresh token. Returns True if revoked, False if already revoked."""
     db = await _get_db()
-    try:
-        now = datetime.now(UTC).isoformat()
-        cursor = await db.execute(
-            "UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
-            (now, token_hash),
-        )
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    now = datetime.now(UTC).isoformat()
+    cursor = await db.execute(
+        "UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
+        (now, token_hash),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def revoke_all_user_tokens(user_id: str) -> None:
     """Revoke all refresh tokens for a user (reuse detection)."""
     db = await _get_db()
-    try:
-        now = datetime.now(UTC).isoformat()
-        await db.execute(
-            "UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
-            (now, user_id),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+        (now, user_id),
+    )
+    await db.commit()
 
 
 async def _cleanup_expired_tokens() -> None:
     """Delete refresh tokens that expired more than 30 days ago."""
     cutoff = (datetime.now(UTC) - timedelta(days=30)).isoformat()
     db = await _get_db()
-    try:
-        await db.execute("DELETE FROM refresh_tokens WHERE expires_at < ?", (cutoff,))
-        await db.commit()
-    finally:
-        await db.close()
+    await db.execute("DELETE FROM refresh_tokens WHERE expires_at < ?", (cutoff,))
+    await db.commit()
 
 
 # --- Provider config operations ---
@@ -676,53 +664,44 @@ async def save_provider_config(
     """UPSERT a user's provider config for a given category (asr/llm)."""
     now = datetime.now(UTC).isoformat()
     db = await _get_db()
-    try:
-        await db.execute(
-            "INSERT INTO user_providers (user_id, category, provider, model, "
-            "api_key_encrypted, api_base, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT(user_id, category) DO UPDATE SET "
-            "provider=excluded.provider, model=excluded.model, "
-            "api_key_encrypted=excluded.api_key_encrypted, "
-            "api_base=excluded.api_base, updated_at=excluded.updated_at",
-            (user_id, category, provider, model, api_key_encrypted, api_base, now),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    await db.execute(
+        "INSERT INTO user_providers (user_id, category, provider, model, "
+        "api_key_encrypted, api_base, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(user_id, category) DO UPDATE SET "
+        "provider=excluded.provider, model=excluded.model, "
+        "api_key_encrypted=excluded.api_key_encrypted, "
+        "api_base=excluded.api_base, updated_at=excluded.updated_at",
+        (user_id, category, provider, model, api_key_encrypted, api_base, now),
+    )
+    await db.commit()
 
 
 async def get_provider_config(user_id: str, category: str) -> dict | None:
     """Get a user's provider config for a given category. Returns dict or None."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM user_providers WHERE user_id = ? AND category = ?",
-            (user_id, category),
-        )
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return dict(row)
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT * FROM user_providers WHERE user_id = ? AND category = ?",
+        (user_id, category),
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
 
 
 async def get_all_provider_configs(user_id: str) -> dict:
     """Get all provider configs for a user. Returns {"asr": {...}, "llm": {...}}."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM user_providers WHERE user_id = ?",
-            (user_id,),
-        )
-        rows = await cursor.fetchall()
-        result: dict = {}
-        for row in rows:
-            result[row["category"]] = dict(row)
-        return result
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT * FROM user_providers WHERE user_id = ?",
+        (user_id,),
+    )
+    rows = await cursor.fetchall()
+    result: dict = {}
+    for row in rows:
+        result[row["category"]] = dict(row)
+    return result
 
 
 # --- Tag operations ---
@@ -732,102 +711,84 @@ async def create_tag(tag_id: str, user_id: str, name: str, color: str = "") -> d
     """Create a new tag for a user. Returns the created tag dict."""
     now = datetime.now(UTC).isoformat()
     db = await _get_db()
-    try:
-        await db.execute(
-            "INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, ?)",
-            (tag_id, user_id, name, color, now),
-        )
-        await db.commit()
-        return {"id": tag_id, "user_id": user_id, "name": name, "color": color, "created_at": now}
-    finally:
-        await db.close()
+    await db.execute(
+        "INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, ?)",
+        (tag_id, user_id, name, color, now),
+    )
+    await db.commit()
+    return {"id": tag_id, "user_id": user_id, "name": name, "color": color, "created_at": now}
 
 
 async def get_tags_by_user(user_id: str) -> list[dict]:
     """Get all tags for a user with note counts."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT t.id, t.user_id, t.name, t.color, t.created_at, "
-            "COUNT(nt.job_id) AS note_count "
-            "FROM tags t LEFT JOIN note_tags nt ON t.id = nt.tag_id "
-            "WHERE t.user_id = ? "
-            "GROUP BY t.id ORDER BY t.name",
-            (user_id,),
-        )
-        rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT t.id, t.user_id, t.name, t.color, t.created_at, "
+        "COUNT(nt.job_id) AS note_count "
+        "FROM tags t LEFT JOIN note_tags nt ON t.id = nt.tag_id "
+        "WHERE t.user_id = ? "
+        "GROUP BY t.id ORDER BY t.name",
+        (user_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
 
 
 async def get_tag_by_id(tag_id: str) -> dict | None:
     """Get a tag by ID. Returns dict or None."""
     db = await _get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM tags WHERE id = ?", (tag_id,))
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return dict(row)
-    finally:
-        await db.close()
+    cursor = await db.execute("SELECT * FROM tags WHERE id = ?", (tag_id,))
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
 
 
 async def update_tag(tag_id: str, name: str | None = None, color: str | None = None) -> dict | None:
     """Update a tag's name and/or color. Returns updated dict or None if not found."""
     db = await _get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM tags WHERE id = ?", (tag_id,))
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        new_name = name if name is not None else row["name"]
-        new_color = color if color is not None else row["color"]
-        await db.execute(
-            "UPDATE tags SET name = ?, color = ? WHERE id = ?",
-            (new_name, new_color, tag_id),
-        )
-        await db.commit()
-        return {"id": tag_id, "user_id": row["user_id"], "name": new_name, "color": new_color,
-                "created_at": row["created_at"]}
-    finally:
-        await db.close()
+    cursor = await db.execute("SELECT * FROM tags WHERE id = ?", (tag_id,))
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    new_name = name if name is not None else row["name"]
+    new_color = color if color is not None else row["color"]
+    await db.execute(
+        "UPDATE tags SET name = ?, color = ? WHERE id = ?",
+        (new_name, new_color, tag_id),
+    )
+    await db.commit()
+    return {"id": tag_id, "user_id": row["user_id"], "name": new_name, "color": new_color,
+            "created_at": row["created_at"]}
 
 
 async def delete_tag(tag_id: str) -> bool:
     """Delete a tag. CASCADE removes note_tags associations. Returns True if deleted."""
     db = await _get_db()
-    try:
-        cursor = await db.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    cursor = await db.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def get_or_create_tag_by_name(user_id: str, name: str, color: str = "") -> dict:
     """Get an existing tag by name for user, or create it. Returns the tag dict."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM tags WHERE user_id = ? AND name = ?",
-            (user_id, name),
-        )
-        row = await cursor.fetchone()
-        if row is not None:
-            return dict(row)
-        # Create new tag
-        tag_id = str(uuid.uuid4())
-        now = datetime.now(UTC).isoformat()
-        await db.execute(
-            "INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, ?)",
-            (tag_id, user_id, name, color, now),
-        )
-        await db.commit()
-        return {"id": tag_id, "user_id": user_id, "name": name, "color": color, "created_at": now}
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT * FROM tags WHERE user_id = ? AND name = ?",
+        (user_id, name),
+    )
+    row = await cursor.fetchone()
+    if row is not None:
+        return dict(row)
+    # Create new tag
+    tag_id = str(uuid.uuid4())
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, ?)",
+        (tag_id, user_id, name, color, now),
+    )
+    await db.commit()
+    return {"id": tag_id, "user_id": user_id, "name": name, "color": color, "created_at": now}
 
 
 # --- Folder operations ---
@@ -840,86 +801,74 @@ async def create_folder(
     """Create a new folder. Returns the created folder dict."""
     now = datetime.now(UTC).isoformat()
     db = await _get_db()
-    try:
-        await db.execute(
-            "INSERT INTO folders "
-            "(id, user_id, name, parent_id, sort_order, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (folder_id, user_id, name, parent_id, sort_order, now, now),
-        )
-        await db.commit()
-        return {"id": folder_id, "user_id": user_id, "name": name,
-                "parent_id": parent_id, "sort_order": sort_order,
-                "created_at": now, "updated_at": now}
-    finally:
-        await db.close()
+    await db.execute(
+        "INSERT INTO folders "
+        "(id, user_id, name, parent_id, sort_order, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (folder_id, user_id, name, parent_id, sort_order, now, now),
+    )
+    await db.commit()
+    return {"id": folder_id, "user_id": user_id, "name": name,
+            "parent_id": parent_id, "sort_order": sort_order,
+            "created_at": now, "updated_at": now}
 
 
 async def get_folders_by_user(user_id: str) -> list[dict]:
     """Get all folders for a user as a flat list."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM folders WHERE user_id = ? ORDER BY sort_order, name",
-            (user_id,),
-        )
-        rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT * FROM folders WHERE user_id = ? ORDER BY sort_order, name",
+        (user_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
 
 
 async def get_folder_tree(user_id: str) -> list[dict]:
     """Get folder tree with note counts. Returns nested list."""
     db = await _get_db()
-    try:
-        # Get all folders
-        cursor = await db.execute(
-            "SELECT * FROM folders WHERE user_id = ? ORDER BY sort_order, name",
-            (user_id,),
-        )
-        folders = [dict(row) for row in await cursor.fetchall()]
+    # Get all folders
+    cursor = await db.execute(
+        "SELECT * FROM folders WHERE user_id = ? ORDER BY sort_order, name",
+        (user_id,),
+    )
+    folders = [dict(row) for row in await cursor.fetchall()]
 
-        # Get note counts per folder
-        cursor = await db.execute(
-            "SELECT folder_id, COUNT(*) as note_count FROM tasks "
-            "WHERE user_id = ? AND folder_id IS NOT NULL "
-            "GROUP BY folder_id",
-            (user_id,),
-        )
-        count_map: dict[str, int] = {}
-        for row in await cursor.fetchall():
-            count_map[row["folder_id"]] = row["note_count"]
+    # Get note counts per folder
+    cursor = await db.execute(
+        "SELECT folder_id, COUNT(*) as note_count FROM tasks "
+        "WHERE user_id = ? AND folder_id IS NOT NULL "
+        "GROUP BY folder_id",
+        (user_id,),
+    )
+    count_map: dict[str, int] = {}
+    for row in await cursor.fetchall():
+        count_map[row["folder_id"]] = row["note_count"]
 
-        # Build tree
-        folder_map: dict[str, dict] = {}
-        for f in folders:
-            f["note_count"] = count_map.get(f["id"], 0)
-            f["children"] = []
-            folder_map[f["id"]] = f
+    # Build tree
+    folder_map: dict[str, dict] = {}
+    for f in folders:
+        f["note_count"] = count_map.get(f["id"], 0)
+        f["children"] = []
+        folder_map[f["id"]] = f
 
-        roots: list[dict] = []
-        for f in folders:
-            if f["parent_id"] and f["parent_id"] in folder_map:
-                folder_map[f["parent_id"]]["children"].append(f)
-            else:
-                roots.append(f)
-        return roots
-    finally:
-        await db.close()
+    roots: list[dict] = []
+    for f in folders:
+        if f["parent_id"] and f["parent_id"] in folder_map:
+            folder_map[f["parent_id"]]["children"].append(f)
+        else:
+            roots.append(f)
+    return roots
 
 
 async def get_folder_by_id(folder_id: str) -> dict | None:
     """Get a folder by ID. Returns dict or None."""
     db = await _get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM folders WHERE id = ?", (folder_id,))
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return dict(row)
-    finally:
-        await db.close()
+    cursor = await db.execute("SELECT * FROM folders WHERE id = ?", (folder_id,))
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
 
 
 async def _would_create_cycle(db: aiosqlite.Connection, folder_id: str, new_parent_id: str) -> bool:
@@ -941,45 +890,39 @@ async def update_folder(
     Pass parent_id="" to move folder to root level.
     """
     db = await _get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM folders WHERE id = ?", (folder_id,))
-        row = await cursor.fetchone()
-        if row is None:
-            return None
+    cursor = await db.execute("SELECT * FROM folders WHERE id = ?", (folder_id,))
+    row = await cursor.fetchone()
+    if row is None:
+        return None
 
-        new_name = name if name is not None else row["name"]
+    new_name = name if name is not None else row["name"]
 
-        # Handle parent_id update
-        if parent_id is not None:
-            # Check for cycle if moving to a new parent
-            if parent_id and await _would_create_cycle(db, folder_id, parent_id):
-                raise ValueError("Moving folder would create a cycle")
-            new_parent_id: str | None = parent_id if parent_id else None
-        else:
-            new_parent_id = row["parent_id"]
+    # Handle parent_id update
+    if parent_id is not None:
+        # Check for cycle if moving to a new parent
+        if parent_id and await _would_create_cycle(db, folder_id, parent_id):
+            raise ValueError("Moving folder would create a cycle")
+        new_parent_id: str | None = parent_id if parent_id else None
+    else:
+        new_parent_id = row["parent_id"]
 
-        now = datetime.now(UTC).isoformat()
-        await db.execute(
-            "UPDATE folders SET name = ?, parent_id = ?, updated_at = ? WHERE id = ?",
-            (new_name, new_parent_id, now, folder_id),
-        )
-        await db.commit()
-        return {"id": folder_id, "user_id": row["user_id"], "name": new_name,
-                "parent_id": new_parent_id, "sort_order": row["sort_order"],
-                "created_at": row["created_at"], "updated_at": now}
-    finally:
-        await db.close()
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "UPDATE folders SET name = ?, parent_id = ?, updated_at = ? WHERE id = ?",
+        (new_name, new_parent_id, now, folder_id),
+    )
+    await db.commit()
+    return {"id": folder_id, "user_id": row["user_id"], "name": new_name,
+            "parent_id": new_parent_id, "sort_order": row["sort_order"],
+            "created_at": row["created_at"], "updated_at": now}
 
 
 async def delete_folder(folder_id: str) -> bool:
     """Delete a folder. CASCADE deletes subfolders; notes become uncategorized."""
     db = await _get_db()
-    try:
-        cursor = await db.execute("DELETE FROM folders WHERE id = ?", (folder_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    cursor = await db.execute("DELETE FROM folders WHERE id = ?", (folder_id,))
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 # --- Note-Tag operations ---
@@ -991,16 +934,13 @@ async def tag_ids_belong_to_user(tag_ids: list[str], user_id: str) -> bool:
     if not unique_ids:
         return True
     db = await _get_db()
-    try:
-        placeholders = ",".join("?" for _ in unique_ids)
-        cursor = await db.execute(
-            f"SELECT COUNT(*) FROM tags WHERE user_id = ? AND id IN ({placeholders})",
-            [user_id, *unique_ids],
-        )
-        row = await cursor.fetchone()
-        return bool(row and row[0] == len(unique_ids))
-    finally:
-        await db.close()
+    placeholders = ",".join("?" for _ in unique_ids)
+    cursor = await db.execute(
+        f"SELECT COUNT(*) FROM tags WHERE user_id = ? AND id IN ({placeholders})",
+        [user_id, *unique_ids],
+    )
+    row = await cursor.fetchone()
+    return bool(row and row[0] == len(unique_ids))
 
 
 async def add_tags_to_note(job_id: str, user_id: str, tag_ids: list[str]) -> bool:
@@ -1010,8 +950,8 @@ async def add_tags_to_note(job_id: str, user_id: str, tag_ids: list[str]) -> boo
         return True
     now = datetime.now(UTC).isoformat()
     db = await _get_db()
+    await db.execute("BEGIN IMMEDIATE")
     try:
-        await db.execute("BEGIN IMMEDIATE")
         cursor = await db.execute(
             "SELECT 1 FROM tasks WHERE job_id = ? AND user_id = ?",
             (job_id, user_id),
@@ -1037,38 +977,33 @@ async def add_tags_to_note(job_id: str, user_id: str, tag_ids: list[str]) -> boo
             )
         await db.commit()
         return True
-    finally:
-        await db.close()
+    except Exception:
+        await db.rollback()
+        raise
 
 
 async def remove_tag_from_note(job_id: str, tag_id: str) -> bool:
     """Remove a tag from a note. Returns True if removed."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "DELETE FROM note_tags WHERE job_id = ? AND tag_id = ?",
-            (job_id, tag_id),
-        )
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "DELETE FROM note_tags WHERE job_id = ? AND tag_id = ?",
+        (job_id, tag_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def get_tags_for_note(job_id: str) -> list[dict]:
     """Get all tags associated with a note."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT t.id, t.user_id, t.name, t.color, t.created_at "
-            "FROM tags t JOIN note_tags nt ON t.id = nt.tag_id "
-            "WHERE nt.job_id = ? ORDER BY t.name",
-            (job_id,),
-        )
-        rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT t.id, t.user_id, t.name, t.color, t.created_at "
+        "FROM tags t JOIN note_tags nt ON t.id = nt.tag_id "
+        "WHERE nt.job_id = ? ORDER BY t.name",
+        (job_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
 
 
 # --- Note folder/favorite operations ---
@@ -1077,59 +1012,50 @@ async def get_tags_for_note(job_id: str) -> list[dict]:
 async def move_note_to_folder(job_id: str, folder_id: str | None) -> bool:
     """Move a note to a folder (or uncategorized if folder_id is None). Returns True if updated."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "UPDATE tasks SET folder_id = ? WHERE job_id = ?",
-            (folder_id, job_id),
-        )
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "UPDATE tasks SET folder_id = ? WHERE job_id = ?",
+        (folder_id, job_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def toggle_favorite(job_id: str, is_favorite: bool) -> bool:
     """Set or unset favorite on a note. Returns True if updated."""
     now = datetime.now(UTC).isoformat()
     db = await _get_db()
-    try:
-        favorited_at = now if is_favorite else None
-        cursor = await db.execute(
-            "UPDATE tasks SET is_favorite = ?, favorited_at = ?, updated_at = ? WHERE job_id = ?",
-            (1 if is_favorite else 0, favorited_at, now, job_id),
-        )
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    favorited_at = now if is_favorite else None
+    cursor = await db.execute(
+        "UPDATE tasks SET is_favorite = ?, favorited_at = ?, updated_at = ? WHERE job_id = ?",
+        (1 if is_favorite else 0, favorited_at, now, job_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def update_note_content(job_id: str, markdown: str, title: str | None = None) -> bool:
     """Update the markdown content of a note. Returns True if updated."""
     db = await _get_db()
-    try:
-        # Read existing result_json to preserve/merge title
-        cursor = await db.execute("SELECT result_json FROM tasks WHERE job_id = ?", (job_id,))
-        row = await cursor.fetchone()
-        existing_title = None
-        if row and row["result_json"]:
-            try:
-                parsed = json.loads(row["result_json"])
-                existing_title = parsed.get("title")
-            except (json.JSONDecodeError, TypeError):
-                pass
+    # Read existing result_json to preserve/merge title
+    cursor = await db.execute("SELECT result_json FROM tasks WHERE job_id = ?", (job_id,))
+    row = await cursor.fetchone()
+    existing_title = None
+    if row and row["result_json"]:
+        try:
+            parsed = json.loads(row["result_json"])
+            existing_title = parsed.get("title")
+        except (json.JSONDecodeError, TypeError):
+            pass
 
-        final_title = title if title is not None else existing_title
-        now = datetime.now(UTC).isoformat()
-        result_json = json.dumps({"markdown": markdown, "title": final_title})
-        cursor = await db.execute(
-            "UPDATE tasks SET result_json = ?, title = ?, updated_at = ? WHERE job_id = ?",
-            (result_json, final_title, now, job_id),
-        )
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    final_title = title if title is not None else existing_title
+    now = datetime.now(UTC).isoformat()
+    result_json = json.dumps({"markdown": markdown, "title": final_title})
+    cursor = await db.execute(
+        "UPDATE tasks SET result_json = ?, title = ?, updated_at = ? WHERE job_id = ?",
+        (result_json, final_title, now, job_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 # --- Batch operations ---
@@ -1142,8 +1068,8 @@ async def batch_add_tag(job_ids: list[str], tag_id: str, user_id: str) -> bool:
         return True
     now = datetime.now(UTC).isoformat()
     db = await _get_db()
+    await db.execute("BEGIN IMMEDIATE")
     try:
-        await db.execute("BEGIN IMMEDIATE")
         cursor = await db.execute(
             "SELECT 1 FROM tags WHERE id = ? AND user_id = ?",
             (tag_id, user_id),
@@ -1169,8 +1095,9 @@ async def batch_add_tag(job_ids: list[str], tag_id: str, user_id: str) -> bool:
             )
         await db.commit()
         return True
-    finally:
-        await db.close()
+    except Exception:
+        await db.rollback()
+        raise
 
 
 async def batch_remove_tag(job_ids: list[str], tag_id: str) -> None:
@@ -1178,15 +1105,12 @@ async def batch_remove_tag(job_ids: list[str], tag_id: str) -> None:
     if not job_ids:
         return
     db = await _get_db()
-    try:
-        placeholders = ",".join("?" for _ in job_ids)
-        await db.execute(
-            f"DELETE FROM note_tags WHERE tag_id = ? AND job_id IN ({placeholders})",
-            [tag_id, *job_ids],
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    placeholders = ",".join("?" for _ in job_ids)
+    await db.execute(
+        f"DELETE FROM note_tags WHERE tag_id = ? AND job_id IN ({placeholders})",
+        [tag_id, *job_ids],
+    )
+    await db.commit()
 
 
 async def batch_move_to_folder(job_ids: list[str], folder_id: str | None) -> None:
@@ -1194,15 +1118,12 @@ async def batch_move_to_folder(job_ids: list[str], folder_id: str | None) -> Non
     if not job_ids:
         return
     db = await _get_db()
-    try:
-        placeholders = ",".join("?" for _ in job_ids)
-        await db.execute(
-            f"UPDATE tasks SET folder_id = ? WHERE job_id IN ({placeholders})",
-            [folder_id, *job_ids],
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    placeholders = ",".join("?" for _ in job_ids)
+    await db.execute(
+        f"UPDATE tasks SET folder_id = ? WHERE job_id IN ({placeholders})",
+        [folder_id, *job_ids],
+    )
+    await db.commit()
 
 
 async def batch_set_favorite(job_ids: list[str], is_favorite: bool) -> None:
@@ -1212,16 +1133,13 @@ async def batch_set_favorite(job_ids: list[str], is_favorite: bool) -> None:
     now = datetime.now(UTC).isoformat()
     favorited_at = now if is_favorite else None
     db = await _get_db()
-    try:
-        placeholders = ",".join("?" for _ in job_ids)
-        await db.execute(
-            f"UPDATE tasks SET is_favorite = ?, favorited_at = ?, updated_at = ? "
-            f"WHERE job_id IN ({placeholders})",
-            [1 if is_favorite else 0, favorited_at, now, *job_ids],
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    placeholders = ",".join("?" for _ in job_ids)
+    await db.execute(
+        f"UPDATE tasks SET is_favorite = ?, favorited_at = ?, updated_at = ? "
+        f"WHERE job_id IN ({placeholders})",
+        [1 if is_favorite else 0, favorited_at, now, *job_ids],
+    )
+    await db.commit()
 
 
 async def batch_delete_tasks(job_ids: list[str], user_id: str) -> int:
@@ -1229,34 +1147,31 @@ async def batch_delete_tasks(job_ids: list[str], user_id: str) -> int:
     if not job_ids:
         return 0
     db = await _get_db()
-    try:
-        # Cancel in-progress tasks before deleting
-        terminal_stages = (
-            TaskStage.complete.value, TaskStage.failed.value, TaskStage.cancelled.value,
-        )
-        placeholders = ",".join("?" for _ in job_ids)
-        cursor = await db.execute(
-            f"SELECT job_id, stage FROM tasks WHERE job_id IN ({placeholders}) AND user_id = ?",
-            [*job_ids, user_id],
-        )
-        rows = await cursor.fetchall()
-        now = datetime.now(UTC).isoformat()
-        for row in rows:
-            if row["stage"] not in terminal_stages:
-                await db.execute(
-                    "UPDATE tasks SET stage = ?, progress = ?, "
-                    "message = ?, updated_at = ? WHERE job_id = ? AND user_id = ?",
-                    (TaskStage.cancelled.value, 0.0, "Cancelled", now, row["job_id"], user_id),
-                )
-        # Delete with user_id filter
-        cursor = await db.execute(
-            f"DELETE FROM tasks WHERE job_id IN ({placeholders}) AND user_id = ?",
-            [*job_ids, user_id],
-        )
-        await db.commit()
-        return cursor.rowcount
-    finally:
-        await db.close()
+    # Cancel in-progress tasks before deleting
+    terminal_stages = (
+        TaskStage.complete.value, TaskStage.failed.value, TaskStage.cancelled.value,
+    )
+    placeholders = ",".join("?" for _ in job_ids)
+    cursor = await db.execute(
+        f"SELECT job_id, stage FROM tasks WHERE job_id IN ({placeholders}) AND user_id = ?",
+        [*job_ids, user_id],
+    )
+    rows = await cursor.fetchall()
+    now = datetime.now(UTC).isoformat()
+    for row in rows:
+        if row["stage"] not in terminal_stages:
+            await db.execute(
+                "UPDATE tasks SET stage = ?, progress = ?, "
+                "message = ?, updated_at = ? WHERE job_id = ? AND user_id = ?",
+                (TaskStage.cancelled.value, 0.0, "Cancelled", now, row["job_id"], user_id),
+            )
+    # Delete with user_id filter
+    cursor = await db.execute(
+        f"DELETE FROM tasks WHERE job_id IN ({placeholders}) AND user_id = ?",
+        [*job_ids, user_id],
+    )
+    await db.commit()
+    return cursor.rowcount
 
 
 # --- Cookie operations ---
@@ -1266,58 +1181,46 @@ async def save_user_cookie(user_id: str, platform: str, cookie_encrypted: str) -
     """UPSERT a user's encrypted cookie for a given platform (youtube/bilibili)."""
     now = datetime.now(UTC).isoformat()
     db = await _get_db()
-    try:
-        await db.execute(
-            "INSERT INTO user_cookies (user_id, platform, cookie_encrypted, updated_at) "
-            "VALUES (?, ?, ?, ?) "
-            "ON CONFLICT(user_id, platform) DO UPDATE SET "
-            "cookie_encrypted=excluded.cookie_encrypted, updated_at=excluded.updated_at",
-            (user_id, platform, cookie_encrypted, now),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    await db.execute(
+        "INSERT INTO user_cookies (user_id, platform, cookie_encrypted, updated_at) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(user_id, platform) DO UPDATE SET "
+        "cookie_encrypted=excluded.cookie_encrypted, updated_at=excluded.updated_at",
+        (user_id, platform, cookie_encrypted, now),
+    )
+    await db.commit()
 
 
 async def get_user_cookie(user_id: str, platform: str) -> dict | None:
     """Get a user's cookie record for a platform. Returns dict or None."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM user_cookies WHERE user_id = ? AND platform = ?",
-            (user_id, platform),
-        )
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return dict(row)
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT * FROM user_cookies WHERE user_id = ? AND platform = ?",
+        (user_id, platform),
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
 
 
 async def get_all_user_cookies(user_id: str) -> list[dict]:
     """Get all cookie records for a user. Returns list of dicts with platform and updated_at."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT user_id, platform, updated_at FROM user_cookies WHERE user_id = ?",
-            (user_id,),
-        )
-        rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT user_id, platform, updated_at FROM user_cookies WHERE user_id = ?",
+        (user_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
 
 
 async def delete_user_cookie(user_id: str, platform: str) -> bool:
     """Delete a user's cookie for a platform. Returns True if deleted."""
     db = await _get_db()
-    try:
-        cursor = await db.execute(
-            "DELETE FROM user_cookies WHERE user_id = ? AND platform = ?",
-            (user_id, platform),
-        )
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "DELETE FROM user_cookies WHERE user_id = ? AND platform = ?",
+        (user_id, platform),
+    )
+    await db.commit()
+    return cursor.rowcount > 0

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误码规范：stable SCREAMING_SNAKE_CASE codes, per-stage except blocks, 不用 str(e)"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "后端模块组织：services 无状态同步, routes 薄包装, asyncio.to_thread 调用"}
