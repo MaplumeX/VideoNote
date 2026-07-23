@@ -43,10 +43,30 @@ function snakeToCamel(s: string): string {
 export function translateApiError(detail: unknown): string {
   if (typeof detail === "object" && detail !== null && "code" in detail) {
     const { code, params = {} } = detail as { code: string; params?: Record<string, unknown> };
-    return i18n.t(`errors.${snakeToCamel(code)}`, { defaultValue: i18n.t("errors.unknown"), ...params });
+    const translatedParams = { ...params };
+    if (typeof translatedParams.message === "string") {
+      translatedParams.message = translateTaskMessage(translatedParams.message);
+    }
+    return i18n.t(`errors.${snakeToCamel(code)}`, {
+      defaultValue: i18n.t("errors.unknown"),
+      ...translatedParams,
+    });
   }
   if (typeof detail === "string" && detail) return detail;
   return i18n.t("errors.unknown");
+}
+
+const TASK_MESSAGE_ERROR_CODES = new Set([
+  "TASK_RECOVERY_UNSUPPORTED_URL",
+  "TASK_RECOVERY_INPUT_INVALID",
+]);
+
+/** Translate stable task-state messages while preserving legacy free-form text. */
+export function translateTaskMessage(message: string): string {
+  if (TASK_MESSAGE_ERROR_CODES.has(message)) {
+    return translateApiError({ code: message });
+  }
+  return message;
 }
 
 /** Extract code from backend error detail, if available. */

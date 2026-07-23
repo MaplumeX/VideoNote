@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { translateApiError } from "../api/client";
+import { silentRefresh } from "../auth/api";
 import i18n from "../i18n";
 
 interface UploadState {
@@ -33,7 +34,7 @@ export function useVideoUpload() {
         }
       };
 
-      xhr.onload = () => {
+      xhr.onload = async () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           const data = JSON.parse(xhr.responseText);
           setState((prev) => ({
@@ -43,6 +44,19 @@ export function useVideoUpload() {
             jobId: data.job_id,
           }));
           resolve(data.job_id);
+        } else if (xhr.status === 401) {
+          const sessionRestored = await silentRefresh();
+          setState({
+            uploading: false,
+            progress: 0,
+            jobId: null,
+            error: i18n.t(
+              sessionRestored
+                ? "errors.uploadSessionRefreshed"
+                : "errors.uploadSessionExpired",
+            ),
+          });
+          resolve("");
         } else {
           let detail = i18n.t("errors.unknown");
           try {
@@ -61,7 +75,7 @@ export function useVideoUpload() {
           uploading: false,
           progress: 0,
           jobId: null,
-          error: null,
+          error: i18n.t("errors.uploadNetworkFailed"),
         });
         resolve("");
       };

@@ -35,10 +35,10 @@ export function NewNotePage() {
 
   useEffect(() => {
     if (sseError) {
-      setError(t("error.processingFailed"));
+      setError(sseError);
       // Keep jobId and taskMeta so user can see the info card and retry
     }
-  }, [sseError, t]);
+  }, [sseError]);
 
   useEffect(() => {
     if (uploadError) {

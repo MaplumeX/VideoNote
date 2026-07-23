@@ -10,14 +10,19 @@ from fastapi.staticfiles import StaticFiles
 from app.api.auth_routes import router as auth_router
 from app.api.cookie_routes import router as cookie_router
 from app.api.note_routes import router as note_router
-from app.api.routes import router
+from app.api.routes import recover_incomplete_tasks, router
 from app.db import init_db
+from app.task_runner import task_runner
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    yield
+    await recover_incomplete_tasks()
+    try:
+        yield
+    finally:
+        await task_runner.shutdown()
 
 
 app = FastAPI(title="VideoNote", version="1.0.0", lifespan=lifespan)

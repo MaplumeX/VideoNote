@@ -173,3 +173,73 @@ sort_expr = "COALESCE(t.title, json_extract(t.result_json, '$.title'), '')"
 ```
 
 > **Pattern**: When a JSON field is needed for sorting/filtering, extract it into a real column at insert time. Then use `COALESCE(column, json_extract(...))` during migration so both old rows (JSON-only) and new rows (column populated) work correctly.
+
+---
+
+## Durable Single-Process Video Tasks
+
+### 1. Scope / Trigger
+
+Use this contract whenever a route creates, retries, cancels, deletes, recovers, or completes a long-running video task. It applies to the current single-process, single-image SQLite deployment; it is not a distributed leasing protocol.
+
+### 2. Signatures
+
+- Persist recovery input in `tasks.input_file_path`, cancellation intent in `tasks.cancel_requested`, and recovery count in `tasks.attempt_count`.
+- Schedule work through the application `TaskRunner`; routes must not call bare `asyncio.create_task()` for video processing.
+- Database helpers that mutate a task terminal/progress state must include the task id and enforce the cancellation/non-terminal predicate in the same SQL statement.
+- Tag-association helpers must accept `user_id` and validate the note plus every tag inside one transaction.
+
+### 3. Contracts
+
+- A non-terminal task must either be scheduled after startup or be moved to an explicit recoverability failure.
+- Upload source files remain on the persistent upload path until terminal completion, user cancellation, or terminal failure cleanup.
+- User cancellation is durable before in-memory cancellation is requested.
+- Progress and success writes are conditional on `cancel_requested = 0` and a non-terminal current stage.
+- Shutdown cancellation preserves recoverable input and task state; user cancellation cleans input and keeps `cancelled`.
+- Existing tag links are all-or-nothing and user-scoped. Cross-user historical links are removed by migration.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Recoverable URL task | Schedule once and increment recovery attempt |
+| Recoverable upload with valid persisted file | Schedule once using that file |
+| Missing/invalid upload input | Fail with `TASK_RECOVERY_INPUT_INVALID` |
+| Unsupported persisted URL/input | Fail with `TASK_RECOVERY_UNSUPPORTED_URL` |
+| Cancellation races with progress/success | Conditional update affects zero rows; `cancelled` wins |
+| Any requested tag is missing or belongs to another user | Roll back all links and return scoped 404 |
+
+### 5. Good / Base / Bad
+
+- Good: restart finds a valid pending upload and resumes it once.
+- Base: a completed task is ignored by recovery and terminal writes remain idempotent.
+- Bad: an invalid recovery input fails visibly instead of remaining indefinitely in `processing`.
+
+### 6. Tests Required
+
+- Migration compatibility for existing databases and cleanup of cross-user tag links.
+- URL/upload recovery, invalid recovery input, scheduling deduplication, and shutdown semantics.
+- Cancellation races against progress and result writes.
+- Same-user tag association plus mixed valid/cross-user atomic rollback.
+- External downloader, ASR, and LLM calls must be mocked.
+
+### 7. Wrong vs Correct
+
+```python
+# WRONG — cancellation can commit between the SELECT and UPDATE.
+task = await get_task(task_id)
+if task["stage"] != "cancelled":
+    await db.execute("UPDATE tasks SET stage = 'completed' WHERE id = ?", (task_id,))
+
+# CORRECT — the state guard and write are one SQLite operation.
+await db.execute(
+    """
+    UPDATE tasks
+       SET stage = 'completed', result_json = ?
+     WHERE id = ?
+       AND cancel_requested = 0
+       AND stage NOT IN ('completed', 'failed', 'cancelled')
+    """,
+    (result_json, task_id),
+)
+```

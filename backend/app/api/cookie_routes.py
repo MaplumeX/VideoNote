@@ -5,13 +5,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 
 from app.auth import TokenData, get_current_user
-from app.errors import error_detail
 from app.crypto import encrypt_api_key
 from app.db import (
     delete_user_cookie,
     get_all_user_cookies,
     save_user_cookie,
 )
+from app.errors import error_detail
 from app.schemas import CookieInfoResponse
 
 CurrentUser = Annotated[TokenData, Depends(get_current_user)]

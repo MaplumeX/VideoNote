@@ -1,8 +1,36 @@
 import { useEffect, useRef, useState } from "react";
 import type { TaskStage, TaskProgress } from "../types";
-import { getProgressUrl } from "../api/client";
+import {
+  fetchResult,
+  fetchTaskById,
+  getProgressUrl,
+  translateTaskMessage,
+} from "../api/client";
 import { authFetch } from "../auth/api";
 import { useTranslation } from "react-i18next";
+import { createSSEParser } from "./sseParser";
+
+const MAX_RECONNECT_ATTEMPTS = 3;
+const RECONNECT_BASE_DELAY_MS = 250;
+
+function waitForReconnect(delayMs: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+
+    const handleAbort = () => {
+      window.clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, delayMs);
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
 
 export function useSSE(jobId: string | null) {
   const { t } = useTranslation();
@@ -18,69 +46,113 @@ export function useSSE(jobId: string | null) {
     const abortController = new AbortController();
     abortRef.current = abortController;
     stageRef.current = null;
+    setProgress(null);
+    setResult(null);
+    setError(null);
 
     const url = getProgressUrl(jobId);
 
     (async () => {
-      try {
-        const res = await authFetch(url, {
-          signal: abortController.signal,
-        });
+      let reconnectAttempt = 0;
 
-        if (!res.ok || !res.body) {
-          setError(t("errors.sseConnectionFailed"));
+      while (!abortController.signal.aborted) {
+        let terminal = false;
+        try {
+          const res = await authFetch(url, {
+            signal: abortController.signal,
+          });
+
+          if (!res.ok || !res.body) {
+            throw new Error(t("errors.sseConnectionFailed"));
+          }
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          const parser = createSSEParser(({ event, data: rawData }) => {
+            if (event === "progress") {
+              const data: TaskProgress = JSON.parse(rawData);
+              const translatedData = {
+                ...data,
+                message: translateTaskMessage(data.message),
+              };
+              setProgress(translatedData);
+              stageRef.current = data.stage;
+              if (data.stage === "failed") {
+                terminal = true;
+                setError(
+                  translatedData.message || t("errors.processingFailed"),
+                );
+              } else if (data.stage === "cancelled") {
+                terminal = true;
+                setError(t("errors.taskCancelled"));
+              }
+            } else if (event === "complete") {
+              const data: { markdown: string } = JSON.parse(rawData);
+              terminal = true;
+              stageRef.current = "complete";
+              setResult(data.markdown);
+              setError(null);
+            }
+          });
+
+          while (!terminal) {
+            const { done, value } = await reader.read();
+            if (done) {
+              parser.feed(decoder.decode());
+              parser.end();
+              break;
+            }
+            parser.feed(decoder.decode(value, { stream: true }));
+          }
+          if (terminal) return;
+        } catch {
+          if (abortController.signal.aborted) return;
+        }
+
+        try {
+          const task = await fetchTaskById(jobId);
+          if (abortController.signal.aborted) return;
+          const recoveredProgress: TaskProgress = {
+            stage: task.stage,
+            progress: task.progress,
+            message: translateTaskMessage(task.message),
+          };
+          setProgress(recoveredProgress);
+          stageRef.current = task.stage;
+
+          if (task.stage === "complete") {
+            const note = await fetchResult(jobId);
+            if (abortController.signal.aborted) return;
+            setResult(note.markdown);
+            setError(null);
+            return;
+          }
+          if (task.stage === "failed") {
+            setError(
+              recoveredProgress.message || t("errors.processingFailed"),
+            );
+            return;
+          }
+          if (task.stage === "cancelled") {
+            setError(t("errors.taskCancelled"));
+            return;
+          }
+        } catch {
+          if (abortController.signal.aborted) return;
+        }
+
+        if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+          setError(t("errors.sseConnectionLost"));
           return;
         }
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          let currentEvent = "";
-          let currentData = "";
-
-          for (const line of lines) {
-            if (line.startsWith("event:")) {
-              currentEvent = line.slice(6).trim();
-            } else if (line.startsWith("data:")) {
-              currentData = line.slice(5).trim();
-            } else if (line.trim() === "" && currentData) {
-              // End of event
-              if (currentEvent === "progress") {
-                const data: TaskProgress = JSON.parse(currentData);
-                setProgress(data);
-                stageRef.current = data.stage;
-                if (data.stage === "failed") {
-                  setError(data.message || t("errors.processingFailed"));
-                  return;
-                }
-                if (data.stage === "cancelled") {
-                  setError(t("errors.taskCancelled"));
-                  return;
-                }
-              } else if (currentEvent === "complete") {
-                const data = JSON.parse(currentData);
-                setResult(data.markdown);
-                setError(null);
-                return;
-              }
-              currentEvent = "";
-              currentData = "";
-            }
-          }
+        const delay = RECONNECT_BASE_DELAY_MS * (2 ** reconnectAttempt);
+        reconnectAttempt += 1;
+        try {
+          await waitForReconnect(delay, abortController.signal);
+        } catch {
+          return;
         }
-      } catch {
-        if (abortController.signal.aborted) return;
-        if (stageRef.current === "failed" || stageRef.current === "complete" || stageRef.current === "cancelled") return;
-        setError(t("errors.sseConnectionLost"));
       }
     })();
 

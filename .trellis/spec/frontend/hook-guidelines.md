@@ -296,3 +296,121 @@ useEffect(() => {
   return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
 }, [isDragging]); // re-runs when isDragging changes
 ```
+
+---
+
+## Authenticated Long-Running Flows
+
+### 1. Scope / Trigger
+
+Use this contract for authenticated requests that may refresh credentials, multipart video uploads, and SSE task progress streams.
+
+### 2. Signatures
+
+- `authFetch()` shares one module-level refresh promise and retries an original request at most once.
+- Multipart upload sends `language` in `FormData`; an upload 401 may refresh credentials but must not automatically replay the file.
+- SSE bytes pass through the incremental parser before hooks interpret progress, completion, failure, or cancellation events.
+- Recovery error codes pass through the API translation layer, including codes nested in error parameters.
+
+### 3. Contracts
+
+- Concurrent 401 responses join the same refresh attempt; success releases all callers and failure rejects all callers.
+- A late response for an old token uses a newer in-memory token when available and must not start a second refresh after authentication was cleared.
+- The SSE parser retains partial fields across chunks, accepts CRLF/LF, joins multiple `data:` lines, and flushes a complete event at EOF.
+- A stream disconnect checks the task REST state before bounded reconnection. Changing job id or unmounting aborts the old stream and timers.
+- Upload progress is preserved, while an expired upload returns a localized retry instruction because automatic replay could duplicate work.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Concurrent 401, refresh succeeds | One refresh; each request retries once |
+| Concurrent 401, refresh fails | Every caller rejects; auth state is cleared |
+| Late old-token 401 after another refresh | Retry with current token, no extra refresh |
+| SSE split at any character boundary | Each logical event dispatches exactly once |
+| SSE disconnect and task completed | Fetch result and finish without reconnect |
+| Upload receives 401 | Refresh session if possible, then ask user to retry upload |
+
+### 5. Good / Base / Bad
+
+- Good: several expired API calls recover through one refresh request.
+- Base: a normal SSE event contained in one chunk behaves exactly as before.
+- Bad: refresh failure or malformed/repeated disconnects terminate visibly instead of leaving a pending promise forever.
+
+### 6. Tests Required
+
+- Concurrent refresh success/failure, silent refresh joining, late old-token success/failure, and retry limit.
+- Upload `FormData.language`, progress, and 401 behavior without automatic replay.
+- SSE character-boundary splits, line endings, multiline data, EOF, terminal REST fallback, retry limit, and cleanup.
+- Stable recovery-code translation in both top-level and nested API errors.
+
+### 7. Wrong vs Correct
+
+```ts
+// WRONG — each waiter owns an unresolved callback queue on refresh failure.
+if (isRefreshing) return new Promise((resolve) => waiters.push(resolve));
+
+// CORRECT — every caller awaits the same settling promise.
+refreshPromise ??= refreshAccessToken().finally(() => {
+  refreshPromise = null;
+});
+await refreshPromise;
+```
+
+---
+
+## Snapshot-Based Note Auto-Save
+
+### 1. Scope / Trigger
+
+Use this contract whenever editable note content is saved after a debounce or while another save is in flight.
+
+### 2. Signatures
+
+- The hook receives the current note identity/content and a save function.
+- Every request captures an immutable content snapshot.
+- The hook exposes dirty/saving/error state and an immediate-save action for Cmd/Ctrl+S.
+
+### 3. Contracts
+
+- The first edit, including a one-character edit, starts the 1.5-second debounce.
+- Only one save request runs at a time.
+- Success marks only the submitted snapshot as saved; edits made in flight stay dirty and trigger a catch-up save.
+- Failure keeps content dirty so later edits or manual save can retry.
+- A note-generation guard prevents an old note response from mutating the state of a newly opened note.
+- Saving must not replace or recreate the editor document.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| One edit then idle | Save after debounce |
+| Edit during request | Old success leaves dirty; latest snapshot saves next |
+| Save rejects | Dirty remains true and error is exposed |
+| Cmd/Ctrl+S during debounce | Cancel timer and save current snapshot immediately |
+| Navigate while save is in flight | Old response cannot update new note state |
+
+### 5. Good / Base / Bad
+
+- Good: rapid edits collapse into serialized snapshot saves with a final catch-up.
+- Base: unchanged content produces no request.
+- Bad: a stale response cannot mark newer unsaved content as clean.
+
+### 6. Tests Required
+
+- Single-character debounce, edit-during-save catch-up, failure retry, response ordering, manual save, and note-switch isolation.
+- Use fake timers and controlled promises; assert no hidden pending promise remains.
+
+### 7. Wrong vs Correct
+
+```ts
+// WRONG — the response marks whatever happens to be in the mutable ref as saved.
+await save(contentRef.current);
+savedRef.current = contentRef.current;
+
+// CORRECT — success is tied to the exact submitted value.
+const snapshot = contentRef.current;
+await save(snapshot);
+savedRef.current = snapshot;
+if (contentRef.current !== snapshot) scheduleCatchUpSave();
+```

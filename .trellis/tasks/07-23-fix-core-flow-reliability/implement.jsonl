@@ -1,0 +1,8 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite migration, transactional user scoping, and task persistence conventions"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Structured errors, cancellation cleanup, and upload security conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Async task, testing, lint, and external-service mocking requirements"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "SSE, XHR upload, stale closure, and hook cleanup conventions"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Auth singleton and ref-based async state conventions"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Backend/frontend task contract synchronization"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer upload, task state, SSE, and persistence contract review"}

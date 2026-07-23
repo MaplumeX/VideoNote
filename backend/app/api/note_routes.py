@@ -2,12 +2,13 @@
 
 import json
 import uuid
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth import TokenData, get_current_user
-from app.errors import error_detail
+from app.config import UPLOAD_DIR
 from app.db import (
     add_tags_to_note,
     batch_add_tag,
@@ -31,11 +32,14 @@ from app.db import (
     get_user_tasks,
     move_note_to_folder,
     remove_tag_from_note,
+    request_task_cancel,
+    tag_ids_belong_to_user,
     toggle_favorite,
     update_folder,
     update_note_content,
     update_tag,
 )
+from app.errors import error_detail
 from app.schemas import (
     BatchDeleteRequest,
     BatchFavoriteRequest,
@@ -58,6 +62,7 @@ from app.schemas import (
     TaskListResponse,
 )
 from app.services.markdown import normalize_note_markdown
+from app.task_runner import task_runner
 
 CurrentUser = Annotated[TokenData, Depends(get_current_user)]
 
@@ -83,7 +88,9 @@ async def create_tag_endpoint(req: TagCreate, user: CurrentUser):
     except Exception as exc:
         # UNIQUE constraint violation
         if "UNIQUE constraint" in str(exc):
-            raise HTTPException(status_code=409, detail=error_detail("TAG_NAME_ALREADY_EXISTS")) from exc
+            raise HTTPException(
+                status_code=409, detail=error_detail("TAG_NAME_ALREADY_EXISTS")
+            ) from exc
         raise
     return TagResponse(**tag)
 
@@ -112,7 +119,9 @@ async def update_tag_endpoint(tag_id: str, req: TagUpdate, user: CurrentUser):
         updated = await update_tag(tag_id, name=req.name, color=req.color)
     except Exception as exc:
         if "UNIQUE constraint" in str(exc):
-            raise HTTPException(status_code=409, detail=error_detail("TAG_NAME_ALREADY_EXISTS")) from exc
+            raise HTTPException(
+                status_code=409, detail=error_detail("TAG_NAME_ALREADY_EXISTS")
+            ) from exc
         raise
     if not updated:
         raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
@@ -278,6 +287,9 @@ async def add_tags_to_note_endpoint(job_id: str, req: NoteTagAdd, user: CurrentU
 
     all_tag_ids: list[str] = list(req.tag_ids)
 
+    if not await tag_ids_belong_to_user(all_tag_ids, user.user_id):
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
+
     # Auto-create tags by name
     for name in req.tag_names:
         tag = await get_or_create_tag_by_name(user.user_id, name)
@@ -285,7 +297,9 @@ async def add_tags_to_note_endpoint(job_id: str, req: NoteTagAdd, user: CurrentU
             all_tag_ids.append(tag["id"])
 
     if all_tag_ids:
-        await add_tags_to_note(job_id, all_tag_ids)
+        added = await add_tags_to_note(job_id, user.user_id, all_tag_ids)
+        if not added:
+            raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
 
     # Return updated tags
     tags = await get_tags_for_note(job_id)
@@ -376,9 +390,14 @@ async def batch_tag_endpoint(req: BatchTagRequest, user: CurrentUser):
     for job_id in req.job_ids:
         task = await get_task(job_id)
         if not task or task.get("user_id") != user.user_id:
-            raise HTTPException(status_code=404, detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id))
+            raise HTTPException(
+                status_code=404,
+                detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id),
+            )
 
-    await batch_add_tag(req.job_ids, req.tag_id)
+    added = await batch_add_tag(req.job_ids, req.tag_id, user.user_id)
+    if not added:
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
     return {"detail": "Tag added to all notes"}
 
 
@@ -392,7 +411,10 @@ async def batch_remove_tag_endpoint(req: BatchTagRequest, user: CurrentUser):
     for job_id in req.job_ids:
         task = await get_task(job_id)
         if not task or task.get("user_id") != user.user_id:
-            raise HTTPException(status_code=404, detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id))
+            raise HTTPException(
+                status_code=404,
+                detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id),
+            )
 
     await batch_remove_tag(req.job_ids, req.tag_id)
     return {"detail": "Tag removed from all notes"}
@@ -409,7 +431,10 @@ async def batch_move_endpoint(req: BatchMoveRequest, user: CurrentUser):
     for job_id in req.job_ids:
         task = await get_task(job_id)
         if not task or task.get("user_id") != user.user_id:
-            raise HTTPException(status_code=404, detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id))
+            raise HTTPException(
+                status_code=404,
+                detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id),
+            )
 
     await batch_move_to_folder(req.job_ids, req.folder_id)
     return {"detail": "Notes moved"}
@@ -421,7 +446,10 @@ async def batch_favorite_endpoint(req: BatchFavoriteRequest, user: CurrentUser):
     for job_id in req.job_ids:
         task = await get_task(job_id)
         if not task or task.get("user_id") != user.user_id:
-            raise HTTPException(status_code=404, detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id))
+            raise HTTPException(
+                status_code=404,
+                detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id),
+            )
 
     await batch_set_favorite(req.job_ids, req.is_favorite)
     return {"detail": "Favorites updated"}
@@ -430,10 +458,25 @@ async def batch_favorite_endpoint(req: BatchFavoriteRequest, user: CurrentUser):
 @router.post("/tasks/batch/delete")
 async def batch_delete_endpoint(req: BatchDeleteRequest, user: CurrentUser):
     """Delete multiple tasks. Cancels in-progress tasks first."""
+    tasks: list[dict] = []
     for job_id in req.job_ids:
         task = await get_task(job_id)
         if not task or task.get("user_id") != user.user_id:
-            raise HTTPException(status_code=404, detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id))
+            raise HTTPException(
+                status_code=404,
+                detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id),
+            )
+        tasks.append(task)
 
+    for job_id in req.job_ids:
+        await request_task_cancel(job_id, user_id=user.user_id)
+        await task_runner.cancel_and_wait(job_id)
+    upload_root = UPLOAD_DIR.resolve()
+    for task in tasks:
+        if not task.get("input_file_path"):
+            continue
+        input_path = Path(task["input_file_path"]).resolve()
+        if input_path != upload_root and upload_root in input_path.parents:
+            input_path.unlink(missing_ok=True)
     deleted = await batch_delete_tasks(req.job_ids, user.user_id)
     return {"detail": "Notes deleted", "deleted": deleted}

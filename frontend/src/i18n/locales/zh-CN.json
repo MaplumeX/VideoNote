@@ -298,6 +298,11 @@
     "sseConnectionFailed": "无法连接到进度流",
     "sseConnectionLost": "与服务器连接断开",
     "taskCancelled": "任务已取消",
-    "processingFailed": "处理失败"
+    "processingFailed": "处理失败",
+    "uploadSessionRefreshed": "登录状态已恢复，请重新上传文件",
+    "uploadSessionExpired": "登录状态已过期，请登录后重新上传文件",
+    "uploadNetworkFailed": "网络异常导致上传中断，请重试",
+    "taskRecoveryUnsupportedUrl": "任务无法恢复：原视频链接已不受支持",
+    "taskRecoveryInputInvalid": "任务无法恢复：源文件缺失或无效"
   }
 }

@@ -298,6 +298,11 @@
     "sseConnectionFailed": "Failed to connect to progress stream",
     "sseConnectionLost": "Connection to server lost",
     "taskCancelled": "Task cancelled",
-    "processingFailed": "Processing failed"
+    "processingFailed": "Processing failed",
+    "uploadSessionRefreshed": "Your session was refreshed. Please upload the file again.",
+    "uploadSessionExpired": "Your session expired. Please sign in and upload the file again.",
+    "uploadNetworkFailed": "The upload was interrupted by a network error. Please try again.",
+    "taskRecoveryUnsupportedUrl": "This task could not be resumed because its video URL is no longer supported.",
+    "taskRecoveryInputInvalid": "This task could not be resumed because its source file is missing or invalid."
   }
 }

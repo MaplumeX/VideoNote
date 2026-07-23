@@ -3,8 +3,7 @@ import { redirect } from "react-router";
 
 const API_BASE = "/api";
 
-let isRefreshing = false;
-let pendingRequests: Array<(token: string) => void> = [];
+let refreshPromise: Promise<string> | null = null;
 
 async function refreshToken(): Promise<string> {
   const res = await fetch(`${API_BASE}/auth/refresh`, {
@@ -22,68 +21,57 @@ async function refreshToken(): Promise<string> {
   return data.access_token;
 }
 
+function getRefreshPromise(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        return await refreshToken();
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+}
+
 export async function silentRefresh(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-    });
-
-    if (!res.ok) {
-      clearAuth();
-      return false;
-    }
-
-    const data = await res.json();
-    setAccessToken(data.access_token);
+    await getRefreshPromise();
     return true;
   } catch {
-    clearAuth();
     return false;
   }
 }
 
-export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = getAccessToken();
+async function authFetchWithRetry(
+  url: string,
+  options: RequestInit,
+  alreadyRetried: boolean,
+  requestToken: string | null = getAccessToken(),
+): Promise<Response> {
   const headers = {
     ...options.headers,
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(requestToken ? { Authorization: `Bearer ${requestToken}` } : {}),
   };
 
   const res = await fetch(url, { ...options, headers, credentials: "include" });
 
-  if (res.status === 401 && token) {
-    if (!isRefreshing) {
-      isRefreshing = true;
-      try {
-        const newToken = await refreshToken();
-        isRefreshing = false;
-        const callbacks = pendingRequests;
-        pendingRequests = [];
-        callbacks.forEach((cb) => cb(newToken));
-
-        return authFetch(url, {
-          ...options,
-          headers: { ...options.headers, Authorization: `Bearer ${newToken}` },
-        });
-      } catch (err) {
-        isRefreshing = false;
-        pendingRequests = [];
-        throw err;
+  if (res.status === 401 && requestToken && !alreadyRetried) {
+    const latestToken = getAccessToken();
+    if (latestToken !== requestToken) {
+      if (latestToken) {
+        return authFetchWithRetry(url, options, true, latestToken);
       }
+      throw redirect("/auth/login");
     }
 
-    return new Promise<Response>((resolve) => {
-      pendingRequests.push((newToken: string) => {
-        resolve(
-          authFetch(url, {
-            ...options,
-            headers: { ...options.headers, Authorization: `Bearer ${newToken}` },
-          })
-        );
-      });
-    });
+    await getRefreshPromise();
+    return authFetchWithRetry(url, options, true, getAccessToken());
   }
 
   return res;
+}
+
+export function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  return authFetchWithRetry(url, options, false);
 }

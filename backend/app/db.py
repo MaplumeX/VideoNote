@@ -152,6 +152,9 @@ async def init_db() -> None:
             "ALTER TABLE tasks ADD COLUMN favorited_at TEXT",
             "ALTER TABLE tasks ADD COLUMN thumbnail_url TEXT",
             "ALTER TABLE tasks ADD COLUMN title TEXT",
+            "ALTER TABLE tasks ADD COLUMN input_file_path TEXT",
+            "ALTER TABLE tasks ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE tasks ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0",
         ]:
             try:
                 await db.execute(col_def)
@@ -161,6 +164,14 @@ async def init_db() -> None:
         await db.executescript("""
             CREATE INDEX IF NOT EXISTS idx_tasks_folder_id ON tasks(folder_id);
             CREATE INDEX IF NOT EXISTS idx_tasks_is_favorite ON tasks(is_favorite);
+            DELETE FROM note_tags
+            WHERE EXISTS (
+                SELECT 1
+                FROM tasks n
+                JOIN tags t ON t.id = note_tags.tag_id
+                WHERE n.job_id = note_tags.job_id
+                  AND n.user_id != t.user_id
+            );
         """)
         await db.commit()
     finally:
@@ -180,16 +191,19 @@ async def create_task(
     source_type: str | None = None,
     thumbnail_url: str | None = None,
     title: str | None = None,
+    input_file_path: str | None = None,
 ) -> None:
     """Create a new task record with pending status."""
     db = await _get_db()
     try:
         await db.execute(
             "INSERT INTO tasks (job_id, user_id, stage, progress, message, "
-            "video_url, file_name, platform, language, source_type, thumbnail_url, title) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "video_url, file_name, platform, language, source_type, thumbnail_url, title, "
+            "input_file_path) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (job_id, user_id, TaskStage.pending.value, 0.0, message,
-             video_url, file_name, platform, language, source_type, thumbnail_url, title),
+             video_url, file_name, platform, language, source_type, thumbnail_url, title,
+             input_file_path),
         )
         await db.commit()
     finally:
@@ -205,6 +219,102 @@ async def get_task(job_id: str) -> dict | None:
         if row is None:
             return None
         return dict(row)
+    finally:
+        await db.close()
+
+
+async def get_recoverable_tasks() -> list[dict]:
+    """Return all non-terminal tasks that should be resumed after process restart."""
+    terminal_stages = (
+        TaskStage.complete.value,
+        TaskStage.failed.value,
+        TaskStage.cancelled.value,
+    )
+    db = await _get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM tasks WHERE stage NOT IN (?, ?, ?) AND cancel_requested = 0 "
+            "ORDER BY created_at",
+            terminal_stages,
+        )
+        return [dict(row) for row in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+
+async def increment_attempt(job_id: str) -> bool:
+    """Increment execution attempt if the task is still runnable."""
+    terminal_stages = (
+        TaskStage.complete.value,
+        TaskStage.failed.value,
+        TaskStage.cancelled.value,
+    )
+    db = await _get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE tasks SET attempt_count = attempt_count + 1, updated_at = ? "
+            "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?)",
+            (datetime.now(UTC).isoformat(), job_id, *terminal_stages),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+    finally:
+        await db.close()
+
+
+async def is_task_cancelled(job_id: str) -> bool:
+    """Return True when a task is missing, cancelled, or has a persisted cancel request."""
+    db = await _get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT stage, cancel_requested FROM tasks WHERE job_id = ?", (job_id,)
+        )
+        row = await cursor.fetchone()
+        return (
+            row is None
+            or bool(row["cancel_requested"])
+            or row["stage"] == TaskStage.cancelled.value
+        )
+    finally:
+        await db.close()
+
+
+async def request_task_cancel(job_id: str, user_id: str | None = None) -> bool:
+    """Persist cancellation intent and terminal state atomically."""
+    db = await _get_db()
+    try:
+        query = (
+            "UPDATE tasks SET cancel_requested = 1, stage = ?, progress = 0, "
+            "message = ?, updated_at = ? WHERE job_id = ? AND cancel_requested = 0 "
+            "AND stage NOT IN (?, ?, ?)"
+        )
+        params: list[object] = [
+            TaskStage.cancelled.value,
+            "Cancelled",
+            datetime.now(UTC).isoformat(),
+            job_id,
+            TaskStage.complete.value,
+            TaskStage.failed.value,
+            TaskStage.cancelled.value,
+        ]
+        if user_id is not None:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        cursor = await db.execute(query, params)
+        await db.commit()
+        return cursor.rowcount > 0
+    finally:
+        await db.close()
+
+
+async def clear_task_input_file(job_id: str) -> None:
+    """Forget a persisted upload path after its file has been cleaned up."""
+    db = await _get_db()
+    try:
+        await db.execute(
+            "UPDATE tasks SET input_file_path = NULL WHERE job_id = ?", (job_id,)
+        )
+        await db.commit()
     finally:
         await db.close()
 
@@ -369,23 +479,23 @@ async def delete_task(job_id: str, user_id: str | None = None) -> bool:
 async def update_progress(
     job_id: str, stage: TaskStage, progress: float, message: str = ""
 ) -> None:
-    """Update task progress in SQLite. Skips if task is already in a terminal state."""
+    """Atomically update progress only while the task remains runnable."""
     db = await _get_db()
     try:
-        cursor = await db.execute(
-            "SELECT stage FROM tasks WHERE job_id = ?", (job_id,)
-        )
-        row = await cursor.fetchone()
-        if row and row["stage"] in (
-            TaskStage.complete.value,
-            TaskStage.failed.value,
-            TaskStage.cancelled.value,
-        ):
-            return  # Already in terminal state, skip update
         now = datetime.now(UTC).isoformat()
         await db.execute(
-            "UPDATE tasks SET stage=?, progress=?, message=?, updated_at=? WHERE job_id=?",
-            (stage.value, progress, message, now, job_id),
+            "UPDATE tasks SET stage = ?, progress = ?, message = ?, updated_at = ? "
+            "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?)",
+            (
+                stage.value,
+                progress,
+                message,
+                now,
+                job_id,
+                TaskStage.complete.value,
+                TaskStage.failed.value,
+                TaskStage.cancelled.value,
+            ),
         )
         await db.commit()
     finally:
@@ -393,21 +503,26 @@ async def update_progress(
 
 
 async def set_result(job_id: str, markdown: str, title: str | None = None) -> None:
-    """Store final note result and mark task complete. Skips if task is cancelled."""
+    """Atomically store the result only while the task remains runnable."""
     db = await _get_db()
     try:
-        cursor = await db.execute(
-            "SELECT stage FROM tasks WHERE job_id = ?", (job_id,)
-        )
-        row = await cursor.fetchone()
-        if row and row["stage"] == TaskStage.cancelled.value:
-            return  # Task was cancelled, discard result
         now = datetime.now(UTC).isoformat()
         result_json = json.dumps({"markdown": markdown, "title": title})
         await db.execute(
             "UPDATE tasks SET stage=?, progress=?, message=?, "
-            "result_json=?, updated_at=? WHERE job_id=?",
-            (TaskStage.complete.value, 1.0, "Done", result_json, now, job_id),
+            "result_json=?, updated_at=? "
+            "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?)",
+            (
+                TaskStage.complete.value,
+                1.0,
+                "Done",
+                result_json,
+                now,
+                job_id,
+                TaskStage.complete.value,
+                TaskStage.failed.value,
+                TaskStage.cancelled.value,
+            ),
         )
         await db.commit()
     finally:
@@ -847,17 +962,58 @@ async def delete_folder(folder_id: str) -> bool:
 # --- Note-Tag operations ---
 
 
-async def add_tags_to_note(job_id: str, tag_ids: list[str]) -> None:
-    """Add tags to a note. Ignores duplicates via INSERT OR IGNORE."""
+async def tag_ids_belong_to_user(tag_ids: list[str], user_id: str) -> bool:
+    """Return whether every distinct tag exists and belongs to the user."""
+    unique_ids = list(dict.fromkeys(tag_ids))
+    if not unique_ids:
+        return True
+    db = await _get_db()
+    try:
+        placeholders = ",".join("?" for _ in unique_ids)
+        cursor = await db.execute(
+            f"SELECT COUNT(*) FROM tags WHERE user_id = ? AND id IN ({placeholders})",
+            [user_id, *unique_ids],
+        )
+        row = await cursor.fetchone()
+        return bool(row and row[0] == len(unique_ids))
+    finally:
+        await db.close()
+
+
+async def add_tags_to_note(job_id: str, user_id: str, tag_ids: list[str]) -> bool:
+    """Atomically add tags only when the note and every tag belong to the user."""
+    unique_ids = list(dict.fromkeys(tag_ids))
+    if not unique_ids:
+        return True
     now = datetime.now(UTC).isoformat()
     db = await _get_db()
     try:
-        for tag_id in tag_ids:
+        await db.execute("BEGIN IMMEDIATE")
+        cursor = await db.execute(
+            "SELECT 1 FROM tasks WHERE job_id = ? AND user_id = ?",
+            (job_id, user_id),
+        )
+        if await cursor.fetchone() is None:
+            await db.rollback()
+            return False
+
+        placeholders = ",".join("?" for _ in unique_ids)
+        cursor = await db.execute(
+            f"SELECT id FROM tags WHERE user_id = ? AND id IN ({placeholders})",
+            [user_id, *unique_ids],
+        )
+        owned_ids = {row["id"] for row in await cursor.fetchall()}
+        if owned_ids != set(unique_ids):
+            await db.rollback()
+            return False
+
+        for tag_id in unique_ids:
             await db.execute(
                 "INSERT OR IGNORE INTO note_tags (job_id, tag_id, created_at) VALUES (?, ?, ?)",
                 (job_id, tag_id, now),
             )
         await db.commit()
+        return True
     finally:
         await db.close()
 
@@ -956,17 +1112,40 @@ async def update_note_content(job_id: str, markdown: str, title: str | None = No
 # --- Batch operations ---
 
 
-async def batch_add_tag(job_ids: list[str], tag_id: str) -> None:
-    """Add a tag to multiple notes."""
+async def batch_add_tag(job_ids: list[str], tag_id: str, user_id: str) -> bool:
+    """Atomically add one owned tag to owned notes; reject mixed ownership."""
+    unique_job_ids = list(dict.fromkeys(job_ids))
+    if not unique_job_ids:
+        return True
     now = datetime.now(UTC).isoformat()
     db = await _get_db()
     try:
-        for job_id in job_ids:
+        await db.execute("BEGIN IMMEDIATE")
+        cursor = await db.execute(
+            "SELECT 1 FROM tags WHERE id = ? AND user_id = ?",
+            (tag_id, user_id),
+        )
+        if await cursor.fetchone() is None:
+            await db.rollback()
+            return False
+
+        placeholders = ",".join("?" for _ in unique_job_ids)
+        cursor = await db.execute(
+            f"SELECT job_id FROM tasks WHERE user_id = ? AND job_id IN ({placeholders})",
+            [user_id, *unique_job_ids],
+        )
+        owned_job_ids = {row["job_id"] for row in await cursor.fetchall()}
+        if owned_job_ids != set(unique_job_ids):
+            await db.rollback()
+            return False
+
+        for job_id in unique_job_ids:
             await db.execute(
                 "INSERT OR IGNORE INTO note_tags (job_id, tag_id, created_at) VALUES (?, ?, ?)",
                 (job_id, tag_id, now),
             )
         await db.commit()
+        return True
     finally:
         await db.close()
 

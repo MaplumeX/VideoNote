@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fetchResult, fetchTags, fetchFolderTree, fetchTaskById, fetchNoteTags, addTagsToNote, removeTagFromNote, moveNoteToFolder, toggleFavorite, updateNoteContent, cancelTask, retryTask, ApiError } from "@/api/client";
 import { useSSE } from "@/hooks/useSSE";
+import { useNoteAutoSave } from "@/hooks/useNoteAutoSave";
 import { StepIndicator } from "@/components/StepIndicator";
 import { VideoInfoCard } from "@/components/VideoInfoCard";
 import { NoteEditor } from "@/components/NoteEditor";
@@ -42,12 +43,7 @@ export function NoteDetailPage() {
   const [folderTree, setFolderTree] = useState<FolderTreeNode[]>([]);
 
   const [editMarkdown, setEditMarkdown] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(false);
   const [editorResetKey, setEditorResetKey] = useState(0);
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const editMarkdownRef = useRef(editMarkdown);
-  const lastSavedMarkdownRef = useRef("");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [platform, setPlatform] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
@@ -60,23 +56,34 @@ export function NoteDetailPage() {
 
   const { progress, result: sseResult, error: sseError } = useSSE(processing && jobId ? jobId : null);
 
-  const hasUnsavedChanges = note !== null && editMarkdown !== lastSavedMarkdownRef.current;
-
-  // Keep ref in sync so async callbacks (debounce auto-save) always read latest value
-  useEffect(() => {
-    editMarkdownRef.current = editMarkdown;
-  }, [editMarkdown]);
+  const {
+    handleChange: queueAutoSave,
+    lastSavedMarkdown,
+    reset: resetAutoSave,
+    saveError,
+    saving,
+  } = useNoteAutoSave({
+    save: async (snapshot) => {
+      if (!jobId) throw new Error("Cannot save a note without a job ID");
+      return updateNoteContent(jobId, { markdown: snapshot });
+    },
+    onSaved: (savedNote) => {
+      setNote(savedNote);
+    },
+  });
+  const hasUnsavedChanges = note !== null && editMarkdown !== lastSavedMarkdown;
 
   useEffect(() => {
     if (!jobId) return;
 
     setLoading(true);
+    resetAutoSave("");
     setEditorResetKey((k) => k + 1);
     fetchResult(jobId)
       .then((data) => {
         setNote(data);
         setEditMarkdown(data.markdown);
-        lastSavedMarkdownRef.current = data.markdown;
+        resetAutoSave(data.markdown);
         setLoading(false);
       })
       .catch((err) => {
@@ -88,7 +95,7 @@ export function NoteDetailPage() {
           setLoading(false);
         }
       });
-  }, [jobId]);
+  }, [jobId, resetAutoSave, t]);
 
   useEffect(() => {
     if (!jobId) return;
@@ -150,7 +157,7 @@ export function NoteDetailPage() {
         .then((data) => {
           setNote(data);
           setEditMarkdown(data.markdown);
-          lastSavedMarkdownRef.current = data.markdown;
+          resetAutoSave(data.markdown);
           setEditorResetKey((k) => k + 1);
           setProcessing(false);
         })
@@ -159,7 +166,7 @@ export function NoteDetailPage() {
           setProcessing(false);
         });
     }
-  }, [sseResult, processing, jobId]);
+  }, [sseResult, processing, jobId, resetAutoSave, t]);
 
   useEffect(() => {
     if (sseError && processing) {
@@ -168,50 +175,10 @@ export function NoteDetailPage() {
     }
   }, [sseError, processing]);
 
-  const handleSave = useCallback(async () => {
-    if (!jobId || !hasUnsavedChanges || saving) return;
-    setSaving(true);
-    setSaveError(false);
-    try {
-      const savedNote = await updateNoteContent(jobId, { markdown: editMarkdownRef.current });
-      setNote(savedNote);
-      lastSavedMarkdownRef.current = editMarkdownRef.current;
-      setSaving(false);
-    } catch {
-      setSaving(false);
-      setSaveError(true);
-    }
-  }, [jobId, hasUnsavedChanges, saving]);
-
   const handleEditorChange = useCallback((value: string) => {
-    editMarkdownRef.current = value;
     setEditMarkdown(value);
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      void handleSave();
-    }, 1500);
-  }, [handleSave]);
-
-  // Clean up debounce timer on note switch or unmount
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    };
-  }, [jobId]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        if (hasUnsavedChanges) {
-          if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-          handleSave();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hasUnsavedChanges, handleSave]);
+    queueAutoSave(value);
+  }, [queueAutoSave]);
 
   const handleDownload = () => {
     if (!note) return;

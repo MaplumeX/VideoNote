@@ -8,12 +8,11 @@ import uuid
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
 from app.auth import TokenData, get_current_user
-from app.errors import error_detail
 from app.config import (
     ASR_API_BASE,
     ASR_API_KEY,
@@ -28,17 +27,22 @@ from app.config import (
 )
 from app.crypto import decrypt_api_key, encrypt_api_key
 from app.db import (
+    clear_task_input_file,
     count_user_tasks,
     create_task,
     delete_task,
     get_all_provider_configs,
+    get_recoverable_tasks,
     get_task,
     get_user_cookie,
     get_user_tasks,
+    is_task_cancelled,
+    request_task_cancel,
     save_provider_config,
     set_result,
     update_progress,
 )
+from app.errors import error_detail
 from app.schemas import (
     ModelItem,
     ModelsRequest,
@@ -66,6 +70,7 @@ from app.services.subtitle import (
     get_video_info,
 )
 from app.services.transcribe import transcribe_audio
+from app.task_runner import task_runner
 
 CurrentUser = Annotated[TokenData, Depends(get_current_user)]
 
@@ -74,6 +79,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 SUPPORTED_LANGUAGES = {"en", "zh-CN"}
+
+
+async def _cancellation_checkpoint(job_id: str) -> None:
+    """Stop processing if cancellation was persisted or the task was deleted."""
+    if await is_task_cancelled(job_id):
+        raise asyncio.CancelledError
+
+
+def _safe_upload_path(path_value: str | None) -> Path | None:
+    """Resolve a persisted upload path and reject paths outside UPLOAD_DIR."""
+    if not path_value:
+        return None
+    path = Path(path_value).resolve()
+    upload_root = UPLOAD_DIR.resolve()
+    if path == upload_root or upload_root not in path.parents:
+        return None
+    return path
 
 
 def _mask_api_key(key: str) -> str:
@@ -148,6 +170,7 @@ async def _process_video_url(
         cookiefile_path = await _get_user_cookiefile(user_id, url)
 
     try:
+        await _cancellation_checkpoint(job_id)
         # Read user provider config, fallback to env defaults
         asr_cfg = await _get_user_provider(user_id, "asr") if user_id else None
         llm_cfg = await _get_user_provider(user_id, "llm") if user_id else None
@@ -162,6 +185,7 @@ async def _process_video_url(
         llm_model = llm_cfg["model"] if llm_cfg and llm_cfg["model"] else LLM_MODEL
 
         video_info = await asyncio.to_thread(get_video_info, url, cookiefile_path=cookiefile_path)
+        await _cancellation_checkpoint(job_id)
         video_title = video_info["title"]
 
         await update_progress(
@@ -171,6 +195,7 @@ async def _process_video_url(
         subtitle_text = await asyncio.to_thread(
             extract_subtitles, url, cookiefile_path=cookiefile_path,
         )
+        await _cancellation_checkpoint(job_id)
 
         if subtitle_text:
             transcript = subtitle_text
@@ -184,6 +209,7 @@ async def _process_video_url(
                 audio_path = await asyncio.to_thread(
                     download_audio_via_ytdlp, url, tmpdir, cookiefile_path=cookiefile_path,
                 )
+                await _cancellation_checkpoint(job_id)
 
                 await update_progress(job_id, TaskStage.transcribing, 0.4, "Transcribing audio...")
                 transcript = await asyncio.to_thread(
@@ -194,6 +220,7 @@ async def _process_video_url(
                     model=asr_model,
                     provider=asr_provider,
                 )
+                await _cancellation_checkpoint(job_id)
 
             await update_progress(job_id, TaskStage.transcribing, 0.6, "Transcription complete")
 
@@ -209,11 +236,14 @@ async def _process_video_url(
             model=llm_model,
             has_timestamps=has_timestamps,
         )
+        await _cancellation_checkpoint(job_id)
 
         await update_progress(job_id, TaskStage.generating_notes, 0.9, "Notes generated")
 
         await set_result(job_id, markdown, title=video_title)
 
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         logger.exception(f"Task {job_id} failed: {e}")
         await update_progress(job_id, TaskStage.failed, 0.0, f"Error: {str(e)}")
@@ -228,6 +258,7 @@ async def _process_video_file(
 ) -> None:
     """Process an uploaded video file: extract audio, transcribe, generate notes."""
     try:
+        await _cancellation_checkpoint(job_id)
         # Read user provider config, fallback to env defaults
         asr_cfg = await _get_user_provider(user_id, "asr") if user_id else None
         llm_cfg = await _get_user_provider(user_id, "llm") if user_id else None
@@ -246,6 +277,7 @@ async def _process_video_file(
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = str(Path(tmpdir) / "audio.wav")
             await asyncio.to_thread(extract_audio, file_path, audio_path)
+            await _cancellation_checkpoint(job_id)
 
             await update_progress(job_id, TaskStage.transcribing, 0.3, "Transcribing audio...")
             transcript = await asyncio.to_thread(
@@ -256,6 +288,7 @@ async def _process_video_file(
                 model=asr_model,
                 provider=asr_provider,
             )
+            await _cancellation_checkpoint(job_id)
 
         await update_progress(job_id, TaskStage.transcribing, 0.6, "Transcription complete")
 
@@ -270,16 +303,27 @@ async def _process_video_file(
             model=llm_model,
             has_timestamps=has_timestamps,
         )
+        await _cancellation_checkpoint(job_id)
 
         await update_progress(job_id, TaskStage.generating_notes, 0.9, "Notes generated")
 
         await set_result(job_id, markdown)
 
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         logger.exception(f"Task {job_id} failed: {e}")
         await update_progress(job_id, TaskStage.failed, 0.0, f"Error: {str(e)}")
     finally:
-        Path(file_path).unlink(missing_ok=True)
+        task = await get_task(job_id)
+        if task is None or task["stage"] in (
+            TaskStage.complete.value,
+            TaskStage.failed.value,
+            TaskStage.cancelled.value,
+        ):
+            Path(file_path).unlink(missing_ok=True)
+            if task is not None:
+                await clear_task_input_file(job_id)
 
 
 @router.post("/process", response_model=ProcessResponse)
@@ -314,7 +358,10 @@ async def process_video(
         video_url=url, platform=platform, language=language, source_type="url",
         thumbnail_url=thumbnail_filename, title=video_info["title"],
     )
-    asyncio.create_task(_process_video_url(job_id, url, language=language, user_id=user.user_id))
+    task_runner.schedule(
+        job_id,
+        lambda: _process_video_url(job_id, url, language=language, user_id=user.user_id),
+    )
 
     return ProcessResponse(
         job_id=job_id,
@@ -353,7 +400,7 @@ ALLOWED_EXTENSIONS = {
 async def upload_video(
     file: UploadFile,
     user: CurrentUser,
-    language: str = "en",
+    language: Annotated[str, Form()] = "en",
 ):
     """Upload a local video file for processing. Returns a job_id."""
     content_type = file.content_type or ""
@@ -390,9 +437,13 @@ async def upload_video(
     await create_task(
         job_id, message="Uploaded, queued", user_id=user.user_id,
         file_name=safe_name, language=language, source_type="upload",
+        input_file_path=str(file_path.resolve()),
     )
-    asyncio.create_task(
-        _process_video_file(job_id, str(file_path), language=language, user_id=user.user_id)
+    task_runner.schedule(
+        job_id,
+        lambda: _process_video_file(
+            job_id, str(file_path), language=language, user_id=user.user_id
+        ),
     )
 
     return UploadResponse(
@@ -555,8 +606,11 @@ async def cancel_or_delete_task(
         TaskStage.complete.value, TaskStage.failed.value, TaskStage.cancelled.value,
     )
     if task["stage"] not in terminal_stages:
-        await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+        await request_task_cancel(job_id, user_id=user.user_id)
+        await task_runner.cancel_and_wait(job_id)
 
+    if input_path := _safe_upload_path(task.get("input_file_path")):
+        input_path.unlink(missing_ok=True)
     deleted = await delete_task(job_id, user_id=user.user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
@@ -603,8 +657,11 @@ async def retry_task(
         video_url=video_url, platform=platform, language=language, source_type="url",
         thumbnail_url=thumbnail_filename, title=video_info["title"],
     )
-    asyncio.create_task(
-        _process_video_url(new_job_id, video_url, language=language, user_id=user.user_id)
+    task_runner.schedule(
+        new_job_id,
+        lambda: _process_video_url(
+            new_job_id, video_url, language=language, user_id=user.user_id
+        ),
     )
     return ProcessResponse(
         job_id=new_job_id,
@@ -630,8 +687,59 @@ async def cancel_task(
     if task["stage"] in finished_stages:
         raise HTTPException(status_code=409, detail=error_detail("TASK_ALREADY_FINISHED"))
 
-    await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+    cancelled = await request_task_cancel(job_id, user_id=user.user_id)
+    if not cancelled:
+        raise HTTPException(status_code=409, detail=error_detail("TASK_ALREADY_FINISHED"))
+    task_runner.cancel(job_id)
     return {"detail": "Task cancelled"}
+
+
+async def recover_incomplete_tasks() -> None:
+    """Reschedule durable non-terminal tasks after application startup."""
+    for task in await get_recoverable_tasks():
+        job_id = task["job_id"]
+        language = _normalize_language(task.get("language") or "en")
+        user_id = task.get("user_id")
+        source_type = task.get("source_type")
+
+        if source_type == "url" and task.get("video_url"):
+            url = task["video_url"]
+            if detect_video_platform(url) == "unknown":
+                await update_progress(
+                    job_id,
+                    TaskStage.failed,
+                    0.0,
+                    "TASK_RECOVERY_UNSUPPORTED_URL",
+                )
+                continue
+            task_runner.schedule(
+                job_id,
+                lambda job_id=job_id, url=url, language=language, user_id=user_id: (
+                    _process_video_url(job_id, url, language=language, user_id=user_id)
+                ),
+            )
+            continue
+
+        if source_type == "upload":
+            file_path = _safe_upload_path(task.get("input_file_path"))
+            if file_path is not None and file_path.is_file():
+                task_runner.schedule(
+                    job_id,
+                    lambda job_id=job_id,
+                    file_path=file_path,
+                    language=language,
+                    user_id=user_id: _process_video_file(
+                        job_id, str(file_path), language=language, user_id=user_id
+                    ),
+                )
+                continue
+
+        await update_progress(
+            job_id,
+            TaskStage.failed,
+            0.0,
+            "TASK_RECOVERY_INPUT_INVALID",
+        )
 
 
 # --- Provider / Settings endpoints ---
