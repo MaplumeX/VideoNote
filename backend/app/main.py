@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="VideoNote", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="VideoNote", version="1.0.0", lifespan=lifespan)
 
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
 app.add_middleware(
