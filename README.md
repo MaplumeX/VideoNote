@@ -1,247 +1,176 @@
 # VideoNote
 
-VideoNote 是一个面向视频学习和知识整理的 AI 笔记工具。它可以从 YouTube、Bilibili 视频链接或本地视频文件中提取字幕/音频，调用 ASR 与 LLM 生成结构化 Markdown 笔记，并提供账号、历史记录、标签、文件夹、收藏和在线编辑能力。
+> Turn any video into structured Markdown notes — with clickable timestamps, WYSIWYG editing, and full organization.
 
-## 功能特性
+[English](README.md) · [简体中文](README.zh-CN.md)
 
-- 视频链接生成笔记：支持 YouTube 与 Bilibili 链接。
-- 本地视频上传：支持常见视频格式，默认最大 500MB。
-- 字幕优先策略：优先提取视频字幕；没有字幕时下载/抽取音频并转写。
-- 多模型配置：ASR 与 LLM 可分别配置 API Key、API Base 和模型。
-- 实时进度：通过 SSE 返回下载、转写、生成等阶段进度。
-- 笔记管理：支持历史记录、搜索、分页、标签、文件夹、收藏和批量操作。
-- Markdown 编辑：前端使用 Milkdown，支持 GFM、代码高亮、KaTeX 和 Mermaid。
-- 账号系统：邮箱注册/登录，访问令牌与刷新令牌机制。
-- 平台 Cookie：支持为 YouTube、Bilibili 保存用户级 cookies，提高受限视频访问能力。
-- Docker 部署：提供前后端镜像构建与 Nginx 反向代理配置。
+VideoNote takes a video URL (YouTube / Bilibili) or an uploaded video file, extracts its subtitles (falling back to ASR transcription when no subtitles exist), and uses an LLM to generate well-structured Markdown notes with clickable timestamp links. Notes are editable in a WYSIWYG Markdown editor and can be organized with folders, tags, favorites, and search.
 
-## 技术栈
+---
 
-### 前端
+## Features
 
-- React 19
-- TypeScript
-- Vite 6
-- Tailwind CSS 4
-- React Router 7
-- Milkdown
-- i18next
-- lucide-react
+- **Two input sources** — submit a video URL (YouTube / Bilibili) or upload a local video file.
+- **Smart transcript pipeline** — prefer existing subtitles; fall back to audio extraction (`ffmpeg`) + ASR transcription when none are available.
+- **LLM note generation** — produces structured Markdown with proper headings, bullets, per-section summaries, and clickable `[HH:MM:SS](#t=SECONDS)` timestamps.
+- **Real-time progress** — server-sent events (SSE) stream stage and progress to the UI.
+- **WYSIWYG editor** — [Milkdown](https://milkdown.dev/) editor with GFM, KaTeX math, Mermaid diagrams, and Prism code highlighting.
+- **Note organization** — folder tree, tags, favorites, batch operations, full-text search, and pagination.
+- **Per-user provider config** — configure ASR and LLM providers independently (OpenAI, SiliconFlow, DeepSeek, or any OpenAI-compatible endpoint). API keys are encrypted at rest.
+- **Cookie management** — per-user cookies for YouTube / Bilibili to access members-only or region-restricted content.
+- **Auth** — JWT-based user accounts with refresh tokens and bcrypt password hashing.
+- **Bilingual UI** — English and 简体中文, auto-detected.
+- **Single-image deploy** — the Vite SPA is bundled into the FastAPI runtime image; no nginx or supervisord needed.
 
-### 后端
+## Tech Stack
 
-- Python 3.11+
-- FastAPI
-- SQLite + aiosqlite
-- yt-dlp
-- FFmpeg
-- OpenAI SDK 兼容接口
-- SSE Starlette
-- PyJWT / bcrypt / cryptography
+| Layer    | Stack                                                                                          |
+| -------- | ---------------------------------------------------------------------------------------------- |
+| Backend  | Python 3.11 · FastAPI · asyncio · aiosqlite · yt-dlp · ffmpeg · OpenAI SDK · PyJWT · bcrypt    |
+| Frontend | React 19 · Vite · TypeScript · TailwindCSS v4 · shadcn/ui · Milkdown · i18next · React Router |
+| Infra    | Single multi-stage Docker image published to GHCR · docker-compose                             |
 
-## 项目结构
+## Quick Start (Docker)
 
-```text
-.
-├── backend/              # FastAPI 后端
-│   ├── app/
-│   │   ├── api/          # API 路由：认证、视频处理、笔记管理、Cookie 管理
-│   │   ├── services/     # 音频、字幕、转写、笔记生成、Markdown 处理
-│   │   ├── auth.py
-│   │   ├── config.py
-│   │   ├── db.py
-│   │   └── main.py
-│   ├── tests/
-│   ├── pyproject.toml
-│   └── Dockerfile
-├── frontend/             # React 前端
-│   ├── src/
-│   │   ├── api/
-│   │   ├── auth/
-│   │   ├── components/
-│   │   ├── i18n/
-│   │   └── pages/
-│   ├── package.json
-│   ├── nginx.conf
-│   └── Dockerfile
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
-## 环境要求
-
-本地开发需要：
-
-- Node.js 22 或兼容版本
-- Python 3.11+
-- uv
-- FFmpeg
-- 可用的 ASR/LLM API Key
-
-Docker 部署需要：
-
-- Docker
-- Docker Compose
-
-## 配置环境变量
-
-先从示例文件创建 `.env`：
+The image is published to the GitHub Container Registry:
 
 ```bash
-cp .env.example .env
+docker pull ghcr.io/maplumex/videonote:latest
 ```
 
-最少需要配置：
+### One-line deploy
+
+Fetch the compose file and an env template, generate a stable secret, then launch — all from a shell:
 
 ```bash
-OPENAI_API_KEY=sk-...
-SECRET_KEY=your-stable-secret-key-here
+# 1. Download docker-compose.yml and .env template
+curl -fsSL https://raw.githubusercontent.com/MaplumeX/VideoNote/main/docker-compose.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/MaplumeX/VideoNote/main/.env.example -o .env
+
+# 2. Set required values: deployed origin + a stable secret key
+echo "FRONTEND_URL=http://localhost" >> .env
+echo "SECRET_KEY=$(openssl rand -hex 32)" >> .env
+
+# 3. (Optional) Provide an OpenAI key, or configure per-user providers in the UI later
+echo "OPENAI_API_KEY=sk-..." >> .env
+
+# 4. Launch
+docker compose up -d
 ```
 
-常用变量：
+Then open <http://localhost:8965>, register an account, and configure your ASR / LLM providers in **Settings**.
 
-| 变量 | 说明 | 默认值 |
-| --- | --- | --- |
-| `OPENAI_API_KEY` | ASR 与 LLM 的默认 API Key | 空 |
-| `ASR_PROVIDER` | ASR 提供商 | `openai` |
-| `ASR_API_KEY` | ASR API Key，空时使用 `OPENAI_API_KEY` | 空 |
-| `ASR_API_BASE` | ASR API Base | `https://api.openai.com/v1` |
-| `ASR_MODEL` | ASR 模型 | `whisper-1` |
-| `LLM_API_KEY` | LLM API Key，空时使用 `OPENAI_API_KEY` | 空 |
-| `LLM_API_BASE` | LLM API Base | `https://api.openai.com/v1` |
-| `LLM_MODEL` | LLM 模型 | `gpt-4o` |
-| `YT_DLP_PROXY` | yt-dlp 代理，例如 `http://127.0.0.1:7890` | 空 |
-| `YT_DLP_COOKIES_FROM_BROWSER` | 从浏览器读取 cookies，例如 `chrome` | 空 |
-| `YT_DLP_COOKIES_FILE` | Netscape cookies.txt 文件路径 | 空 |
-| `UPLOAD_DIR` | 上传文件、缩略图和数据库相关数据目录 | `/tmp/videonote_uploads` |
-| `MAX_UPLOAD_SIZE_MB` | 最大上传视频大小 | `500` |
-| `SECRET_KEY` | JWT 签名与敏感配置加密使用的稳定密钥 | 自动生成 |
-| `FRONTEND_URL` | 后端允许的前端 CORS 来源 | `http://localhost:5173` |
+### Manual setup
 
-生产或 Docker 部署时必须显式设置稳定的 `SECRET_KEY`。如果让后端自动生成，容器重启后旧的加密 API Key 可能无法解密。
+1. Copy `.env.example` to `.env` and fill in your keys:
 
-## 使用 Docker 运行
+   ```bash
+   cp .env.example .env
+   ```
 
-1. 准备 `.env`：
+   Required for Docker deployments:
 
-```bash
-cp .env.example .env
-```
+   ```dotenv
+   # Set to your deployed origin (e.g. https://note.example.com)
+   FRONTEND_URL=http://localhost
 
-2. 修改 `.env` 中的关键配置：
+   # A STABLE secret key — auto-generated keys are lost on container restart,
+   # which makes encrypted API keys unrecoverable.
+   SECRET_KEY=<your-stable-secret-key>
+   ```
 
-```bash
-OPENAI_API_KEY=sk-...
-SECRET_KEY=your-stable-secret-key-here
-FRONTEND_URL=http://localhost
-UPLOAD_DIR=/data/videonote
-```
+2. Start with `docker compose`:
 
-3. 启动服务：
+   ```bash
+   docker compose up -d
+   ```
 
-```bash
-docker compose up --build
-```
+3. Open <http://localhost:8965>, register an account, and configure your ASR / LLM providers in **Settings**.
 
-4. 打开：
+### Environment Variables
 
-```text
-http://localhost
-```
+| Variable                       | Description                                                        | Default                        |
+| ------------------------------ | ------------------------------------------------------------------ | ------------------------------ |
+| `OPENAI_API_KEY`               | Fallback key for ASR/LLM when per-user config is absent            | —                              |
+| `ASR_PROVIDER`                 | `openai` or `siliconflow`                                          | `openai`                       |
+| `ASR_API_BASE`                 | ASR endpoint                                                       | `https://api.openai.com/v1`    |
+| `ASR_MODEL`                    | ASR model (e.g. `whisper-1`, `FunAudioLLM/SenseVoiceSmall`)        | `whisper-1`                    |
+| `LLM_API_BASE`                 | LLM endpoint                                                       | `https://api.openai.com/v1`    |
+| `LLM_MODEL`                    | LLM model (e.g. `gpt-4o`, `deepseek-chat`)                         | `gpt-4o`                       |
+| `YT_DLP_PROXY`                 | Proxy for yt-dlp (accessing YouTube etc.)                          | —                              |
+| `YT_DLP_COOKIES_FROM_BROWSER`  | Load yt-dlp cookies from a browser profile (e.g. `chrome`)         | —                              |
+| `YT_DLP_COOKIES_FILE`          | Path to a Netscape `cookies.txt` file                               | —                              |
+| `UPLOAD_DIR`                   | Directory for uploaded files and thumbnails                        | `/tmp/videonote_uploads`        |
+| `MAX_UPLOAD_SIZE_MB`            | Max upload size                                                    | `500`                          |
+| `SECRET_KEY`                   | JWT signing key (**must be set explicitly in Docker**)             | auto-generated                 |
+| `ACCESS_TOKEN_EXPIRE_MINUTES`  | Access token lifetime                                              | `15`                           |
+| `REFRESH_TOKEN_EXPIRE_DAYS`    | Refresh token lifetime                                             | `7`                            |
+| `FRONTEND_URL`                 | CORS allowed origin (**required for Docker**)                      | `http://localhost:5173`        |
+| `FRONTEND_STATIC_DIR`          | Path to bundled frontend assets (set by the Docker image)         | `/app/static`                   |
 
-Docker 模式下，前端由 Nginx 提供静态资源，并将 `/api/` 代理到后端 `backend:8000`。
+See [`.env.example`](.env.example) for the full, commented configuration.
 
-## 本地开发
+## Local Development
 
-### 1. 启动后端
+### Prerequisites
+
+- Python 3.11+ with [`uv`](https://docs.astral.sh/uv/)
+- Node.js 22+
+- `ffmpeg` installed and on `PATH`
+
+### Backend
 
 ```bash
 cd backend
 uv sync
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cp ../.env.example ../.env   # then edit .env
+uv run uvicorn app.main:app --reload --port 8000
 ```
 
-后端健康检查：
-
-```bash
-curl http://localhost:8000/api/health
-```
-
-### 2. 启动前端
-
-另开一个终端：
+### Frontend
 
 ```bash
 cd frontend
-npm install
-npm run dev
+npm ci
+npm run dev    # http://localhost:5173
 ```
 
-打开：
+When running the frontend separately from the backend, set `FRONTEND_URL=http://localhost:5173` in `.env` so CORS allows the dev server.
 
-```text
-http://localhost:5173
-```
-
-Vite 开发服务器会把 `/api` 代理到 `http://localhost:8000`。
-
-## 常用命令
-
-### 前端
+### Tests & Lint
 
 ```bash
-cd frontend
-npm run dev       # 启动开发服务器
-npm run build     # 类型检查并构建生产产物
-npm run preview   # 预览生产构建
-npm run lint      # 运行 ESLint
-```
-
-### 后端
-
-```bash
+# Backend
 cd backend
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 uv run pytest
 uv run ruff check .
+
+# Frontend
+cd frontend
+npm run lint
+npm run build
 ```
 
-## API 概览
+## How It Works
 
-所有业务接口默认挂载在 `/api` 下：
+```
+URL / file
+   │
+   ├─ URL ──► yt-dlp ──► fetch video info & thumbnail
+   │                       │
+   │                       └─► try subtitle extraction
+   │                              │
+   │                              └─ no subtitles? ─► download audio ─► ASR transcription
+   │
+   └─ File ──► ffmpeg ──► extract audio ─► ASR transcription
+                                                  │
+                                                  └─► LLM note generation ─► Markdown note
+                                                                                     │
+                                                                                     └─► stored, editable
+```
 
-- `GET /api/health`：健康检查。
-- `POST /api/auth/register`：注册。
-- `POST /api/auth/login`：登录。
-- `POST /api/auth/refresh`：刷新访问令牌。
-- `POST /api/auth/logout`：退出登录。
-- `GET /api/auth/me`：当前用户信息。
-- `POST /api/process`：提交视频链接生成笔记。
-- `POST /api/upload`：上传本地视频生成笔记。
-- `GET /api/tasks/{job_id}/progress`：SSE 实时任务进度。
-- `GET /api/tasks/{job_id}/result`：获取生成结果。
-- `GET /api/tasks`：分页查询笔记任务。
-- `PUT /api/tasks/{job_id}/content`：更新笔记 Markdown 内容。
-- `POST /api/tasks/{job_id}/retry`：重试失败的 URL 任务。
-- `GET /api/tags` / `POST /api/tags`：标签列表与创建。
-- `GET /api/folders` / `POST /api/folders`：文件夹列表与创建。
-- `PUT /api/cookies/{platform}`：保存平台 Cookie，`platform` 支持 `youtube`、`bilibili`。
-- `GET /api/providers`、`GET /api/settings`、`PUT /api/settings`、`POST /api/models`：模型提供商与用户设置。
+Progress for every stage is streamed to the client via SSE.
 
-## 使用流程
+## License
 
-1. 注册或登录账号。
-2. 在设置页配置 ASR 与 LLM 的 API Key、API Base 和模型。
-3. 如需访问受限视频，在设置页保存 YouTube 或 Bilibili cookies。
-4. 新建笔记，粘贴视频链接或上传本地视频。
-5. 等待任务进度完成后，在详情页查看和编辑生成的 Markdown 笔记。
-6. 使用标签、文件夹、收藏和搜索整理历史笔记。
-
-## 注意事项
-
-- URL 处理当前只接受 YouTube 与 Bilibili 平台。
-- 本地视频上传会在处理完成后清理原始上传临时文件。
-- 如果视频没有可用字幕，后端会依赖 FFmpeg 抽取音频并调用 ASR。
-- Docker 部署时 `FRONTEND_URL` 应设置为实际访问前端的 Origin，例如 `https://note.example.com`。
-- Cookie 内容会按用户加密保存，但仍应避免提交真实 `.env`、cookies 或数据库文件到版本库。
+This project is licensed under the MIT License.
