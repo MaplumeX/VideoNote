@@ -280,7 +280,7 @@
     "thumbnailNotFound": "Thumbnail not found",
     "taskStillProcessing": "Task still processing",
     "onlyFailedCanRetry": "Only failed tasks can be retried",
-    "onlyUrlCanRetry": "Only URL-type tasks can be retried (uploaded files are not retained)",
+    "onlyUrlCanRetry": "Only URL-type and upload tasks can be retried (uploaded files must still exist)",
     "taskAlreadyFinished": "Task already finished",
     "taskFailed": "Task failed: {{message}}",
     "unsupportedVideoPlatform": "Unsupported video platform. Only YouTube and Bilibili URLs are supported.",
@@ -303,6 +303,11 @@
     "uploadSessionExpired": "Your session expired. Please sign in and upload the file again.",
     "uploadNetworkFailed": "The upload was interrupted by a network error. Please try again.",
     "taskRecoveryUnsupportedUrl": "This task could not be resumed because its video URL is no longer supported.",
-    "taskRecoveryInputInvalid": "This task could not be resumed because its source file is missing or invalid."
+    "taskRecoveryInputInvalid": "This task could not be resumed because its source file is missing or invalid.",
+    "videoFetchFailed": "Failed to fetch video information.",
+    "transcriptionFailed": "Audio transcription failed.",
+    "noteGenerationFailed": "Note generation failed.",
+    "uploadFileMissing": "The uploaded file is no longer available. Please re-upload.",
+    "taskNotRetryable": "This task cannot be retried."
   }
 }

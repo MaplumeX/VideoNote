@@ -40,17 +40,44 @@ Use the `error_detail(code, **params)` helper from `app/errors.py` to build deta
 
 ## Service Layer Error Handling
 
-Services raise exceptions with descriptive messages. Route-level `_process_video_*` functions catch all exceptions, log the full traceback, and store `failed` status in SQLite:
+Services raise exceptions with descriptive messages. Route-level `_process_video_*` functions catch exceptions per-stage, log the full traceback, and store `failed` status in SQLite with a **stable error code** as the progress message (not raw `str(e)`):
 
 ```python
-# api/routes.py
+# api/routes.py — stable error codes per processing stage
 async def _process_video_url(job_id, url, ...):
     try:
+        try:
+            video_info = await asyncio.to_thread(get_video_info, url, ...)
+        except Exception:
+            logger.exception("...")
+            await update_progress(job_id, TaskStage.failed, 0.0, "VIDEO_FETCH_FAILED")
+            return
+        try:
+            transcript = await asyncio.to_thread(transcribe_audio, ...)
+        except Exception:
+            logger.exception("...")
+            await update_progress(job_id, TaskStage.failed, 0.0, "TRANSCRIPTION_FAILED")
+            return
+        try:
+            markdown = await asyncio.to_thread(generate_notes, ...)
+        except Exception:
+            logger.exception("...")
+            await update_progress(job_id, TaskStage.failed, 0.0, "NOTE_GENERATION_FAILED")
+            return
         ...
-    except Exception as e:
-        logger.exception(f"Task {job_id} failed: {e}")
-        await update_progress(job_id, TaskStage.failed, 0.0, f"Error: {str(e)}")
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception(f"Task {job_id} failed")
+        await update_progress(job_id, TaskStage.failed, 0.0, "PROCESSING_FAILED")
 ```
+
+Rules:
+- Progress `message` MUST be a `SCREAMING_SNAKE_CASE` error code for known failure modes — never `str(e)` (it may leak internal paths, key fragments, or stack details to the frontend).
+- The frontend's `translateTaskMessage()` maps these codes to i18n keys via `errors.<camelCase>`.
+- Raw exception text stays in server logs only (`logger.exception`).
+- Each stage-specific `except` block MUST `return` so the outer catch-all doesn't overwrite the specific code.
+- The outer `except Exception` is a last-resort catch-all with a generic `PROCESSING_FAILED` code.
 
 ---
 

@@ -52,6 +52,80 @@ def _ydl_opts(
     return opts
 
 
+# Matches SRT (HH:MM:SS,mmm) and VTT (HH:MM:SS.mmm) timestamp ranges.
+_TIMESTAMP_RANGE_RE = re.compile(
+    r"(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})"
+    r"\s*-->\s*"
+    r"(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})"
+)
+
+
+def _srt_to_transcript(raw: str) -> str | None:
+    """Convert SRT/VTT subtitle text into ``[HH:MM:SS](#t=SECONDS) text`` lines.
+
+    Returns None when no valid cue blocks are found so the pipeline can fall
+    back to ASR.
+    """
+    if not raw or not raw.strip():
+        return None
+
+    lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+    # Split into blocks separated by blank lines
+    blocks: list[list[str]] = []
+    current: list[str] = []
+    for line in lines:
+        if line.strip() == "":
+            if current:
+                blocks.append(current)
+                current = []
+        else:
+            current.append(line)
+    if current:
+        blocks.append(current)
+
+    result_lines: list[str] = []
+    for block in blocks:
+        # Skip VTT header and NOTE blocks
+        if block[0].strip().startswith("WEBVTT") or block[0].strip().startswith("NOTE"):
+            continue
+
+        # Find the timestamp line within the block
+        match: re.Match[str] | None = None
+        ts_idx = -1
+        for i, line in enumerate(block):
+            m = _TIMESTAMP_RANGE_RE.search(line)
+            if m:
+                match = m
+                ts_idx = i
+                break
+
+        if match is None:
+            continue
+
+        h, m, s, ms = (
+            int(match.group(1)),
+            int(match.group(2)),
+            int(match.group(3)),
+            int(match.group(4)),
+        )
+        total_seconds = h * 3600 + m * 60 + s + ms / 1000.0
+
+        # Text lines are everything after the timestamp line
+        text = " ".join(
+            stripped for line in block[ts_idx + 1 :] if (stripped := line.strip())
+        )
+        if not text:
+            continue
+
+        ts_str = f"{h:02d}:{m:02d}:{s:02d}"
+        result_lines.append(f"[{ts_str}](#t={int(total_seconds)}) {text}")
+
+    if not result_lines:
+        return None
+    return "\n".join(result_lines)
+
+
 def extract_subtitles(
     url: str, languages: list[str] | None = None, *, cookiefile_path: str | None = None
 ) -> str | None:
@@ -133,12 +207,12 @@ def _download_and_read_subtitle(
             # Find the .srt file in tmpdir
             srt_files = list(Path(tmpdir).glob("*.srt"))
             if srt_files:
-                return srt_files[0].read_text(encoding="utf-8")
+                return _srt_to_transcript(srt_files[0].read_text(encoding="utf-8"))
 
             # Try .vtt files (some platforms don't convert properly)
             vtt_files = list(Path(tmpdir).glob("*.vtt"))
             if vtt_files:
-                return vtt_files[0].read_text(encoding="utf-8")
+                return _srt_to_transcript(vtt_files[0].read_text(encoding="utf-8"))
 
             return None
         except Exception as e:

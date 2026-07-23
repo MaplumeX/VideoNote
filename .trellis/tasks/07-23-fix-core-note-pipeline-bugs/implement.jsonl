@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error code conventions, HTTPException patterns, and progress-message handling for R5"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Coding standards for backend service-layer changes"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "What to log vs what to expose in progress messages (R5 error-code vs raw exception)"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Frontend i18n key additions and ProcessResponse type safety for empty title/thumbnail"}
+{"file": ".trellis/tasks/07-23-fix-core-note-pipeline-bugs/design.md", "reason": "Technical design for all six bug fixes"}

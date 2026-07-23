@@ -17,7 +17,7 @@ MAX_FILE_SIZE_BYTES_SILICONFLOW = 50 * 1024 * 1024
 
 def transcribe_audio(
     audio_path: str,
-    language: str = "zh",
+    language: str = "en",
     api_key: str | None = None,
     api_base: str | None = None,
     model: str | None = None,

@@ -59,6 +59,11 @@ export function translateApiError(detail: unknown): string {
 const TASK_MESSAGE_ERROR_CODES = new Set([
   "TASK_RECOVERY_UNSUPPORTED_URL",
   "TASK_RECOVERY_INPUT_INVALID",
+  "VIDEO_FETCH_FAILED",
+  "TRANSCRIPTION_FAILED",
+  "NOTE_GENERATION_FAILED",
+  "PROCESSING_FAILED",
+  "UPLOAD_FILE_MISSING",
 ]);
 
 /** Translate stable task-state messages while preserving legacy free-form text. */

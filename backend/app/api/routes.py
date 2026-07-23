@@ -41,6 +41,7 @@ from app.db import (
     save_provider_config,
     set_result,
     update_progress,
+    update_task_meta,
 )
 from app.errors import error_detail
 from app.schemas import (
@@ -134,6 +135,11 @@ def _normalize_language(lang: str) -> str:
     return "en"
 
 
+def _asr_language(note_lang: str) -> str:
+    """Map note-language code to a Whisper language code."""
+    return "zh" if note_lang.startswith("zh") else "en"
+
+
 async def _get_user_cookiefile(user_id: str, url: str) -> str | None:
     """Get a temp cookie file path for the user's per-user cookie matching the URL's platform.
 
@@ -184,9 +190,22 @@ async def _process_video_url(
         llm_api_base = llm_cfg["api_base"] if llm_cfg and llm_cfg["api_base"] else LLM_API_BASE
         llm_model = llm_cfg["model"] if llm_cfg and llm_cfg["model"] else LLM_MODEL
 
-        video_info = await asyncio.to_thread(get_video_info, url, cookiefile_path=cookiefile_path)
-        await _cancellation_checkpoint(job_id)
-        video_title = video_info["title"]
+        # Video info + thumbnail (called once, in background)
+        try:
+            video_info = await asyncio.to_thread(
+                get_video_info, url, cookiefile_path=cookiefile_path
+            )
+            await _cancellation_checkpoint(job_id)
+            video_title = video_info["title"]
+            ext_thumb = video_info.get("thumbnail_url") or ""
+            thumbnail_filename = await asyncio.to_thread(download_thumbnail, ext_thumb)
+            await update_task_meta(job_id, video_title, thumbnail_filename)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.exception(f"Task {job_id} video fetch failed: {e}")
+            await update_progress(job_id, TaskStage.failed, 0.0, "VIDEO_FETCH_FAILED")
+            return
 
         await update_progress(
             job_id, TaskStage.extracting_subtitles, 0.1, "Extracting subtitles..."
@@ -206,36 +225,65 @@ async def _process_video_url(
             )
 
             with tempfile.TemporaryDirectory() as tmpdir:
-                audio_path = await asyncio.to_thread(
-                    download_audio_via_ytdlp, url, tmpdir, cookiefile_path=cookiefile_path,
-                )
+                try:
+                    audio_path = await asyncio.to_thread(
+                        download_audio_via_ytdlp, url, tmpdir,
+                        cookiefile_path=cookiefile_path,
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    logger.exception(f"Task {job_id} audio download failed: {e}")
+                    await update_progress(
+                        job_id, TaskStage.failed, 0.0, "VIDEO_FETCH_FAILED"
+                    )
+                    return
                 await _cancellation_checkpoint(job_id)
 
                 await update_progress(job_id, TaskStage.transcribing, 0.4, "Transcribing audio...")
-                transcript = await asyncio.to_thread(
-                    transcribe_audio,
-                    audio_path,
-                    api_key=asr_api_key,
-                    api_base=asr_api_base,
-                    model=asr_model,
-                    provider=asr_provider,
-                )
+                try:
+                    transcript = await asyncio.to_thread(
+                        transcribe_audio,
+                        audio_path,
+                        language=_asr_language(language),
+                        api_key=asr_api_key,
+                        api_base=asr_api_base,
+                        model=asr_model,
+                        provider=asr_provider,
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    logger.exception(f"Task {job_id} transcription failed: {e}")
+                    await update_progress(
+                        job_id, TaskStage.failed, 0.0, "TRANSCRIPTION_FAILED"
+                    )
+                    return
                 await _cancellation_checkpoint(job_id)
 
             await update_progress(job_id, TaskStage.transcribing, 0.6, "Transcription complete")
 
         await update_progress(job_id, TaskStage.generating_notes, 0.7, "Generating notes...")
         has_timestamps = "#t=" in transcript
-        markdown = await asyncio.to_thread(
-            generate_notes,
-            transcript,
-            video_title=video_title,
-            language=language,
-            api_key=llm_api_key,
-            api_base=llm_api_base,
-            model=llm_model,
-            has_timestamps=has_timestamps,
-        )
+        try:
+            markdown = await asyncio.to_thread(
+                generate_notes,
+                transcript,
+                video_title=video_title,
+                language=language,
+                api_key=llm_api_key,
+                api_base=llm_api_base,
+                model=llm_model,
+                has_timestamps=has_timestamps,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.exception(f"Task {job_id} note generation failed: {e}")
+            await update_progress(
+                job_id, TaskStage.failed, 0.0, "NOTE_GENERATION_FAILED"
+            )
+            return
         await _cancellation_checkpoint(job_id)
 
         await update_progress(job_id, TaskStage.generating_notes, 0.9, "Notes generated")
@@ -246,7 +294,7 @@ async def _process_video_url(
         raise
     except Exception as e:
         logger.exception(f"Task {job_id} failed: {e}")
-        await update_progress(job_id, TaskStage.failed, 0.0, f"Error: {str(e)}")
+        await update_progress(job_id, TaskStage.failed, 0.0, "PROCESSING_FAILED")
     finally:
         # Clean up temp cookie file
         if cookiefile_path:
@@ -276,33 +324,61 @@ async def _process_video_file(
 
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = str(Path(tmpdir) / "audio.wav")
-            await asyncio.to_thread(extract_audio, file_path, audio_path)
+            try:
+                await asyncio.to_thread(extract_audio, file_path, audio_path)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.exception(f"Task {job_id} audio extraction failed: {e}")
+                await update_progress(
+                    job_id, TaskStage.failed, 0.0, "VIDEO_FETCH_FAILED"
+                )
+                return
             await _cancellation_checkpoint(job_id)
 
             await update_progress(job_id, TaskStage.transcribing, 0.3, "Transcribing audio...")
-            transcript = await asyncio.to_thread(
-                transcribe_audio,
-                audio_path,
-                api_key=asr_api_key,
-                api_base=asr_api_base,
-                model=asr_model,
-                provider=asr_provider,
-            )
+            try:
+                transcript = await asyncio.to_thread(
+                    transcribe_audio,
+                    audio_path,
+                    language=_asr_language(language),
+                    api_key=asr_api_key,
+                    api_base=asr_api_base,
+                    model=asr_model,
+                    provider=asr_provider,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.exception(f"Task {job_id} transcription failed: {e}")
+                await update_progress(
+                    job_id, TaskStage.failed, 0.0, "TRANSCRIPTION_FAILED"
+                )
+                return
             await _cancellation_checkpoint(job_id)
 
         await update_progress(job_id, TaskStage.transcribing, 0.6, "Transcription complete")
 
         await update_progress(job_id, TaskStage.generating_notes, 0.7, "Generating notes...")
         has_timestamps = "#t=" in transcript
-        markdown = await asyncio.to_thread(
-            generate_notes,
-            transcript,
-            language=language,
-            api_key=llm_api_key,
-            api_base=llm_api_base,
-            model=llm_model,
-            has_timestamps=has_timestamps,
-        )
+        try:
+            markdown = await asyncio.to_thread(
+                generate_notes,
+                transcript,
+                language=language,
+                api_key=llm_api_key,
+                api_base=llm_api_base,
+                model=llm_model,
+                has_timestamps=has_timestamps,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.exception(f"Task {job_id} note generation failed: {e}")
+            await update_progress(
+                job_id, TaskStage.failed, 0.0, "NOTE_GENERATION_FAILED"
+            )
+            return
         await _cancellation_checkpoint(job_id)
 
         await update_progress(job_id, TaskStage.generating_notes, 0.9, "Notes generated")
@@ -313,12 +389,11 @@ async def _process_video_file(
         raise
     except Exception as e:
         logger.exception(f"Task {job_id} failed: {e}")
-        await update_progress(job_id, TaskStage.failed, 0.0, f"Error: {str(e)}")
+        await update_progress(job_id, TaskStage.failed, 0.0, "PROCESSING_FAILED")
     finally:
         task = await get_task(job_id)
         if task is None or task["stage"] in (
             TaskStage.complete.value,
-            TaskStage.failed.value,
             TaskStage.cancelled.value,
         ):
             Path(file_path).unlink(missing_ok=True)
@@ -331,7 +406,7 @@ async def process_video(
     request: VideoRequest,
     user: CurrentUser,
 ):
-    """Submit a video URL for processing. Returns a job_id."""
+    """Submit a video URL for processing. Returns a job_id immediately."""
     url = str(request.url)
     platform = detect_video_platform(url)
     if platform == "unknown":
@@ -343,20 +418,10 @@ async def process_video(
     language = _normalize_language(request.language)
     job_id = str(uuid.uuid4())
 
-    # Get per-user cookie for initial video info lookup
-    cookiefile_path = await _get_user_cookiefile(user.user_id, url)
-    try:
-        video_info = await asyncio.to_thread(get_video_info, url, cookiefile_path=cookiefile_path)
-    finally:
-        if cookiefile_path:
-            Path(cookiefile_path).unlink(missing_ok=True)
-
-    ext_thumb = video_info.get("thumbnail_url") or ""
-    thumbnail_filename = await asyncio.to_thread(download_thumbnail, ext_thumb)
     await create_task(
         job_id, user_id=user.user_id,
         video_url=url, platform=platform, language=language, source_type="url",
-        thumbnail_url=thumbnail_filename, title=video_info["title"],
+        thumbnail_url=None, title=None,
     )
     task_runner.schedule(
         job_id,
@@ -365,8 +430,8 @@ async def process_video(
 
     return ProcessResponse(
         job_id=job_id,
-        title=video_info["title"],
-        thumbnail_url=thumbnail_filename or "",
+        title="",
+        thumbnail_url="",
         platform=platform,
     )
 
@@ -622,7 +687,7 @@ async def retry_task(
     job_id: str,
     user: CurrentUser,
 ):
-    """Retry a failed URL-type task. Creates a new task with the same input."""
+    """Retry a failed task. Creates a new task with the same input."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
         raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
@@ -630,45 +695,55 @@ async def retry_task(
     if task["stage"] != TaskStage.failed.value:
         raise HTTPException(status_code=409, detail=error_detail("ONLY_FAILED_CAN_RETRY"))
 
-    if task.get("source_type") != "url" or not task.get("video_url"):
-        raise HTTPException(
-            status_code=422,
-            detail=error_detail("ONLY_URL_CAN_RETRY"),
-        )
-
-    video_url = task["video_url"]
     language = task.get("language") or "en"
-    platform = task.get("platform") or detect_video_platform(video_url)
-
     new_job_id = str(uuid.uuid4())
-    # Get per-user cookie for retry
-    cookiefile_path = await _get_user_cookiefile(user.user_id, video_url)
-    try:
-        video_info = await asyncio.to_thread(
-            get_video_info, video_url, cookiefile_path=cookiefile_path,
+    source_type = task.get("source_type")
+
+    if source_type == "url" and task.get("video_url"):
+        video_url = task["video_url"]
+        platform = task.get("platform") or detect_video_platform(video_url)
+        await create_task(
+            new_job_id, user_id=user.user_id,
+            video_url=video_url, platform=platform, language=language, source_type="url",
+            thumbnail_url=None, title=None,
         )
-    finally:
-        if cookiefile_path:
-            Path(cookiefile_path).unlink(missing_ok=True)
-    ext_thumb = video_info.get("thumbnail_url") or ""
-    thumbnail_filename = await asyncio.to_thread(download_thumbnail, ext_thumb)
-    await create_task(
-        new_job_id, user_id=user.user_id,
-        video_url=video_url, platform=platform, language=language, source_type="url",
-        thumbnail_url=thumbnail_filename, title=video_info["title"],
-    )
-    task_runner.schedule(
-        new_job_id,
-        lambda: _process_video_url(
-            new_job_id, video_url, language=language, user_id=user.user_id
-        ),
-    )
-    return ProcessResponse(
-        job_id=new_job_id,
-        title=video_info["title"],
-        thumbnail_url=thumbnail_filename or "",
-        platform=platform,
-    )
+        task_runner.schedule(
+            new_job_id,
+            lambda: _process_video_url(
+                new_job_id, video_url, language=language, user_id=user.user_id
+            ),
+        )
+        return ProcessResponse(
+            job_id=new_job_id,
+            title="",
+            thumbnail_url="",
+            platform=platform,
+        )
+
+    if source_type == "upload":
+        file_path = _safe_upload_path(task.get("input_file_path"))
+        if not file_path or not file_path.is_file():
+            raise HTTPException(status_code=422, detail=error_detail("UPLOAD_FILE_MISSING"))
+        file_name = task.get("file_name") or "upload"
+        await create_task(
+            new_job_id, message="Uploaded, queued", user_id=user.user_id,
+            file_name=file_name, language=language, source_type="upload",
+            input_file_path=str(file_path),
+        )
+        task_runner.schedule(
+            new_job_id,
+            lambda: _process_video_file(
+                new_job_id, str(file_path), language=language, user_id=user.user_id
+            ),
+        )
+        return ProcessResponse(
+            job_id=new_job_id,
+            title="",
+            thumbnail_url="",
+            platform="upload",
+        )
+
+    raise HTTPException(status_code=422, detail=error_detail("TASK_NOT_RETRYABLE"))
 
 
 @router.post("/tasks/{job_id}/cancel")

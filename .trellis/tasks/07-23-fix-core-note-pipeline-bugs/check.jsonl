@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify error codes and progress messages follow project conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check code quality standards for backend changes"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Check frontend i18n additions follow quality standards"}
+{"file": ".trellis/tasks/07-23-fix-core-note-pipeline-bugs/prd.md", "reason": "Verify acceptance criteria are met"}

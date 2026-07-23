@@ -476,6 +476,22 @@ async def delete_task(job_id: str, user_id: str | None = None) -> bool:
         await db.close()
 
 
+async def update_task_meta(
+    job_id: str, title: str | None, thumbnail_url: str | None
+) -> None:
+    """Persist title and thumbnail_url after background video-info fetch."""
+    db = await _get_db()
+    try:
+        now = datetime.now(UTC).isoformat()
+        await db.execute(
+            "UPDATE tasks SET title = ?, thumbnail_url = ?, updated_at = ? WHERE job_id = ?",
+            (title, thumbnail_url, now, job_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
 async def update_progress(
     job_id: str, stage: TaskStage, progress: float, message: str = ""
 ) -> None:
