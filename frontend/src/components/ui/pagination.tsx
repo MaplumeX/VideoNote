@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -56,35 +57,37 @@ function PaginationLink({
 
 function PaginationPrevious({
   className,
-  text = "Previous",
+  text,
   ...props
 }: Omit<PaginationLinkProps, "size"> & { text?: string }) {
+  const { t } = useTranslation();
   return (
     <PaginationLink
-      aria-label="Go to previous page"
+      aria-label={t("common.goToPreviousPage")}
       size="default"
       className={cn("pl-1.5", className)}
       {...props}
     >
       <ChevronLeftIcon data-icon="inline-start" />
-      <span className="hidden sm:block">{text}</span>
+      <span className="hidden sm:block">{text ?? t("common.previous")}</span>
     </PaginationLink>
   )
 }
 
 function PaginationNext({
   className,
-  text = "Next",
+  text,
   ...props
 }: Omit<PaginationLinkProps, "size"> & { text?: string }) {
+  const { t } = useTranslation();
   return (
     <PaginationLink
-      aria-label="Go to next page"
+      aria-label={t("common.goToNextPage")}
       size="default"
       className={cn("pr-1.5", className)}
       {...props}
     >
-      <span className="hidden sm:block">{text}</span>
+      <span className="hidden sm:block">{text ?? t("common.next")}</span>
       <ChevronRightIcon data-icon="inline-end" />
     </PaginationLink>
   )

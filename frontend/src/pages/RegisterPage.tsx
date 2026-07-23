@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next";
 import { setAccessToken } from "@/auth/token";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { translateApiError } from "@/api/client";
 
 interface ActionError {
-  error: string;
+  errorDetail: unknown;
 }
 
 export async function registerAction({ request }: { request: Request }) {
@@ -22,8 +23,8 @@ export async function registerAction({ request }: { request: Request }) {
   });
 
   if (!res.ok) {
-    const data = await res.json().catch(() => ({ detail: "Registration failed" }));
-    return { error: data.detail || "Registration failed" };
+    const data = await res.json().catch(() => ({}));
+    return { errorDetail: data.detail ?? { code: "REGISTRATION_FAILED" } };
   }
 
   const data = await res.json();
@@ -43,6 +44,9 @@ export function RegisterPage() {
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
   const isSubmitting = navigation.state === "submitting";
+  const errorMsg = actionData?.errorDetail
+    ? translateApiError(actionData.errorDetail)
+    : null;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
@@ -52,9 +56,9 @@ export function RegisterPage() {
           <p className="text-sm text-muted-foreground mt-1">{t("auth.registerSubtitle")}</p>
         </div>
 
-        {actionData?.error && (
+        {errorMsg && (
           <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
-            {actionData.error}
+            {errorMsg}
           </div>
         )}
 

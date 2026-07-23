@@ -1,4 +1,6 @@
 import { useCallback, useState } from "react";
+import { translateApiError } from "../api/client";
+import i18n from "../i18n";
 
 interface UploadState {
   uploading: boolean;
@@ -42,10 +44,10 @@ export function useVideoUpload() {
           }));
           resolve(data.job_id);
         } else {
-          let detail = `Upload failed (HTTP ${xhr.status})`;
+          let detail = i18n.t("errors.unknown");
           try {
             const err = JSON.parse(xhr.responseText);
-            detail = err.detail || detail;
+            detail = translateApiError(err.detail);
           } catch {
             // use default message
           }

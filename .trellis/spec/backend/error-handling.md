@@ -12,11 +12,19 @@ No custom exception hierarchy — use FastAPI's `HTTPException` for API errors, 
 
 ## API Error Responses
 
-All API errors follow FastAPI's standard format:
+All API errors follow FastAPI's standard format with a **structured detail** object containing a machine-readable error code and optional interpolation params:
 
 ```json
-{"detail": "descriptive message"}
+{"detail": {"code": "INVALID_CREDENTIALS"}}
 ```
+
+With interpolation params:
+
+```json
+{"detail": {"code": "TASK_WITH_ID_NOT_FOUND", "params": {"jobId": "abc123"}}}
+```
+
+Use the `error_detail(code, **params)` helper from `app/errors.py` to build detail objects. Error codes use `SCREAMING_SNAKE_CASE` and are mapped to i18n keys (`errors.<camelCase>`) on the frontend. The frontend's `translateApiError()` function handles translation and falls back to `errors.unknown` for unrecognized codes, or renders legacy string details as-is for backward compatibility.
 
 | Status | When |
 |--------|------|

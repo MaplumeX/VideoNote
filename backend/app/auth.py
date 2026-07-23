@@ -11,6 +11,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY
+from app.errors import error_detail
 
 security = HTTPBearer()
 AuthCredentials = Annotated[HTTPAuthorizationCredentials, Depends(security)]
@@ -63,18 +64,18 @@ async def get_current_user(credentials: AuthCredentials) -> TokenData:
         if user_id is None:
             raise HTTPException(
                 status_code=401,
-                detail="Invalid token payload",
+                detail=error_detail("INVALID_TOKEN_PAYLOAD"),
             )
         return TokenData(user_id=user_id)
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(
             status_code=401,
-            detail="Access token expired",
+            detail=error_detail("ACCESS_TOKEN_EXPIRED"),
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
     except jwt.InvalidTokenError as exc:
         raise HTTPException(
             status_code=401,
-            detail="Invalid access token",
+            detail=error_detail("INVALID_ACCESS_TOKEN"),
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc

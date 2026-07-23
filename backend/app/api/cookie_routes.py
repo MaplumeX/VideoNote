@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 
 from app.auth import TokenData, get_current_user
+from app.errors import error_detail
 from app.crypto import encrypt_api_key
 from app.db import (
     delete_user_cookie,
@@ -144,8 +145,7 @@ async def save_cookie(
     if platform not in ALLOWED_PLATFORMS:
         raise HTTPException(
             status_code=422,
-            detail=f"Unsupported platform: {platform}. "
-            f"Allowed: {', '.join(sorted(ALLOWED_PLATFORMS))}",
+            detail=error_detail("UNSUPPORTED_PLATFORM", platform=platform),
         )
 
     content_type = (request.headers.get("content-type") or "").lower()
@@ -157,11 +157,11 @@ async def save_cookie(
         if not file or not isinstance(file, UploadFile):
             raise HTTPException(
                 status_code=422,
-                detail="Provide a file upload named 'file'",
+                detail=error_detail("COOKIE_NO_FILE"),
             )
         raw = await file.read()
         if len(raw) > 1024 * 1024:
-            raise HTTPException(status_code=413, detail="Cookie file too large (max 1MB)")
+            raise HTTPException(status_code=413, detail=error_detail("COOKIE_TOO_LARGE"))
         content = raw.decode("utf-8", errors="replace")
     elif "application/json" in content_type:
         body = await request.json()
@@ -169,20 +169,20 @@ async def save_cookie(
         if not cookie_text:
             raise HTTPException(
                 status_code=422,
-                detail="Provide cookie_text in JSON body",
+                detail=error_detail("COOKIE_NO_TEXT"),
             )
         content = cookie_text
     else:
         raise HTTPException(
             status_code=422,
-            detail="Content-Type must be multipart/form-data or application/json",
+            detail=error_detail("UNSUPPORTED_CONTENT_TYPE"),
         )
 
     filtered = _parse_and_normalize_cookie(content, platform)
     if not filtered:
         raise HTTPException(
             status_code=422,
-            detail=f"No valid cookie entries found for {platform} after domain filtering",
+            detail=error_detail("NO_VALID_COOKIE_ENTRIES", platform=platform),
         )
 
     encrypted = encrypt_api_key(filtered)
@@ -216,9 +216,9 @@ async def delete_cookie(platform: str, user: CurrentUser):
     if platform not in ALLOWED_PLATFORMS:
         raise HTTPException(
             status_code=422,
-            detail=f"Unsupported platform: {platform}",
+            detail=error_detail("UNSUPPORTED_PLATFORM", platform=platform),
         )
     deleted = await delete_user_cookie(user.user_id, platform)
     if not deleted:
-        raise HTTPException(status_code=404, detail="No cookie found for this platform")
+        raise HTTPException(status_code=404, detail=error_detail("NO_COOKIE_FOUND"))
     return {"detail": "Cookie deleted", "platform": platform}

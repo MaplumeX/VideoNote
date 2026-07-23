@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
 from app.auth import TokenData, get_current_user
+from app.errors import error_detail
 from app.config import (
     ASR_API_BASE,
     ASR_API_KEY,
@@ -292,7 +293,7 @@ async def process_video(
     if platform == "unknown":
         raise HTTPException(
             status_code=422,
-            detail="Unsupported video platform. Only YouTube and Bilibili URLs are supported.",
+            detail=error_detail("UNSUPPORTED_VIDEO_PLATFORM"),
         )
 
     language = _normalize_language(request.language)
@@ -360,7 +361,7 @@ async def upload_video(
     if content_type not in ALLOWED_VIDEO_TYPES and ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=415,
-            detail=f"Unsupported file type: {content_type or ext}. Only video files are accepted.",
+            detail=error_detail("UNSUPPORTED_FILE_TYPE", contentType=content_type or ext),
         )
 
     language = _normalize_language(language)
@@ -382,7 +383,7 @@ async def upload_video(
                 file_path.unlink(missing_ok=True)
                 raise HTTPException(
                     status_code=413,
-                    detail=f"File too large. Max size: {MAX_UPLOAD_SIZE_MB}MB",
+                    detail=error_detail("FILE_TOO_LARGE", maxMb=MAX_UPLOAD_SIZE_MB),
                 )
             f.write(chunk)
 
@@ -404,10 +405,10 @@ async def upload_video(
 async def get_thumbnail(filename: str):
     """Serve a locally cached thumbnail image."""
     if ".." in filename or "/" in filename or "\\" in filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
+        raise HTTPException(status_code=400, detail=error_detail("INVALID_FILENAME"))
     path = (UPLOAD_DIR / "thumbnails" / filename).resolve()
     if not path.is_file() or not str(path).startswith(str((UPLOAD_DIR / "thumbnails").resolve())):
-        raise HTTPException(status_code=404, detail="Thumbnail not found")
+        raise HTTPException(status_code=404, detail=error_detail("THUMBNAIL_NOT_FOUND"))
     return FileResponse(path)
 
 
@@ -419,7 +420,7 @@ async def task_progress(
     """SSE endpoint for real-time task progress updates."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     async def event_generator():
         while True:
@@ -461,16 +462,16 @@ async def task_result(
     """Get the final note result for a completed task."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     result_raw = task.get("result_json")
     if not result_raw:
         if task["stage"] == TaskStage.failed.value:
             raise HTTPException(
                 status_code=500,
-                detail=task.get("message", "Task failed"),
+                detail=error_detail("TASK_FAILED", message=task.get("message", "")),
             )
-        raise HTTPException(status_code=202, detail="Task still processing")
+        raise HTTPException(status_code=202, detail=error_detail("TASK_STILL_PROCESSING"))
 
     result = json.loads(result_raw)
     return NoteResponse(
@@ -527,7 +528,7 @@ async def get_single_task(
     """Get a single task by job_id."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
     # Extract title: prefer DB column, fall back to result_json
     title = task.get("title") or None
     if not title and task.get("result_json"):
@@ -548,7 +549,7 @@ async def cancel_or_delete_task(
     """Delete a task. Also cancels if in progress."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     terminal_stages = (
         TaskStage.complete.value, TaskStage.failed.value, TaskStage.cancelled.value,
@@ -558,7 +559,7 @@ async def cancel_or_delete_task(
 
     deleted = await delete_task(job_id, user_id=user.user_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
     return {"detail": "Task deleted"}
 
 
@@ -570,15 +571,15 @@ async def retry_task(
     """Retry a failed URL-type task. Creates a new task with the same input."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     if task["stage"] != TaskStage.failed.value:
-        raise HTTPException(status_code=409, detail="Only failed tasks can be retried")
+        raise HTTPException(status_code=409, detail=error_detail("ONLY_FAILED_CAN_RETRY"))
 
     if task.get("source_type") != "url" or not task.get("video_url"):
         raise HTTPException(
             status_code=422,
-            detail="Only URL-type tasks can be retried (uploaded files are not retained)",
+            detail=error_detail("ONLY_URL_CAN_RETRY"),
         )
 
     video_url = task["video_url"]
@@ -621,13 +622,13 @@ async def cancel_task(
     """Cancel an in-progress task by marking it as cancelled."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     finished_stages = (
         TaskStage.complete.value, TaskStage.failed.value, TaskStage.cancelled.value,
     )
     if task["stage"] in finished_stages:
-        raise HTTPException(status_code=409, detail="Task already finished")
+        raise HTTPException(status_code=409, detail=error_detail("TASK_ALREADY_FINISHED"))
 
     await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
     return {"detail": "Task cancelled"}

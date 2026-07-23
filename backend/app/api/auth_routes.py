@@ -25,6 +25,7 @@ from app.db import (
     revoke_all_user_tokens,
     revoke_refresh_token,
 )
+from app.errors import error_detail
 from app.schemas import AuthResponse, LoginRequest, RegisterRequest, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -32,8 +33,6 @@ CurrentUser = Annotated[TokenData, Depends(get_current_user)]
 
 _COOKIE_PATH = "/api/auth/refresh"
 _COOKIE_MAX_AGE = REFRESH_TOKEN_EXPIRE_DAYS * 86400
-
-_REUSE_MSG = "Token reuse detected — all sessions terminated"
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
@@ -52,7 +51,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 async def register(req: RegisterRequest, response: Response):
     existing = await get_user_by_email(req.email)
     if existing:
-        raise HTTPException(status_code=409, detail="Email already registered")
+        raise HTTPException(status_code=409, detail=error_detail("EMAIL_ALREADY_REGISTERED"))
 
     user_id = str(uuid.uuid4())
     pw_hash = await hash_password(req.password)
@@ -74,10 +73,10 @@ async def register(req: RegisterRequest, response: Response):
 async def login(req: LoginRequest, response: Response):
     user = await get_user_by_email(req.email)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail=error_detail("INVALID_CREDENTIALS"))
 
     if not await verify_password(req.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail=error_detail("INVALID_CREDENTIALS"))
 
     user_id = user["id"]
     access_token = create_access_token(user_id)
@@ -96,28 +95,28 @@ async def login(req: LoginRequest, response: Response):
 async def refresh(request: Request, response: Response):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
-        raise HTTPException(status_code=401, detail="No refresh token")
+        raise HTTPException(status_code=401, detail=error_detail("NO_REFRESH_TOKEN"))
 
     token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
     record = await get_refresh_token_by_hash(token_hash)
 
     if not record:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        raise HTTPException(status_code=401, detail=error_detail("INVALID_REFRESH_TOKEN"))
 
     if record["revoked_at"] is not None:
         await revoke_all_user_tokens(record["user_id"])
         response.delete_cookie("refresh_token", path=_COOKIE_PATH)
-        raise HTTPException(status_code=401, detail=_REUSE_MSG)
+        raise HTTPException(status_code=401, detail=error_detail("TOKEN_REUSE_DETECTED"))
 
     if record["expires_at"] < datetime.now(UTC).isoformat():
-        raise HTTPException(status_code=401, detail="Refresh token expired")
+        raise HTTPException(status_code=401, detail=error_detail("REFRESH_TOKEN_EXPIRED"))
 
     # Rotate: revoke old token
     revoked = await revoke_refresh_token(token_hash)
     if not revoked:
         await revoke_all_user_tokens(record["user_id"])
         response.delete_cookie("refresh_token", path=_COOKIE_PATH)
-        raise HTTPException(status_code=401, detail=_REUSE_MSG)
+        raise HTTPException(status_code=401, detail=error_detail("TOKEN_REUSE_DETECTED"))
 
     # Issue new tokens
     user_id = record["user_id"]
@@ -148,7 +147,7 @@ async def logout(request: Request, response: Response):
 async def get_me(user: CurrentUser):
     db_user = await get_user_by_id(user.user_id)
     if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=error_detail("USER_NOT_FOUND"))
     return UserResponse(
         id=db_user["id"],
         email=db_user["email"],

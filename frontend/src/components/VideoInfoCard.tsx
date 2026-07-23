@@ -30,7 +30,7 @@ export function VideoInfoCard({ title, thumbnailUrl, platform, fileName }: Video
       {hasThumbnail ? (
         <img
           src={resolvedUrl}
-          alt={title || "Video thumbnail"}
+          alt={title || t("videoInfo.thumbnail")}
           className="w-24 h-14 rounded object-cover shrink-0"
         />
       ) : (

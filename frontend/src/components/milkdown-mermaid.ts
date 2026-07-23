@@ -2,6 +2,7 @@ import { $node, $view, $remark } from "@milkdown/kit/utils";
 import type { Node as ProseNode } from "@milkdown/prose/model";
 import type { NodeView } from "@milkdown/prose/view";
 import type { MarkdownNode, RemarkPluginRaw } from "@milkdown/transformer";
+import i18n from "../i18n";
 
 // ---------------------------------------------------------------------------
 // Mermaid diagram node schema
@@ -143,7 +144,7 @@ class MermaidDiagramView implements NodeView {
           "mermaid-svg p-4 border border-destructive/30 bg-destructive/5";
         const errorEl = document.createElement("p");
         errorEl.className = "text-sm text-destructive mb-1";
-        errorEl.textContent = "Mermaid rendering failed";
+        errorEl.textContent = i18n.t("mermaid.error");
         this.svgContainer.appendChild(errorEl);
       }
     }

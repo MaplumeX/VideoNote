@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { ChevronDownIcon, Loader2 } from "lucide-react";
 
@@ -22,9 +23,10 @@ export function Combobox({
   loading = false,
   disabled = false,
   className,
-  loadingText = "Loading...",
-  emptyText = "No options found",
+  loadingText,
+  emptyText,
 }: ComboboxProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -149,7 +151,7 @@ export function Combobox({
         >
           {loading && filtered.length === 0 ? (
             <li className="px-2.5 py-1.5 text-sm text-muted-foreground">
-              {loading ? loadingText : emptyText}
+              {loading ? (loadingText ?? t("common.loading")) : (emptyText ?? t("common.noOptions"))}
             </li>
           ) : (
             filtered.map((opt, idx) => (

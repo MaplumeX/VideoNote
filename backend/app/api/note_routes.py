@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth import TokenData, get_current_user
+from app.errors import error_detail
 from app.db import (
     add_tags_to_note,
     batch_add_tag,
@@ -82,7 +83,7 @@ async def create_tag_endpoint(req: TagCreate, user: CurrentUser):
     except Exception as exc:
         # UNIQUE constraint violation
         if "UNIQUE constraint" in str(exc):
-            raise HTTPException(status_code=409, detail="Tag name already exists") from exc
+            raise HTTPException(status_code=409, detail=error_detail("TAG_NAME_ALREADY_EXISTS")) from exc
         raise
     return TagResponse(**tag)
 
@@ -92,7 +93,7 @@ async def get_tag(tag_id: str, user: CurrentUser):
     """Get a tag by ID."""
     tag = await get_tag_by_id(tag_id)
     if not tag or tag["user_id"] != user.user_id:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
     # Get note count
     tags = await get_tags_by_user(user.user_id)
     for t in tags:
@@ -106,15 +107,15 @@ async def update_tag_endpoint(tag_id: str, req: TagUpdate, user: CurrentUser):
     """Update a tag's name and/or color."""
     tag = await get_tag_by_id(tag_id)
     if not tag or tag["user_id"] != user.user_id:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
     try:
         updated = await update_tag(tag_id, name=req.name, color=req.color)
     except Exception as exc:
         if "UNIQUE constraint" in str(exc):
-            raise HTTPException(status_code=409, detail="Tag name already exists") from exc
+            raise HTTPException(status_code=409, detail=error_detail("TAG_NAME_ALREADY_EXISTS")) from exc
         raise
     if not updated:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
     return TagResponse(**updated)
 
 
@@ -123,10 +124,10 @@ async def delete_tag_endpoint(tag_id: str, user: CurrentUser):
     """Delete a tag. Removes all note associations."""
     tag = await get_tag_by_id(tag_id)
     if not tag or tag["user_id"] != user.user_id:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
     deleted = await delete_tag(tag_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
     return {"detail": "Tag deleted"}
 
 
@@ -140,7 +141,7 @@ async def get_notes_by_tag(
     """List notes with a specific tag."""
     tag = await get_tag_by_id(tag_id)
     if not tag or tag["user_id"] != user.user_id:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
     if page < 1:
         page = 1
     if limit < 1 or limit > 100:
@@ -180,7 +181,7 @@ async def create_folder_endpoint(req: FolderCreate, user: CurrentUser):
     if req.parent_id:
         parent = await get_folder_by_id(req.parent_id)
         if not parent or parent["user_id"] != user.user_id:
-            raise HTTPException(status_code=404, detail="Parent folder not found")
+            raise HTTPException(status_code=404, detail=error_detail("PARENT_FOLDER_NOT_FOUND"))
     folder_id = str(uuid.uuid4())
     folder = await create_folder(
         folder_id, user.user_id, req.name, req.parent_id, req.sort_order,
@@ -193,7 +194,7 @@ async def get_folder(folder_id: str, user: CurrentUser):
     """Get a folder by ID."""
     folder = await get_folder_by_id(folder_id)
     if not folder or folder["user_id"] != user.user_id:
-        raise HTTPException(status_code=404, detail="Folder not found")
+        raise HTTPException(status_code=404, detail=error_detail("FOLDER_NOT_FOUND"))
     return FolderResponse(**folder)
 
 
@@ -202,18 +203,18 @@ async def update_folder_endpoint(folder_id: str, req: FolderUpdate, user: Curren
     """Update a folder's name and/or move it to a different parent."""
     folder = await get_folder_by_id(folder_id)
     if not folder or folder["user_id"] != user.user_id:
-        raise HTTPException(status_code=404, detail="Folder not found")
+        raise HTTPException(status_code=404, detail=error_detail("FOLDER_NOT_FOUND"))
     # Validate new parent if provided
     if req.parent_id is not None and req.parent_id:
         parent = await get_folder_by_id(req.parent_id)
         if not parent or parent["user_id"] != user.user_id:
-            raise HTTPException(status_code=404, detail="Parent folder not found")
+            raise HTTPException(status_code=404, detail=error_detail("PARENT_FOLDER_NOT_FOUND"))
     try:
         updated = await update_folder(folder_id, name=req.name, parent_id=req.parent_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if not updated:
-        raise HTTPException(status_code=404, detail="Folder not found")
+        raise HTTPException(status_code=404, detail=error_detail("FOLDER_NOT_FOUND"))
     return FolderResponse(**updated)
 
 
@@ -222,10 +223,10 @@ async def delete_folder_endpoint(folder_id: str, user: CurrentUser):
     """Delete a folder. Subfolders are also deleted; notes become uncategorized."""
     folder = await get_folder_by_id(folder_id)
     if not folder or folder["user_id"] != user.user_id:
-        raise HTTPException(status_code=404, detail="Folder not found")
+        raise HTTPException(status_code=404, detail=error_detail("FOLDER_NOT_FOUND"))
     deleted = await delete_folder(folder_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Folder not found")
+        raise HTTPException(status_code=404, detail=error_detail("FOLDER_NOT_FOUND"))
     return {"detail": "Folder deleted"}
 
 
@@ -239,7 +240,7 @@ async def get_notes_by_folder(
     """List notes in a specific folder."""
     folder = await get_folder_by_id(folder_id)
     if not folder or folder["user_id"] != user.user_id:
-        raise HTTPException(status_code=404, detail="Folder not found")
+        raise HTTPException(status_code=404, detail=error_detail("FOLDER_NOT_FOUND"))
     if page < 1:
         page = 1
     if limit < 1 or limit > 100:
@@ -263,7 +264,7 @@ async def get_note_tags_endpoint(job_id: str, user: CurrentUser):
     """Get all tags for a note."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
     tags = await get_tags_for_note(job_id)
     return {"tags": [TagResponse(**t) for t in tags]}
 
@@ -273,7 +274,7 @@ async def add_tags_to_note_endpoint(job_id: str, req: NoteTagAdd, user: CurrentU
     """Add tags to a note. Supports both tag_ids and tag_names (auto-create)."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     all_tag_ids: list[str] = list(req.tag_ids)
 
@@ -296,10 +297,10 @@ async def remove_tag_from_note_endpoint(job_id: str, tag_id: str, user: CurrentU
     """Remove a tag from a note."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
     removed = await remove_tag_from_note(job_id, tag_id)
     if not removed:
-        raise HTTPException(status_code=404, detail="Tag not associated with this note")
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_ASSOCIATED"))
     return {"detail": "Tag removed"}
 
 
@@ -311,16 +312,16 @@ async def move_note_to_folder_endpoint(job_id: str, req: NoteFolderUpdate, user:
     """Move a note to a folder. Set folder_id to null to uncategorize."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     if req.folder_id:
         folder = await get_folder_by_id(req.folder_id)
         if not folder or folder["user_id"] != user.user_id:
-            raise HTTPException(status_code=404, detail="Folder not found")
+            raise HTTPException(status_code=404, detail=error_detail("FOLDER_NOT_FOUND"))
 
     updated = await move_note_to_folder(job_id, req.folder_id)
     if not updated:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
     return {"detail": "Note moved"}
 
 
@@ -329,11 +330,11 @@ async def toggle_favorite_endpoint(job_id: str, req: FavoriteToggle, user: Curre
     """Set or unset favorite on a note."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     updated = await toggle_favorite(job_id, req.is_favorite)
     if not updated:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
     return {"detail": "Favorite updated"}
 
 
@@ -342,16 +343,16 @@ async def update_note_content_endpoint(job_id: str, req: NoteContentUpdate, user
     """Update the markdown content of a note."""
     task = await get_task(job_id)
     if not task or task.get("user_id") != user.user_id:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     result_raw = task.get("result_json")
     if not result_raw:
-        raise HTTPException(status_code=400, detail="Note has no content to update")
+        raise HTTPException(status_code=400, detail=error_detail("NOTE_NO_CONTENT"))
 
     markdown = normalize_note_markdown(req.markdown)
     updated = await update_note_content(job_id, markdown, req.title)
     if not updated:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))
 
     # Return the updated note
     result = json.loads(result_raw)
@@ -369,13 +370,13 @@ async def batch_tag_endpoint(req: BatchTagRequest, user: CurrentUser):
     """Add a tag to multiple notes."""
     tag = await get_tag_by_id(req.tag_id)
     if not tag or tag["user_id"] != user.user_id:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
 
     # Verify all tasks belong to user
     for job_id in req.job_ids:
         task = await get_task(job_id)
         if not task or task.get("user_id") != user.user_id:
-            raise HTTPException(status_code=404, detail=f"Task {job_id} not found")
+            raise HTTPException(status_code=404, detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id))
 
     await batch_add_tag(req.job_ids, req.tag_id)
     return {"detail": "Tag added to all notes"}
@@ -386,12 +387,12 @@ async def batch_remove_tag_endpoint(req: BatchTagRequest, user: CurrentUser):
     """Remove a tag from multiple notes."""
     tag = await get_tag_by_id(req.tag_id)
     if not tag or tag["user_id"] != user.user_id:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise HTTPException(status_code=404, detail=error_detail("TAG_NOT_FOUND"))
 
     for job_id in req.job_ids:
         task = await get_task(job_id)
         if not task or task.get("user_id") != user.user_id:
-            raise HTTPException(status_code=404, detail=f"Task {job_id} not found")
+            raise HTTPException(status_code=404, detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id))
 
     await batch_remove_tag(req.job_ids, req.tag_id)
     return {"detail": "Tag removed from all notes"}
@@ -403,12 +404,12 @@ async def batch_move_endpoint(req: BatchMoveRequest, user: CurrentUser):
     if req.folder_id:
         folder = await get_folder_by_id(req.folder_id)
         if not folder or folder["user_id"] != user.user_id:
-            raise HTTPException(status_code=404, detail="Folder not found")
+            raise HTTPException(status_code=404, detail=error_detail("FOLDER_NOT_FOUND"))
 
     for job_id in req.job_ids:
         task = await get_task(job_id)
         if not task or task.get("user_id") != user.user_id:
-            raise HTTPException(status_code=404, detail=f"Task {job_id} not found")
+            raise HTTPException(status_code=404, detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id))
 
     await batch_move_to_folder(req.job_ids, req.folder_id)
     return {"detail": "Notes moved"}
@@ -420,7 +421,7 @@ async def batch_favorite_endpoint(req: BatchFavoriteRequest, user: CurrentUser):
     for job_id in req.job_ids:
         task = await get_task(job_id)
         if not task or task.get("user_id") != user.user_id:
-            raise HTTPException(status_code=404, detail=f"Task {job_id} not found")
+            raise HTTPException(status_code=404, detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id))
 
     await batch_set_favorite(req.job_ids, req.is_favorite)
     return {"detail": "Favorites updated"}
@@ -432,7 +433,7 @@ async def batch_delete_endpoint(req: BatchDeleteRequest, user: CurrentUser):
     for job_id in req.job_ids:
         task = await get_task(job_id)
         if not task or task.get("user_id") != user.user_id:
-            raise HTTPException(status_code=404, detail=f"Task {job_id} not found")
+            raise HTTPException(status_code=404, detail=error_detail("TASK_WITH_ID_NOT_FOUND", jobId=job_id))
 
     deleted = await batch_delete_tasks(req.job_ids, user.user_id)
     return {"detail": "Notes deleted", "deleted": deleted}

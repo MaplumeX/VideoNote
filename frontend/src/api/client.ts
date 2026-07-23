@@ -21,14 +21,47 @@ import type {
   CookieInfo,
 } from "../types";
 import { authFetch } from "../auth/api";
+import i18n from "../i18n";
 
 const API_BASE = "/api";
+
+/** Error thrown by API client with a machine-readable code. */
+export class ApiError extends Error {
+  code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+  }
+}
+
+function snakeToCamel(s: string): string {
+  return s.toLowerCase().replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+}
+
+/** Translate a backend error detail (code+params object or legacy string) into a localized message. */
+export function translateApiError(detail: unknown): string {
+  if (typeof detail === "object" && detail !== null && "code" in detail) {
+    const { code, params = {} } = detail as { code: string; params?: Record<string, unknown> };
+    return i18n.t(`errors.${snakeToCamel(code)}`, { defaultValue: i18n.t("errors.unknown"), ...params });
+  }
+  if (typeof detail === "string" && detail) return detail;
+  return i18n.t("errors.unknown");
+}
+
+/** Extract code from backend error detail, if available. */
+function extractCode(detail: unknown): string | undefined {
+  if (typeof detail === "object" && detail !== null && "code" in detail) {
+    return (detail as { code: string }).code;
+  }
+  return undefined;
+}
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await authFetch(url, options);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    const err = await res.json().catch(() => ({}));
+    throw new ApiError(translateApiError(err.detail), extractCode(err.detail));
   }
   const text = await res.text();
   if (!text) return undefined as T;
@@ -48,9 +81,11 @@ export async function submitUrl(url: string, language: string): Promise<ProcessR
 export async function fetchResult(jobId: string): Promise<NoteResult> {
   const res = await authFetch(`${API_BASE}/tasks/${jobId}/result`);
   if (!res.ok) {
-    if (res.status === 202) throw new Error("Still processing");
-    const err = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 202) {
+      throw new ApiError(translateApiError(err.detail), extractCode(err.detail) || "TASK_STILL_PROCESSING");
+    }
+    throw new ApiError(translateApiError(err.detail), extractCode(err.detail));
   }
   return res.json();
 }
@@ -74,8 +109,8 @@ export async function saveSettings(settings: SettingsRequest): Promise<void> {
     body: JSON.stringify(settings),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    const err = await res.json().catch(() => ({}));
+    throw new ApiError(translateApiError(err.detail), extractCode(err.detail));
   }
 }
 

@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { Editor, rootCtx, defaultValueCtx } from "@milkdown/kit/core";
 import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
@@ -169,68 +171,70 @@ interface SlashItem {
   command: (view: EditorView) => void;
 }
 
-const slashItems: SlashItem[] = [
-  {
-    label: "Heading 1",
-    description: "Large heading",
-    icon: "H1",
-    command: (view) => insertHeading(view, 1),
-  },
-  {
-    label: "Heading 2",
-    description: "Medium heading",
-    icon: "H2",
-    command: (view) => insertHeading(view, 2),
-  },
-  {
-    label: "Heading 3",
-    description: "Small heading",
-    icon: "H3",
-    command: (view) => insertHeading(view, 3),
-  },
-  {
-    label: "Bullet List",
-    description: "Unordered list",
-    icon: "•",
-    command: (view) => insertBlock(view, "bullet_list"),
-  },
-  {
-    label: "Ordered List",
-    description: "Numbered list",
-    icon: "1.",
-    command: (view) => insertBlock(view, "ordered_list"),
-  },
-  {
-    label: "Task List",
-    description: "Checkbox list (GFM)",
-    icon: "☑",
-    command: (view) => insertTaskList(view),
-  },
-  {
-    label: "Code Block",
-    description: "Code with syntax",
-    icon: "</>",
-    command: (view) => insertBlock(view, "code_block"),
-  },
-  {
-    label: "Quote",
-    description: "Block quote",
-    icon: "\"",
-    command: (view) => insertBlock(view, "blockquote"),
-  },
-  {
-    label: "Table",
-    description: "GFM table",
-    icon: "⊞",
-    command: (view) => insertTable(view),
-  },
-  {
-    label: "Divider",
-    description: "Horizontal rule",
-    icon: "—",
-    command: (view) => insertBlock(view, "hr"),
-  },
-];
+function buildSlashItems(t: TFunction): SlashItem[] {
+  return [
+    {
+      label: t("editor.heading1"),
+      description: t("editor.heading1Desc"),
+      icon: "H1",
+      command: (view) => insertHeading(view, 1),
+    },
+    {
+      label: t("editor.heading2"),
+      description: t("editor.heading2Desc"),
+      icon: "H2",
+      command: (view) => insertHeading(view, 2),
+    },
+    {
+      label: t("editor.heading3"),
+      description: t("editor.heading3Desc"),
+      icon: "H3",
+      command: (view) => insertHeading(view, 3),
+    },
+    {
+      label: t("editor.bulletList"),
+      description: t("editor.bulletListDesc"),
+      icon: "•",
+      command: (view) => insertBlock(view, "bullet_list"),
+    },
+    {
+      label: t("editor.orderedList"),
+      description: t("editor.orderedListDesc"),
+      icon: "1.",
+      command: (view) => insertBlock(view, "ordered_list"),
+    },
+    {
+      label: t("editor.taskList"),
+      description: t("editor.taskListDesc"),
+      icon: "☑",
+      command: (view) => insertTaskList(view),
+    },
+    {
+      label: t("editor.codeBlock"),
+      description: t("editor.codeBlockDesc"),
+      icon: "</>",
+      command: (view) => insertBlock(view, "code_block"),
+    },
+    {
+      label: t("editor.quote"),
+      description: t("editor.quoteDesc"),
+      icon: "\"",
+      command: (view) => insertBlock(view, "blockquote"),
+    },
+    {
+      label: t("editor.table"),
+      description: t("editor.tableDesc"),
+      icon: "⊞",
+      command: (view) => insertTable(view),
+    },
+    {
+      label: t("editor.divider"),
+      description: t("editor.dividerDesc"),
+      icon: "—",
+      command: (view) => insertBlock(view, "hr"),
+    },
+  ];
+}
 
 function insertHeading(view: EditorView, level: number): void {
   const { state, dispatch } = view;
@@ -337,6 +341,7 @@ interface MilkdownEditorInnerProps {
 }
 
 function MilkdownEditorInner({ markdown, onChange }: MilkdownEditorInnerProps) {
+  const { t } = useTranslation();
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -437,6 +442,7 @@ function MilkdownEditorInner({ markdown, onChange }: MilkdownEditorInnerProps) {
   }, [loading, getEditorInstance]);
 
   // Filter slash items by current input
+  const slashItems = useMemo(() => buildSlashItems(t), [t]);
   const filteredItems = slashFilter
     ? slashItems.filter(
         (item) =>

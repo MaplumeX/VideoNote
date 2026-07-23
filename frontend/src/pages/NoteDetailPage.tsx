@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fetchResult, fetchTags, fetchFolderTree, fetchTaskById, fetchNoteTags, addTagsToNote, removeTagFromNote, moveNoteToFolder, toggleFavorite, updateNoteContent, cancelTask, retryTask } from "@/api/client";
+import { fetchResult, fetchTags, fetchFolderTree, fetchTaskById, fetchNoteTags, addTagsToNote, removeTagFromNote, moveNoteToFolder, toggleFavorite, updateNoteContent, cancelTask, retryTask, ApiError } from "@/api/client";
 import { useSSE } from "@/hooks/useSSE";
 import { StepIndicator } from "@/components/StepIndicator";
 import { VideoInfoCard } from "@/components/VideoInfoCard";
@@ -80,7 +80,7 @@ export function NoteDetailPage() {
         setLoading(false);
       })
       .catch((err) => {
-        if (err.message === "Still processing") {
+        if (err instanceof ApiError && err.code === "TASK_STILL_PROCESSING") {
           setProcessing(true);
           setLoading(false);
         } else {

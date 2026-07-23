@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { TaskStage, TaskProgress } from "../types";
 import { getProgressUrl } from "../api/client";
 import { authFetch } from "../auth/api";
+import { useTranslation } from "react-i18next";
 
 export function useSSE(jobId: string | null) {
+  const { t } = useTranslation();
   const [progress, setProgress] = useState<TaskProgress | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export function useSSE(jobId: string | null) {
         });
 
         if (!res.ok || !res.body) {
-          setError("Failed to connect to progress stream");
+          setError(t("errors.sseConnectionFailed"));
           return;
         }
 
@@ -57,11 +59,11 @@ export function useSSE(jobId: string | null) {
                 setProgress(data);
                 stageRef.current = data.stage;
                 if (data.stage === "failed") {
-                  setError(data.message || "Processing failed");
+                  setError(data.message || t("errors.processingFailed"));
                   return;
                 }
                 if (data.stage === "cancelled") {
-                  setError("Task cancelled");
+                  setError(t("errors.taskCancelled"));
                   return;
                 }
               } else if (currentEvent === "complete") {
@@ -78,7 +80,7 @@ export function useSSE(jobId: string | null) {
       } catch {
         if (abortController.signal.aborted) return;
         if (stageRef.current === "failed" || stageRef.current === "complete" || stageRef.current === "cancelled") return;
-        setError("Connection to server lost");
+        setError(t("errors.sseConnectionLost"));
       }
     })();
 
@@ -87,7 +89,7 @@ export function useSSE(jobId: string | null) {
       abortRef.current = null;
       stageRef.current = null;
     };
-  }, [jobId]);
+  }, [jobId, t]);
 
   return { progress, result, error };
 }
