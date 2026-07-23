@@ -9,6 +9,8 @@ from app.services.markdown import normalize_note_markdown
 
 logger = logging.getLogger(__name__)
 
+MAX_TRANSCRIPT_CHARS = 60000
+
 _PROMPTS_WITH_TIMESTAMPS: dict[str, dict[str, str]] = {
     "en": {
         "system": (
@@ -134,6 +136,11 @@ def generate_notes(
     )
 
     transcript_label = "转录文本" if language == "zh-CN" else "Transcript"
+    if len(transcript) > MAX_TRANSCRIPT_CHARS:
+        logger.warning(
+            f"Transcript truncated: {len(transcript)} -> {MAX_TRANSCRIPT_CHARS} chars"
+        )
+        transcript = transcript[:MAX_TRANSCRIPT_CHARS]
     user_content = f"{prompts['user']}{title_context}\n\n{transcript_label}:\n{transcript}"
 
     response = client.chat.completions.create(
@@ -143,7 +150,7 @@ def generate_notes(
             {"role": "user", "content": user_content},
         ],
         temperature=0.3,
-        max_tokens=4096,
+        max_tokens=8192,
     )
 
     notes = response.choices[0].message.content

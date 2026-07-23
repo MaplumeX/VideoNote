@@ -495,7 +495,14 @@ async def update_task_meta(
 async def update_progress(
     job_id: str, stage: TaskStage, progress: float, message: str = ""
 ) -> None:
-    """Atomically update progress only while the task remains runnable."""
+    """Atomically update progress only while the task remains runnable.
+
+    Once a task enters a terminal stage (complete/failed/cancelled), all
+    subsequent progress updates are silently dropped by the WHERE clause.
+    Callers must finish all progress writing before moving to a terminal
+    stage; writing finer error details after `failed` will be lost unless
+    a dedicated interface overrides the guard.
+    """
     db = await _get_db()
     try:
         now = datetime.now(UTC).isoformat()
@@ -1116,8 +1123,8 @@ async def update_note_content(job_id: str, markdown: str, title: str | None = No
         now = datetime.now(UTC).isoformat()
         result_json = json.dumps({"markdown": markdown, "title": final_title})
         cursor = await db.execute(
-            "UPDATE tasks SET result_json = ?, updated_at = ? WHERE job_id = ?",
-            (result_json, now, job_id),
+            "UPDATE tasks SET result_json = ?, title = ?, updated_at = ? WHERE job_id = ?",
+            (result_json, final_title, now, job_id),
         )
         await db.commit()
         return cursor.rowcount > 0

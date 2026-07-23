@@ -9,7 +9,7 @@ from app import db
 from app.api import routes
 from app.auth import TokenData
 from app.schemas import VideoRequest
-from app.services import subtitle, transcribe
+from app.services import note_gen, subtitle, transcribe
 
 # ── D1: _srt_to_transcript ──────────────────────────────────────────
 
@@ -327,3 +327,103 @@ def test_asr_language_mapping() -> None:
     assert routes._asr_language("en") == "en"
     assert routes._asr_language("zh-CN") == "zh"
     assert routes._asr_language("zh-TW") == "zh"
+
+MAX_SENTINEL_SIZE = 100 * 1024 * 1024  # 100MB > openAI limit, forces chunk path
+
+
+# ── Fix A: ASR chunk timestamp offset ───────────────────────────────
+
+
+def test_shift_timestamps_adds_chunk_offset() -> None:
+    text = "[00:00:10](#t=10) first\n[00:00:20](#t=20) second"
+    shifted = transcribe._shift_timestamps(text, 600.0)
+    assert "[00:10:10](#t=610) first" in shifted
+    assert "[00:10:20](#t=620) second" in shifted
+
+
+def test_shift_timestamps_passthrough_no_timestamps() -> None:
+    text = "纯文本没有任何时间戳\nsecond line"
+    assert transcribe._shift_timestamps(text, 600.0) == text
+
+
+def test_transcribe_large_file_offsets_chunk_timestamps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audio_path = tmp_path / "big.wav"
+    audio_path.write_bytes(b"fake large audio")
+
+    fixed_chunk_transcript = "[00:00:10](#t=10) a\n[00:00:20](#t=20) b"
+    monkeypatch.setattr(
+        transcribe,
+        "_transcribe_file",
+        lambda *a, **k: fixed_chunk_transcript,
+    )
+
+    call_args: list[list[str]] = []
+
+    def fake_subprocess_run(cmd, *args, **kwargs):
+        call_args.append(cmd)
+        result = MagicMock()
+        if cmd and cmd[0] == "ffprobe":
+            result.stdout = "1200.0\n"
+        result.returncode = 0
+        return result
+
+    monkeypatch.setattr(transcribe.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(transcribe.os.path, "getsize", lambda p: MAX_SENTINEL_SIZE)
+
+    client = MagicMock()
+    transcript = transcribe._transcribe_large_file(
+        client, str(audio_path), "en", "whisper-1", "openai"
+    )
+
+    # ffprobe + several ffmpeg chunk splits (chunk_duration = min(1200*ratio, 600)).
+    ffmpeg_cmds = [c for c in call_args if c[0] == "ffmpeg"]
+    assert len(ffmpeg_cmds) >= 2
+    # Extract the -ss offset for each chunk.
+    starts = [float(c[c.index("-ss") + 1]) for c in ffmpeg_cmds]
+    lines = transcript.splitlines()
+    # First chunk (offset 0) keeps relative timestamps.
+    assert "[00:00:10](#t=10) a" in lines
+    assert "[00:00:20](#t=20) b" in lines
+    # Every subsequent chunk must carry its start offset.
+    for start in starts:
+        if start == 0.0:
+            continue
+        shifted_seconds = int(10 + start)
+        assert transcribe._format_timestamp(10 + start) in transcript
+        assert f"#t={shifted_seconds}" in transcript
+
+
+# ── Fix C: note generation robustness ────────────────────────────────
+
+
+def test_generate_notes_max_tokens_is_8192(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=MagicMock(content="# Notes"))]
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = mock_response
+    monkeypatch.setattr(note_gen, "OpenAI", lambda **kwargs: mock_client)
+
+    note_gen.generate_notes("short transcript")
+
+    _, kwargs = mock_client.chat.completions.create.call_args
+    assert kwargs["max_tokens"] == 8192
+
+
+def test_generate_notes_truncates_long_transcript(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=MagicMock(content="# Notes"))]
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = mock_response
+    monkeypatch.setattr(note_gen, "OpenAI", lambda **kwargs: mock_client)
+
+    long_transcript = "x" * (note_gen.MAX_TRANSCRIPT_CHARS + 5000)
+    note_gen.generate_notes(long_transcript)
+
+    _, kwargs = mock_client.chat.completions.create.call_args
+    user_content = kwargs["messages"][1]["content"]
+    assert "x" * (note_gen.MAX_TRANSCRIPT_CHARS + 1) not in user_content
+    assert user_content.count("x") <= note_gen.MAX_TRANSCRIPT_CHARS + 1000

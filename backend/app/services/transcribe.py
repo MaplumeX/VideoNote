@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import subprocess
 import tempfile
 
@@ -13,6 +14,35 @@ logger = logging.getLogger(__name__)
 
 MAX_FILE_SIZE_BYTES_OPENAI = 25 * 1024 * 1024
 MAX_FILE_SIZE_BYTES_SILICONFLOW = 50 * 1024 * 1024
+
+# Matches the machine-generated `[HH:MM:SS](#t=SECONDS)` timestamp prefix that
+# `_transcribe_file` emits for each segment line.
+_TS_LINE_RE = re.compile(r"\[(\d{1,2}):(\d{2}):(\d{2})\]\(#t=(\d+)\)")
+
+
+def _shift_timestamps(text: str, offset_seconds: float) -> str:
+    """Shift every `[HH:MM:SS](#t=SECONDS)` timestamp in *text* by *offset_seconds*.
+
+    Used when stitching chunk transcriptions back together: each chunk's
+    segment times are relative to the chunk start, so the chunk's *start*
+    offset must be added before joining. Lines without a timestamp (e.g.
+    siliconflow plain-text output) are returned unchanged.
+    """
+    if offset_seconds == 0:
+        return text
+
+    def _replace(match: re.Match[str]) -> str:
+        h, m, s = int(match[1]), int(match[2]), int(match[3])
+        display_seconds = h * 3600 + m * 60 + s + offset_seconds
+        jump_seconds = int(int(match[4]) + offset_seconds)
+        return f"[{_format_timestamp(display_seconds)}](#t={jump_seconds})"
+
+    out_lines = []
+    for line in text.splitlines():
+        # Only replace the leading timestamp so incidental bracketed text in
+        # the segment body is untouched.
+        out_lines.append(_TS_LINE_RE.sub(_replace, line, count=1))
+    return "\n".join(out_lines)
 
 
 def transcribe_audio(
@@ -136,7 +166,7 @@ def _transcribe_large_file(
 
             text = _transcribe_file(client, chunk_path, language, model, provider)
             if text:
-                full_transcript_parts.append(text)
+                full_transcript_parts.append(_shift_timestamps(text, start))
 
             start += chunk_duration
             chunk_idx += 1

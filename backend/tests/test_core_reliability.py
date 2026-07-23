@@ -299,3 +299,40 @@ def test_upload_language_is_a_multipart_form_field() -> None:
     assert "requestBody" in operation
     assert "multipart/form-data" in operation["requestBody"]["content"]
     assert all(parameter["name"] != "language" for parameter in operation.get("parameters", []))
+
+
+# ── Fix B: note title edit consistency ───────────────────────────────
+
+
+async def test_update_note_content_syncs_title_column(isolated_db: Path) -> None:
+    import json
+
+    await db.create_user("user-b", "user-b@example.com", "hash")
+    await db.create_task("job-b", user_id="user-b", title="Video Title")
+    await db.set_result("job-b", "initial markdown", title="Video Title")
+
+    updated = await db.update_note_content("job-b", "new markdown", title="新标题")
+    assert updated is True
+
+    task = await db.get_task("job-b")
+    assert task is not None
+    assert task["title"] == "新标题"
+    result = json.loads(task["result_json"])
+    assert result["title"] == "新标题"
+    assert result["markdown"] == "new markdown"
+
+
+async def test_update_note_content_preserves_title_when_none(isolated_db: Path) -> None:
+    import json
+
+    await db.create_user("user-c", "user-c@example.com", "hash")
+    await db.create_task("job-c", user_id="user-c", title="Original Title")
+    await db.set_result("job-c", "initial markdown", title="Original Title")
+
+    await db.update_note_content("job-c", "edited markdown", title=None)
+
+    task = await db.get_task("job-c")
+    assert task is not None
+    assert task["title"] == "Original Title"
+    result = json.loads(task["result_json"])
+    assert result["title"] == "Original Title"
