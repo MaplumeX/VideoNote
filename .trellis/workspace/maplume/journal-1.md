@@ -73,3 +73,44 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: 修复核心链路逻辑 bug 与体验问题(13 项)
+
+**Date**: 2026-07-24
+**Task**: 修复核心链路逻辑 bug 与体验问题
+**Branch**: `main`
+
+### Summary
+
+代码审查发现核心链路 13 项问题(逻辑 bug + 体验 + 代码异味),分 6 阶段(Phase A–F)全部修复。后端 57 + 前端 40 = 97 测试全绿,ruff/eslint clean,trellis-check 独立审查通过 12/12 AC。
+
+### Main Changes
+
+- **Phase A+B(后端契约+helper 抽取)**:`ProcessResponse`/`UploadResponse` 增 `source_type` 字段;dedup 分支返回 DB title/thumbnail;新增 `ProviderBundle`/`_resolve_providers`/`_StageFailed`/`_run_asr`/`_run_note_gen`/`_make_asr_progress_cb`/`_make_note_progress_cb`,消除 `_process_video_url`/`_process_video_file` 大段重复。
+- **Phase C(错误透传+provider 校验)**:`_sanitize_error_detail` 剥离 sk-*/Bearer/cookie 并截断 200 字;失败 message 写 `"CODE: detail"`(detail 为空退化纯 code);`_ensure_providers_configured` 在 /process /upload /retry 前置校验返回 422 `PROVIDER_NOT_CONFIGURED`。
+- **Phase D(ASR 语言+取消+字幕去重)**:`_asr_language` 查表 {zh,en,ja}+None 自动探测;`transcribe_audio` 接受 `language: str | None`;`get_video_info_strict`/`extract_subtitles` 增 cancel_event 检查点;`extract_subtitles` 重构为单次 download 调用,删除 `extract_info(download=False)` 探测与 `_download_and_read_subtitle`。
+- **Phase E(retry 拷贝+safe_name 加固)**:`retry_task` upload 分支 `shutil.copy2` 拷贝输入文件;`_sanitize_upload_name` 白名单正则替换。
+- **Phase F(前端)**:useSSE 收到首事件后 `reconnectAttempt` 归零 + fetchTaskById 恢复后不消耗配额;useVideoUpload 401 silentRefresh 成功后自动重发(闭包标志防循环);NewNotePage 用 `data.source_type` 替代硬编码、fetchTaskById 拉取 title/thumbnail、PROVIDER_NOT_CONFIGURED 显示设置页按钮;translateTaskMessage 前缀匹配 `"CODE: detail"`。
+- **Spec 更新**:backend error-handling.md(PROVIDER_NOT_CONFIGURED + detail 透传格式);frontend hook-guidelines.md(upload 401 auto-replay 契约);cross-layer guide(initiating page late-metadata fetch 模式)。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d84fcc2` | fix(core): resolve pipeline logic bugs and UX issues across 13 areas |
+
+### Testing
+
+- Backend: `uv run pytest -q` → 57 passed
+- Frontend: `npm test -- --run` → 40 passed (7 files)
+- Lint: `ruff check .` clean, `eslint .` clean, `vite build` OK
+- trellis-check 独立审查:12/12 AC 满足,无阻塞
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
