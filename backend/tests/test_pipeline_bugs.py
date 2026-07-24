@@ -114,7 +114,8 @@ async def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(db, "DB_PATH", database_path)
     monkeypatch.setattr(routes, "UPLOAD_DIR", upload_dir)
     await db.init_db()
-    return upload_dir
+    yield upload_dir
+    await db.close_db()
 
 
 async def test_process_video_does_not_call_get_video_info(
