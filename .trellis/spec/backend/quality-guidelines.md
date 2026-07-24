@@ -147,6 +147,15 @@ All long-running tasks report progress to SQLite for SSE consumption:
 await update_progress(job_id, TaskStage.transcribing, 0.4, "Transcribing audio...")
 ```
 
+Progress values MUST be monotonic non-decreasing within a single task — never write a smaller
+value than the previous one. This applies across stage transitions, especially when falling
+back from subtitle extraction to ASR: the fallback path must continue from the current value,
+not reset to a lower one. Use distinct sub-ranges per stage (e.g. extracting_subtitles 0.10–0.30,
+downloading 0.15–0.25, transcribing 0.30–0.60, generating_notes 0.65–0.95 for URL tasks;
+extraction 0.05–0.15, transcribing 0.20–0.60, generating_notes 0.65–0.95 for upload tasks).
+
+Use `TaskStage.downloading` for audio extraction of uploaded files (NOT `transcribing`)
+
 ### File cleanup
 
 Temp files (downloaded videos, extracted audio) must be cleaned up after processing, even on error. Use `try/finally` or `tempfile.TemporaryDirectory`:

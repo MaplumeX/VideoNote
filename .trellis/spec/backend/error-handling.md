@@ -87,6 +87,16 @@ async def _process_video_url(job_id, url, ...):
 
 All five codes must be added to the frontend `TASK_MESSAGE_ERROR_CODES` set and `i18n` locales (`errors.<camelCase>`).
 
+### Additional stable error codes
+
+| Error code | When |
+|------------|------|
+| `AUDIO_EXTRACTION_FAILED` | Uploaded file audio extraction (ffmpeg) failed — do NOT reuse `VIDEO_FETCH_FAILED` for upload-source tasks |
+| `TASK_RECOVERY_MAX_ATTEMPTS` | Recovery skipped a task because `attempt_count >= MAX_TASK_ATTEMPTS` (5) and marked it `failed` |
+| `MODELS_FETCH_FAILED` | `/models` endpoint caught an exception; never return `str(e)` to the frontend, only this code |
+
+These must also be added to `TASK_MESSAGE_ERROR_CODES` (for codes that can appear as task progress messages) and `errors.<camelCase>` i18n keys.
+
 ### Non-fatal failures
 
 Thumbnail download failure is non-fatal: wrap `download_thumbnail` in its own try/except, log a warning, and set the thumbnail to `None` — the task continues to generate notes.
@@ -95,7 +105,9 @@ Rules:
 - Progress `message` MUST be a `SCREAMING_SNAKE_CASE` error code for known failure modes — never `str(e)` (it may leak internal paths, key fragments, or stack details to the frontend).
 - The frontend's `translateTaskMessage()` maps these codes to i18n keys via `errors.<camelCase>`.
 - Raw exception text stays in server logs only (`logger.exception`).
-- **LLM calls** (`note_gen.py`) use `_call_llm()` which retries up to 3 times with exponential backoff (2s, 4s) on `RateLimitError`, `APITimeoutError`, `APIConnectionError`, and 5xx `APIStatusError`. 4xx errors are not retried. Long transcripts are split into chunks (≤ 60000 chars each at line boundaries), each chunk generates a sub-note, and a final LLM call merges them via `_merge_notes()`.
+- **LLM calls** (`note_gen.py`) use `_call_llm()` which retries up to 3 times with exponential backoff (2s, 4s) on `RateLimitError`, `APITimeoutError`, `APIConnectionError`, and 5xx `APIStatusError`. 4xx errors are not retried. Long transcripts are split into chunks (≤ 60000 chars each at line boundaries), each chunk generates a sub-note, and a final LLM call merges them via `_merge_notes()`. If a completion returns `finish_reason == "length"` (truncated by `max_tokens`), `_call_llm()` issues up to 2 continuation requests (appending the assistant prefix + a "continue" user turn) and concatenates the content; a warning is logged if still truncated after 2 continuations.
+- **Multi-chunk note generation** reports progress via a `progress_cb` (0.65 start → 0.90 per-chunk → 0.92 merging → 0.95 done) so the SSE stream shows incremental progress instead of stalling at a single value.
+- **Cancellation into blocking calls**: `TaskRunner.schedule` creates a `threading.Event` and passes it to the task factory. The event flows into `to_thread`-wrapped service functions (`get_video_info_strict`, `extract_subtitles`, `download_audio_via_ytdlp`, `extract_audio`, `transcribe_audio`, `generate_notes`) so cancellation aborts yt-dlp (via a `progress_hooks` that raises `yt_dlp.utils.DownloadCancelled`) and ffmpeg (`Popen.terminate()`/`kill()`), and skips further ASR/LLM chunks. When a service raises `RuntimeError("cancelled")` from a thread, the route-layer `except Exception` block checks `cancel_event.is_set()` and records `TaskStage.cancelled` instead of `failed`. OpenAI in-flight HTTP calls cannot be interrupted, but chunk-boundary checkpoints prevent new calls from starting after cancellation.
 - Each stage-specific `except` block MUST `return` so the outer catch-all doesn't overwrite the specific code.
 - The outer `except Exception` is a last-resort catch-all with a generic `PROCESSING_FAILED` code.
 
