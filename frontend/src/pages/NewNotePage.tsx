@@ -145,11 +145,26 @@ export function NewNotePage() {
           {/* Step indicator */}
           <div className="flex justify-center">
             {uploading ? (
-              <StepIndicator stage="downloading" progress={uploadProgress} />
+              <StepIndicator
+                stage="downloading"
+                progress={uploadProgress}
+                sourceType={taskMeta?.source_type === "upload" ? "upload" : "url"}
+              />
             ) : (
-              <StepIndicator stage={progress?.stage ?? null} progress={progress?.progress ?? 0} />
+              <StepIndicator
+                stage={progress?.stage ?? null}
+                progress={progress?.progress ?? 0}
+                sourceType={taskMeta?.source_type === "upload" ? "upload" : "url"}
+              />
             )}
           </div>
+
+          {/* Progress message */}
+          {!uploading && !isFailed && progress?.message && (
+            <p className="text-center text-sm text-muted-foreground">
+              {progress.message}
+            </p>
+          )}
 
           {/* Action buttons */}
           {(showCancelButton || showRetryButton) && (

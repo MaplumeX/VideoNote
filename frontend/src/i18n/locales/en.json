@@ -202,6 +202,7 @@
   },
   "steps": {
     "download": "Download",
+    "extractAudio": "Extract Audio",
     "transcribe": "Transcribe",
     "generate": "Generate Notes",
     "inProgress": "Processing {{percent}}%"
@@ -312,6 +313,10 @@
     "transcriptionFailed": "Audio transcription failed.",
     "noteGenerationFailed": "Note generation failed.",
     "uploadFileMissing": "The uploaded file is no longer available. Please re-upload.",
-    "taskNotRetryable": "This task cannot be retried."
+    "taskNotRetryable": "This task cannot be retried.",
+    "audioExtractionFailed": "Audio extraction failed.",
+    "modelsFetchFailed": "Failed to fetch model list.",
+    "taskRecoveryMaxAttempts": "This task failed repeatedly and will no longer be retried.",
+    "duplicateTask": "A task for this video is already running."
   }
 }

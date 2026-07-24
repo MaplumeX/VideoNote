@@ -68,6 +68,8 @@ const TASK_MESSAGE_ERROR_CODES = new Set([
   "NOTE_GENERATION_FAILED",
   "PROCESSING_FAILED",
   "UPLOAD_FILE_MISSING",
+  "AUDIO_EXTRACTION_FAILED",
+  "TASK_RECOVERY_MAX_ATTEMPTS",
 ]);
 
 /** Translate stable task-state messages while preserving legacy free-form text. */
