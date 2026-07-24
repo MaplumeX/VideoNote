@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "backend spec entry point; DB singleton, error handling, logging conventions for routes/services/task_runner changes"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "singleton connection, parameterized queries, UPSERT patterns for new find_active_task_by_url and attempt-limit SQL"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "stable error codes; new codes AUDIO_EXTRACTION_FAILED, TASK_RECOVERY_MAX_ATTEMPTS, MODELS_FETCH_FAILED must follow conventions"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "cross-layer progress contract (backend stage/message <-> frontend StepIndicator) must stay consistent"}

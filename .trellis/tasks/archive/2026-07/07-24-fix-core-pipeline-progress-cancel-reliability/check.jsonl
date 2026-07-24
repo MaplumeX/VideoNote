@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "backend check conventions; verify new SQL, cancel threading, progress monotonicity"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "verify new error codes stable and not leaking internal str(e)"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "frontend check conventions; verify StepIndicator + NewNotePage changes"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Tailwind-only, shadcn render prop, named exports for modified components"}
