@@ -30,3 +30,34 @@ describe("translateTaskMessage", () => {
     })).toBe("任务失败：任务无法恢复：源文件缺失或无效");
   });
 });
+
+describe("translateTaskMessage prefix matching", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  it("translates code with detail suffix", async () => {
+    await i18n.changeLanguage("en");
+    const result = translateTaskMessage("TRANSCRIPTION_FAILED: rate limit exceeded");
+    expect(result).toContain("Audio transcription failed");
+    expect(result).toContain("rate limit exceeded");
+  });
+
+  it("translates PROVIDER_NOT_CONFIGURED code", async () => {
+    await i18n.changeLanguage("en");
+    const result = translateTaskMessage("PROVIDER_NOT_CONFIGURED");
+    expect(result).toBe("Provider not configured. Please set up your ASR and LLM providers in Settings.");
+  });
+
+  it("translates PROVIDER_NOT_CONFIGURED with detail suffix", async () => {
+    await i18n.changeLanguage("en");
+    const result = translateTaskMessage("PROVIDER_NOT_CONFIGURED: ASR key missing");
+    expect(result).toContain("Provider not configured");
+    expect(result).toContain("ASR key missing");
+  });
+
+  it("falls back to plain code translation when no detail", async () => {
+    await i18n.changeLanguage("en");
+    expect(translateTaskMessage("TRANSCRIPTION_FAILED")).toBe("Audio transcription failed.");
+  });
+});

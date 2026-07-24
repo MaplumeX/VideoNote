@@ -94,6 +94,7 @@ All five codes must be added to the frontend `TASK_MESSAGE_ERROR_CODES` set and 
 | `AUDIO_EXTRACTION_FAILED` | Uploaded file audio extraction (ffmpeg) failed — do NOT reuse `VIDEO_FETCH_FAILED` for upload-source tasks |
 | `TASK_RECOVERY_MAX_ATTEMPTS` | Recovery skipped a task because `attempt_count >= MAX_TASK_ATTEMPTS` (5) and marked it `failed` |
 | `MODELS_FETCH_FAILED` | `/models` endpoint caught an exception; never return `str(e)` to the frontend, only this code |
+| `PROVIDER_NOT_CONFIGURED` | `/process`, `/upload`, or `/retry` was called but ASR or LLM provider has no `api_key` (neither user config nor env default). Returned as HTTP 422 before scheduling any work |
 
 These must also be added to `TASK_MESSAGE_ERROR_CODES` (for codes that can appear as task progress messages) and `errors.<camelCase>` i18n keys.
 
@@ -103,6 +104,7 @@ Thumbnail download failure is non-fatal: wrap `download_thumbnail` in its own tr
 
 Rules:
 - Progress `message` MUST be a `SCREAMING_SNAKE_CASE` error code for known failure modes — never `str(e)` (it may leak internal paths, key fragments, or stack details to the frontend).
+- **Error detail透传**: When a stage fails, the progress `message` is `"CODE: detail"` where `detail` is a sanitized exception summary (strips `sk-*` API keys, `Bearer` tokens, and cookie content via `_sanitize_error_detail()`; truncated to 200 chars). When `detail` is empty, the message degrades to plain `"CODE"`. The frontend's `translateTaskMessage()` uses prefix matching — splits at the first `": "`, translates the code prefix via i18n, appends the detail suffix. This is backward-compatible: plain `"CODE"` still works.
 - The frontend's `translateTaskMessage()` maps these codes to i18n keys via `errors.<camelCase>`.
 - Raw exception text stays in server logs only (`logger.exception`).
 - **LLM calls** (`note_gen.py`) use `_call_llm()` which retries up to 3 times with exponential backoff (2s, 4s) on `RateLimitError`, `APITimeoutError`, `APIConnectionError`, and 5xx `APIStatusError`. 4xx errors are not retried. Long transcripts are split into chunks (≤ 60000 chars each at line boundaries), each chunk generates a sub-note, and a final LLM call merges them via `_merge_notes()`. If a completion returns `finish_reason == "length"` (truncated by `max_tokens`), `_call_llm()` issues up to 2 continuation requests (appending the assistant prefix + a "continue" user turn) and concatenates the content; a warning is logged if still truncated after 2 continuations.

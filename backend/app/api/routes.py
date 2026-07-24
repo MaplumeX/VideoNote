@@ -3,9 +3,13 @@
 import asyncio
 import json
 import logging
+import re
+import shutil
 import tempfile
 import threading
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -82,7 +86,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SUPPORTED_LANGUAGES = {"en", "zh-CN"}
+SUPPORTED_LANGUAGES = {"en", "zh-CN", "ja"}
 
 
 async def _cancellation_checkpoint(job_id: str) -> None:
@@ -100,6 +104,45 @@ def _safe_upload_path(path_value: str | None) -> Path | None:
     if path == upload_root or upload_root not in path.parents:
         return None
     return path
+
+
+# --- Error detail sanitization ---
+
+_API_KEY_RE = re.compile(r"sk-[A-Za-z0-9-_]{8,}")
+_BEARER_RE = re.compile(r"[Bb]earer\s+[A-Za-z0-9\-_.=]+")
+_COOKIE_RE = re.compile(r"(?:set-)?cookie:\s*[^\n;]+", re.IGNORECASE)
+
+
+def _sanitize_error_detail(exc: Exception) -> str:
+    """Strip sensitive data (API keys, Bearer tokens, cookies) from exception text.
+
+    Returns a sanitized string truncated to 200 characters, or empty string.
+    """
+    raw = str(exc)
+    raw = _API_KEY_RE.sub("[REDACTED]", raw)
+    raw = _BEARER_RE.sub("[REDACTED]", raw)
+    raw = _COOKIE_RE.sub("[REDACTED]", raw)
+    raw = raw.strip()
+    if len(raw) > 200:
+        raw = raw[:200]
+    return raw
+
+
+# --- Upload filename sanitization ---
+
+_SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._\u4e00-\u9fff-]")
+
+
+def _sanitize_upload_name(filename: str | None) -> str:
+    """Sanitize a user-supplied filename for safe local storage.
+
+    Takes the basename, replaces non-whitelisted characters with '_',
+    strips leading dots/spaces, and collapses '..' sequences.
+    """
+    base = Path(filename).name if filename else "upload"
+    base = _SAFE_NAME_RE.sub("_", base)
+    base = base.replace("..", "_").strip(". ") or "upload"
+    return base
 
 
 def _mask_api_key(key: str) -> str:
@@ -145,9 +188,15 @@ def _subtitle_languages(note_lang: str) -> list[str]:
     return ["en", "zh-Hans", "zh", "ja"]
 
 
-def _asr_language(note_lang: str) -> str:
-    """Map note-language code to a Whisper language code."""
-    return "zh" if note_lang.startswith("zh") else "en"
+_ASR_LANG_MAP = {"zh-CN": "zh", "en": "en", "ja": "ja"}
+
+
+def _asr_language(note_lang: str) -> str | None:
+    """Map note-language code to a Whisper language code.
+
+    Returns None for unmapped languages so Whisper auto-detects.
+    """
+    return _ASR_LANG_MAP.get(note_lang)
 
 
 async def _get_user_cookiefile(user_id: str, url: str) -> str | None:
@@ -176,6 +225,158 @@ async def _get_user_cookiefile(user_id: str, url: str) -> str | None:
     return tmp.name
 
 
+# --- Shared helpers for _process_video_url / _process_video_file ---
+
+
+@dataclass
+class ProviderBundle:
+    """Resolved ASR + LLM provider configuration (user config with env fallback)."""
+
+    asr_api_key: str
+    asr_api_base: str
+    asr_model: str
+    asr_provider: str
+    llm_api_key: str
+    llm_api_base: str
+    llm_model: str
+
+
+@dataclass
+class _StageFailed(Exception):
+    """Raised by stage helpers to signal failure or cancellation.
+
+    code: stable error code (e.g. "TRANSCRIPTION_FAILED").
+    detail: sanitized exception summary (empty for now; wired in Phase C).
+    cancelled: True when the stage was interrupted by a cancel request.
+    """
+
+    code: str = ""
+    detail: str = ""
+    cancelled: bool = False
+
+
+async def _resolve_providers(user_id: str | None) -> ProviderBundle:
+    """Read user provider config from DB, falling back to env defaults."""
+    asr_cfg = await _get_user_provider(user_id, "asr") if user_id else None
+    llm_cfg = await _get_user_provider(user_id, "llm") if user_id else None
+
+    return ProviderBundle(
+        asr_api_key=asr_cfg["api_key"] if asr_cfg and asr_cfg["api_key"] else ASR_API_KEY,
+        asr_api_base=asr_cfg["api_base"] if asr_cfg and asr_cfg["api_base"] else ASR_API_BASE,
+        asr_model=asr_cfg["model"] if asr_cfg and asr_cfg["model"] else ASR_MODEL,
+        asr_provider=asr_cfg["provider"] if asr_cfg and asr_cfg["provider"] else ASR_PROVIDER,
+        llm_api_key=llm_cfg["api_key"] if llm_cfg and llm_cfg["api_key"] else LLM_API_KEY,
+        llm_api_base=llm_cfg["api_base"] if llm_cfg and llm_cfg["api_base"] else LLM_API_BASE,
+        llm_model=llm_cfg["model"] if llm_cfg and llm_cfg["model"] else LLM_MODEL,
+    )
+
+
+async def _ensure_providers_configured(user_id: str | None) -> str | None:
+    """Return 'PROVIDER_NOT_CONFIGURED' if ASR or LLM api_key is empty, else None."""
+    providers = await _resolve_providers(user_id)
+    if not providers.asr_api_key or not providers.llm_api_key:
+        return "PROVIDER_NOT_CONFIGURED"
+    return None
+
+
+def _make_asr_progress_cb(
+    job_id: str,
+    loop: asyncio.AbstractEventLoop,
+    cancel_event: threading.Event | None,
+    base: float,
+    span: float,
+) -> Callable[[float, str], None]:
+    """Create a progress callback that maps ASR fraction to the [base, base+span] range."""
+
+    def _cb(fraction: float, msg: str) -> None:
+        if cancel_event is not None and cancel_event.is_set():
+            return
+        progress = base + fraction * span
+        asyncio.run_coroutine_threadsafe(
+            update_progress(job_id, TaskStage.transcribing, progress, msg),
+            loop,
+        )
+
+    return _cb
+
+
+def _make_note_progress_cb(
+    job_id: str,
+    loop: asyncio.AbstractEventLoop,
+) -> Callable[[float, str], None]:
+    """Create a progress callback for note generation (passes fraction directly)."""
+
+    def _cb(fraction: float, msg: str) -> None:
+        asyncio.run_coroutine_threadsafe(
+            update_progress(job_id, TaskStage.generating_notes, fraction, msg), loop
+        )
+
+    return _cb
+
+
+async def _run_asr(
+    job_id: str,
+    audio_path: str,
+    language: str,
+    providers: ProviderBundle,
+    cancel_event: threading.Event | None,
+    progress_cb: Callable[[float, str], None],
+) -> str:
+    """Run ASR transcription. Raises _StageFailed on failure or cancellation."""
+    try:
+        transcript = await asyncio.to_thread(
+            transcribe_audio,
+            audio_path,
+            language=_asr_language(language),
+            api_key=providers.asr_api_key,
+            api_base=providers.asr_api_base,
+            model=providers.asr_model,
+            provider=providers.asr_provider,
+            progress_cb=progress_cb,
+            cancel_event=cancel_event,
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        if cancel_event is not None and cancel_event.is_set():
+            raise _StageFailed(cancelled=True) from e
+        raise _StageFailed(code="TRANSCRIPTION_FAILED", detail=_sanitize_error_detail(e)) from e
+    return transcript
+
+
+async def _run_note_gen(
+    job_id: str,
+    transcript: str,
+    video_title: str | None,
+    language: str,
+    providers: ProviderBundle,
+    cancel_event: threading.Event | None,
+    progress_cb: Callable[[float, str], None],
+    has_timestamps: bool,
+) -> str:
+    """Run note generation. Raises _StageFailed on failure or cancellation."""
+    try:
+        markdown = await asyncio.to_thread(
+            generate_notes,
+            transcript,
+            video_title=video_title,
+            language=language,
+            api_key=providers.llm_api_key,
+            api_base=providers.llm_api_base,
+            model=providers.llm_model,
+            has_timestamps=has_timestamps,
+            cancel_event=cancel_event,
+            progress_cb=progress_cb,
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        if cancel_event is not None and cancel_event.is_set():
+            raise _StageFailed(cancelled=True) from e
+        raise _StageFailed(code="NOTE_GENERATION_FAILED", detail=_sanitize_error_detail(e)) from e
+    return markdown
+
+
 async def _process_video_url(
     job_id: str, url: str, language: str = "en", user_id: str | None = None,
     cancel_event: threading.Event | None = None,
@@ -188,18 +389,7 @@ async def _process_video_url(
 
     try:
         await _cancellation_checkpoint(job_id)
-        # Read user provider config, fallback to env defaults
-        asr_cfg = await _get_user_provider(user_id, "asr") if user_id else None
-        llm_cfg = await _get_user_provider(user_id, "llm") if user_id else None
-
-        asr_api_key = asr_cfg["api_key"] if asr_cfg and asr_cfg["api_key"] else ASR_API_KEY
-        asr_api_base = asr_cfg["api_base"] if asr_cfg and asr_cfg["api_base"] else ASR_API_BASE
-        asr_model = asr_cfg["model"] if asr_cfg and asr_cfg["model"] else ASR_MODEL
-        asr_provider = asr_cfg["provider"] if asr_cfg and asr_cfg["provider"] else ASR_PROVIDER
-
-        llm_api_key = llm_cfg["api_key"] if llm_cfg and llm_cfg["api_key"] else LLM_API_KEY
-        llm_api_base = llm_cfg["api_base"] if llm_cfg and llm_cfg["api_base"] else LLM_API_BASE
-        llm_model = llm_cfg["model"] if llm_cfg and llm_cfg["model"] else LLM_MODEL
+        providers = await _resolve_providers(user_id)
 
         # Video info (fatal) + thumbnail (non-fatal)
         try:
@@ -218,7 +408,9 @@ async def _process_video_url(
                 return
             logger.exception(f"Task {job_id} video fetch failed: {e}")
             code = getattr(e, "code", None) or "VIDEO_FETCH_FAILED"
-            await update_progress(job_id, TaskStage.failed, 0.0, code)
+            detail = _sanitize_error_detail(e)
+            message = f"{code}: {detail}" if detail else code
+            await update_progress(job_id, TaskStage.failed, 0.0, message)
             return
 
         # Thumbnail download is non-fatal.
@@ -264,46 +456,28 @@ async def _process_video_url(
                         await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
                         return
                     logger.exception(f"Task {job_id} audio download failed: {e}")
+                    detail = _sanitize_error_detail(e)
+                    message = f"VIDEO_FETCH_FAILED: {detail}" if detail else "VIDEO_FETCH_FAILED"
                     await update_progress(
-                        job_id, TaskStage.failed, 0.0, "VIDEO_FETCH_FAILED"
+                        job_id, TaskStage.failed, 0.0, message
                     )
                     return
                 await _cancellation_checkpoint(job_id)
 
                 await update_progress(job_id, TaskStage.transcribing, 0.30, "Transcribing audio...")
                 loop = asyncio.get_running_loop()
-
-                def _asr_progress_cb(fraction: float, msg: str) -> None:
-                    if cancel_event is not None and cancel_event.is_set():
-                        return
-                    progress = 0.30 + fraction * 0.30  # map to 0.30–0.60 range
-                    asyncio.run_coroutine_threadsafe(
-                        update_progress(job_id, TaskStage.transcribing, progress, msg),
-                        loop,
-                    )
-
+                asr_cb = _make_asr_progress_cb(job_id, loop, cancel_event, base=0.30, span=0.30)
                 try:
-                    transcript = await asyncio.to_thread(
-                        transcribe_audio,
-                        audio_path,
-                        language=_asr_language(language),
-                        api_key=asr_api_key,
-                        api_base=asr_api_base,
-                        model=asr_model,
-                        provider=asr_provider,
-                        progress_cb=_asr_progress_cb,
-                        cancel_event=cancel_event,
+                    transcript = await _run_asr(
+                        job_id, audio_path, language, providers, cancel_event, asr_cb,
                     )
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    if cancel_event is not None and cancel_event.is_set():
+                except _StageFailed as sf:
+                    if sf.cancelled:
                         await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
-                        return
-                    logger.exception(f"Task {job_id} transcription failed: {e}")
-                    await update_progress(
-                        job_id, TaskStage.failed, 0.0, "TRANSCRIPTION_FAILED"
-                    )
+                    else:
+                        logger.exception(f"Task {job_id} transcription failed")
+                        message = f"{sf.code}: {sf.detail}" if sf.detail else sf.code
+                        await update_progress(job_id, TaskStage.failed, 0.0, message)
                     return
                 await _cancellation_checkpoint(job_id)
 
@@ -312,35 +486,19 @@ async def _process_video_url(
         await update_progress(job_id, TaskStage.generating_notes, 0.65, "Generating notes...")
         has_timestamps = "#t=" in transcript
         loop = asyncio.get_running_loop()
-
-        def _note_progress_cb(fraction: float, msg: str) -> None:
-            asyncio.run_coroutine_threadsafe(
-                update_progress(job_id, TaskStage.generating_notes, fraction, msg), loop
-            )
-
+        note_cb = _make_note_progress_cb(job_id, loop)
         try:
-            markdown = await asyncio.to_thread(
-                generate_notes,
-                transcript,
-                video_title=video_title,
-                language=language,
-                api_key=llm_api_key,
-                api_base=llm_api_base,
-                model=llm_model,
-                has_timestamps=has_timestamps,
-                cancel_event=cancel_event,
-                progress_cb=_note_progress_cb,
+            markdown = await _run_note_gen(
+                job_id, transcript, video_title, language,
+                providers, cancel_event, note_cb, has_timestamps,
             )
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            if cancel_event is not None and cancel_event.is_set():
+        except _StageFailed as sf:
+            if sf.cancelled:
                 await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
-                return
-            logger.exception(f"Task {job_id} note generation failed: {e}")
-            await update_progress(
-                job_id, TaskStage.failed, 0.0, "NOTE_GENERATION_FAILED"
-            )
+            else:
+                logger.exception(f"Task {job_id} note generation failed")
+                message = f"{sf.code}: {sf.detail}" if sf.detail else sf.code
+                await update_progress(job_id, TaskStage.failed, 0.0, message)
             return
         await _cancellation_checkpoint(job_id)
 
@@ -353,7 +511,9 @@ async def _process_video_url(
             await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
         else:
             logger.exception(f"Task {job_id} failed: {e}")
-            await update_progress(job_id, TaskStage.failed, 0.0, "PROCESSING_FAILED")
+            detail = _sanitize_error_detail(e)
+            message = f"PROCESSING_FAILED: {detail}" if detail else "PROCESSING_FAILED"
+            await update_progress(job_id, TaskStage.failed, 0.0, message)
     finally:
         # Clean up temp cookie file
         if cookiefile_path:
@@ -367,18 +527,7 @@ async def _process_video_file(
     """Process an uploaded video file: extract audio, transcribe, generate notes."""
     try:
         await _cancellation_checkpoint(job_id)
-        # Read user provider config, fallback to env defaults
-        asr_cfg = await _get_user_provider(user_id, "asr") if user_id else None
-        llm_cfg = await _get_user_provider(user_id, "llm") if user_id else None
-
-        asr_api_key = asr_cfg["api_key"] if asr_cfg and asr_cfg["api_key"] else ASR_API_KEY
-        asr_api_base = asr_cfg["api_base"] if asr_cfg and asr_cfg["api_base"] else ASR_API_BASE
-        asr_model = asr_cfg["model"] if asr_cfg and asr_cfg["model"] else ASR_MODEL
-        asr_provider = asr_cfg["provider"] if asr_cfg and asr_cfg["provider"] else ASR_PROVIDER
-
-        llm_api_key = llm_cfg["api_key"] if llm_cfg and llm_cfg["api_key"] else LLM_API_KEY
-        llm_api_base = llm_cfg["api_base"] if llm_cfg and llm_cfg["api_base"] else LLM_API_BASE
-        llm_model = llm_cfg["model"] if llm_cfg and llm_cfg["model"] else LLM_MODEL
+        providers = await _resolve_providers(user_id)
 
         await update_progress(job_id, TaskStage.downloading, 0.05, "Extracting audio from video...")
 
@@ -395,46 +544,31 @@ async def _process_video_file(
                     await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
                     return
                 logger.exception(f"Task {job_id} audio extraction failed: {e}")
+                detail = _sanitize_error_detail(e)
+                message = (
+                    f"AUDIO_EXTRACTION_FAILED: {detail}"
+                    if detail else "AUDIO_EXTRACTION_FAILED"
+                )
                 await update_progress(
-                    job_id, TaskStage.failed, 0.0, "AUDIO_EXTRACTION_FAILED"
+                    job_id, TaskStage.failed, 0.0, message
                 )
                 return
             await _cancellation_checkpoint(job_id)
 
             await update_progress(job_id, TaskStage.transcribing, 0.20, "Transcribing audio...")
             loop = asyncio.get_running_loop()
-
-            def _asr_progress_cb(fraction: float, msg: str) -> None:
-                if cancel_event is not None and cancel_event.is_set():
-                    return
-                progress = 0.20 + fraction * 0.40  # map to 0.20–0.60 range
-                asyncio.run_coroutine_threadsafe(
-                    update_progress(job_id, TaskStage.transcribing, progress, msg),
-                    loop,
-                )
-
+            asr_cb = _make_asr_progress_cb(job_id, loop, cancel_event, base=0.20, span=0.40)
             try:
-                transcript = await asyncio.to_thread(
-                    transcribe_audio,
-                    audio_path,
-                    language=_asr_language(language),
-                    api_key=asr_api_key,
-                    api_base=asr_api_base,
-                    model=asr_model,
-                    provider=asr_provider,
-                    progress_cb=_asr_progress_cb,
-                    cancel_event=cancel_event,
+                transcript = await _run_asr(
+                    job_id, audio_path, language, providers, cancel_event, asr_cb,
                 )
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                if cancel_event is not None and cancel_event.is_set():
+            except _StageFailed as sf:
+                if sf.cancelled:
                     await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
-                    return
-                logger.exception(f"Task {job_id} transcription failed: {e}")
-                await update_progress(
-                    job_id, TaskStage.failed, 0.0, "TRANSCRIPTION_FAILED"
-                )
+                else:
+                    logger.exception(f"Task {job_id} transcription failed")
+                    message = f"{sf.code}: {sf.detail}" if sf.detail else sf.code
+                    await update_progress(job_id, TaskStage.failed, 0.0, message)
                 return
             await _cancellation_checkpoint(job_id)
 
@@ -443,34 +577,19 @@ async def _process_video_file(
         await update_progress(job_id, TaskStage.generating_notes, 0.65, "Generating notes...")
         has_timestamps = "#t=" in transcript
         loop = asyncio.get_running_loop()
-
-        def _note_progress_cb(fraction: float, msg: str) -> None:
-            asyncio.run_coroutine_threadsafe(
-                update_progress(job_id, TaskStage.generating_notes, fraction, msg), loop
-            )
-
+        note_cb = _make_note_progress_cb(job_id, loop)
         try:
-            markdown = await asyncio.to_thread(
-                generate_notes,
-                transcript,
-                language=language,
-                api_key=llm_api_key,
-                api_base=llm_api_base,
-                model=llm_model,
-                has_timestamps=has_timestamps,
-                cancel_event=cancel_event,
-                progress_cb=_note_progress_cb,
+            markdown = await _run_note_gen(
+                job_id, transcript, None, language,
+                providers, cancel_event, note_cb, has_timestamps,
             )
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            if cancel_event is not None and cancel_event.is_set():
+        except _StageFailed as sf:
+            if sf.cancelled:
                 await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
-                return
-            logger.exception(f"Task {job_id} note generation failed: {e}")
-            await update_progress(
-                job_id, TaskStage.failed, 0.0, "NOTE_GENERATION_FAILED"
-            )
+            else:
+                logger.exception(f"Task {job_id} note generation failed")
+                message = f"{sf.code}: {sf.detail}" if sf.detail else sf.code
+                await update_progress(job_id, TaskStage.failed, 0.0, message)
             return
         await _cancellation_checkpoint(job_id)
 
@@ -483,7 +602,9 @@ async def _process_video_file(
             await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
         else:
             logger.exception(f"Task {job_id} failed: {e}")
-            await update_progress(job_id, TaskStage.failed, 0.0, "PROCESSING_FAILED")
+            detail = _sanitize_error_detail(e)
+            message = f"PROCESSING_FAILED: {detail}" if detail else "PROCESSING_FAILED"
+            await update_progress(job_id, TaskStage.failed, 0.0, message)
     finally:
         task = await get_task(job_id)
         if task is None or task["stage"] in (
@@ -517,9 +638,16 @@ async def process_video(
     if existing:
         return ProcessResponse(
             job_id=existing["job_id"],
-            title="",
-            thumbnail_url="",
+            title=existing.get("title") or "",
+            thumbnail_url=existing.get("thumbnail_url") or "",
             platform=existing.get("platform") or platform,
+            source_type=existing.get("source_type") or "url",
+        )
+
+    not_configured = await _ensure_providers_configured(user.user_id)
+    if not_configured:
+        raise HTTPException(
+            status_code=422, detail=error_detail(not_configured),
         )
 
     await create_task(
@@ -539,6 +667,7 @@ async def process_video(
         title="",
         thumbnail_url="",
         platform=platform,
+        source_type="url",
     )
 
 
@@ -585,11 +714,13 @@ async def upload_video(
     language = _normalize_language(language)
     job_id = str(uuid.uuid4())
 
-    safe_name = Path(file.filename).name if file.filename else "upload"
-    safe_name = safe_name.replace("..", "")
-    if not safe_name:
-        safe_name = "upload"
+    not_configured = await _ensure_providers_configured(user.user_id)
+    if not_configured:
+        raise HTTPException(
+            status_code=422, detail=error_detail(not_configured),
+        )
 
+    safe_name = _sanitize_upload_name(file.filename)
     max_bytes = MAX_UPLOAD_SIZE_MB * 1024 * 1024
     file_path = UPLOAD_DIR / f"{job_id}_{safe_name}"
 
@@ -620,6 +751,7 @@ async def upload_video(
     return UploadResponse(
         job_id=job_id,
         file_name=safe_name,
+        source_type="upload",
     )
 
 
@@ -813,6 +945,12 @@ async def retry_task(
     if task["stage"] != TaskStage.failed.value:
         raise HTTPException(status_code=409, detail=error_detail("ONLY_FAILED_CAN_RETRY"))
 
+    not_configured = await _ensure_providers_configured(user.user_id)
+    if not_configured:
+        raise HTTPException(
+            status_code=422, detail=error_detail(not_configured),
+        )
+
     language = task.get("language") or "en"
     new_job_id = str(uuid.uuid4())
     source_type = task.get("source_type")
@@ -836,6 +974,7 @@ async def retry_task(
             title="",
             thumbnail_url="",
             platform=platform,
+            source_type="url",
         )
 
     if source_type == "upload":
@@ -843,15 +982,19 @@ async def retry_task(
         if not file_path or not file_path.is_file():
             raise HTTPException(status_code=422, detail=error_detail("UPLOAD_FILE_MISSING"))
         file_name = task.get("file_name") or "upload"
+        safe_name = _sanitize_upload_name(file_name)
+        new_file_path = UPLOAD_DIR / f"{new_job_id}_{safe_name}"
+        shutil.copy2(file_path, new_file_path)
         await create_task(
             new_job_id, message="Uploaded, queued", user_id=user.user_id,
             file_name=file_name, language=language, source_type="upload",
-            input_file_path=str(file_path),
+            input_file_path=str(new_file_path.resolve()),
         )
         task_runner.schedule(
             new_job_id,
             lambda ev: _process_video_file(
-                new_job_id, str(file_path), language=language, user_id=user.user_id, cancel_event=ev
+                new_job_id, str(new_file_path),
+                language=language, user_id=user.user_id, cancel_event=ev,
             ),
         )
         return ProcessResponse(
@@ -859,6 +1002,7 @@ async def retry_task(
             title="",
             thumbnail_url="",
             platform="upload",
+            source_type="upload",
         )
 
     raise HTTPException(status_code=422, detail=error_detail("TASK_NOT_RETRYABLE"))

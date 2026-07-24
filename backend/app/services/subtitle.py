@@ -141,74 +141,23 @@ def extract_subtitles(
 ) -> str | None:
     """Extract subtitles from a video URL using yt-dlp.
 
-    Tries manual subtitles first, then auto-generated captions.
+    Runs a single yt-dlp ``download`` call with ``skip_download=True``
+    to fetch subtitle files, then picks the best match by language priority.
     Returns SRT-formatted subtitle text, or None if no subtitles found.
     """
     if languages is None:
         languages = ["en", "zh-Hans", "zh", "ja"]
 
-    ydl_opts = _ydl_opts(
-        cookiefile_path=cookiefile_path,
-        cancel_event=cancel_event,
-        writesubtitles=True,
-        writeautomaticsub=True,
-        subtitleslangs=languages,
-        subtitlesformat="srt",
-        convertsubs="srt",
-    )
+    if cancel_event is not None and cancel_event.is_set():
+        raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if info is None:
-                return None
-
-            # Try manual subtitles first
-            subtitles = info.get("subtitles", {})
-            for lang in languages:
-                if lang in subtitles:
-                    subs = subtitles[lang]
-                    for sub_info in subs:
-                        if sub_info.get("ext") == "srt":
-                            # yt-dlp with download=False doesn't get the
-                            # actual content, need to re-run with download
-                            return _download_and_read_subtitle(
-                                url, lang, auto=False, languages=languages,
-                                cookiefile_path=cookiefile_path,
-                                cancel_event=cancel_event,
-                            )
-
-            # Try auto-generated captions
-            auto_captions = info.get("automatic_captions", {})
-            for lang in languages:
-                if lang in auto_captions:
-                    return _download_and_read_subtitle(
-                        url, lang, auto=True, languages=languages,
-                        cookiefile_path=cookiefile_path,
-                        cancel_event=cancel_event,
-                    )
-
-            logger.info(f"No subtitles found for {url}")
-            return None
-
-    except Exception as e:
-        logger.warning(f"Subtitle extraction failed for {url}: {e}")
-        return None
-
-
-def _download_and_read_subtitle(
-    url: str, lang: str, auto: bool, languages: list[str],
-    *, cookiefile_path: str | None = None,
-    cancel_event: threading.Event | None = None,
-) -> str | None:
-    """Download subtitle file via yt-dlp and read its content."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ydl_opts = _ydl_opts(
             cookiefile_path=cookiefile_path,
             cancel_event=cancel_event,
-            writesubtitles=not auto,
-            writeautomaticsub=auto,
-            subtitleslangs=[lang],
+            writesubtitles=True,
+            writeautomaticsub=True,
+            subtitleslangs=languages,
             subtitlesformat="srt",
             convertsubs="srt",
             outtmpl=str(Path(tmpdir) / "%(id)s"),
@@ -218,21 +167,33 @@ def _download_and_read_subtitle(
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
-
-            # Find the .srt file in tmpdir
-            srt_files = list(Path(tmpdir).glob("*.srt"))
-            if srt_files:
-                return _srt_to_transcript(srt_files[0].read_text(encoding="utf-8"))
-
-            # Try .vtt files (some platforms don't convert properly)
-            vtt_files = list(Path(tmpdir).glob("*.vtt"))
-            if vtt_files:
-                return _srt_to_transcript(vtt_files[0].read_text(encoding="utf-8"))
-
-            return None
         except Exception as e:
-            logger.warning(f"Subtitle download failed: {e}")
+            logger.warning(f"Subtitle extraction failed for {url}: {e}")
             return None
+
+        if cancel_event is not None and cancel_event.is_set():
+            raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
+
+        # Collect all subtitle files, sorted by language priority.
+        all_subs: list[Path] = []
+        for ext in ("*.srt", "*.vtt"):
+            all_subs.extend(Path(tmpdir).glob(ext))
+
+        def _lang_priority(filepath: Path) -> int:
+            for i, lang in enumerate(languages):
+                if lang in filepath.stem:
+                    return i
+            return len(languages)
+
+        all_subs.sort(key=_lang_priority)
+
+        for f in all_subs:
+            content = _srt_to_transcript(f.read_text(encoding="utf-8"))
+            if content:
+                return content
+
+        logger.info(f"No subtitles found for {url}")
+        return None
 
 
 def detect_video_platform(url: str) -> str:
@@ -272,18 +233,23 @@ def get_video_info_strict(
     The raised exception has a ``code`` attribute set to the stable error code
     (e.g. ``VIDEO_PRIVATE``), falling back to ``VIDEO_FETCH_FAILED``.
     """
+    if cancel_event is not None and cancel_event.is_set():
+        raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
     ydl_opts = _ydl_opts(cookiefile_path=cookiefile_path, cancel_event=cancel_event)
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if info is None:
                 raise RuntimeError("yt-dlp returned no info")
-            return {"title": info.get("title"), "thumbnail_url": info.get("thumbnail")}
+            result = {"title": info.get("title"), "thumbnail_url": info.get("thumbnail")}
     except Exception as e:
         code = classify_ytdlp_error(e)
         err = RuntimeError(f"{code}: {e}")
         err.code = code
         raise err from e
+    if cancel_event is not None and cancel_event.is_set():
+        raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
+    return result
 
 
 def get_video_title(url: str, *, cookiefile_path: str | None = None) -> str | None:

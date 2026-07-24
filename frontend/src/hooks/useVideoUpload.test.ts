@@ -70,7 +70,7 @@ describe("useVideoUpload", () => {
     });
   });
 
-  it("refreshes an expired session but requires an explicit re-upload", async () => {
+  it("auto-retries upload with refreshed token after 401", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => (
       new Response(JSON.stringify({ access_token: "fresh" }), {
         status: 200,
@@ -90,10 +90,15 @@ describe("useVideoUpload", () => {
 
     await act(async () => {
       await FakeXMLHttpRequest.latest?.respond(401, {});
-      await expect(uploadPromise).resolves.toBe("");
+    });
+
+    // After refresh, a new XHR is created — respond with success.
+    await act(async () => {
+      await FakeXMLHttpRequest.latest?.respond(200, { job_id: "job-1" });
+      await expect(uploadPromise).resolves.toBe("job-1");
     });
 
     expect(getAccessToken()).toBe("fresh");
-    expect(result.current.error).not.toBeNull();
+    expect(FakeXMLHttpRequest.latest?.headers.get("Authorization")).toBe("Bearer fresh");
   });
 });

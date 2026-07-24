@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "backend pre-development checklist and entry point"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "error code conventions and detail透传 rules"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "tasks table column usage and message field constraints"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "what may appear in logs vs message field"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "backend quality gates and test expectations"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "frontend pre-development checklist"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "useSSE / useVideoUpload hook conventions"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TaskProgress / ProcessResponse type changes"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "taskMeta / progress state flow"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "frontend quality gates"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "helper extraction for _process_video_url/file dedup"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "SSE contract + ProcessResponse contract cross-layer changes"}

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "backend check criteria"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "verify error code + detail format compliance"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "frontend check criteria"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "verify useSSE/useVideoUpload changes follow hook rules"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "verify helper extraction actually removes duplication"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "verify SSE + ProcessResponse contract changes are consistent across layers"}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import { VideoInput } from "@/components/VideoInput";
@@ -7,7 +7,7 @@ import { VideoInfoCard } from "@/components/VideoInfoCard";
 import { Button } from "@/components/ui/button";
 import { useSSE } from "@/hooks/useSSE";
 import { useVideoUpload } from "@/hooks/useVideoUpload";
-import { submitUrl, cancelTask, retryTask } from "@/api/client";
+import { submitUrl, cancelTask, retryTask, fetchTaskById, ApiError } from "@/api/client";
 import { getAccessToken } from "@/auth/token";
 import type { TaskMeta } from "@/types";
 
@@ -17,15 +17,43 @@ export function NewNotePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [jobId, setJobId] = useState<string | null>(searchParams.get("job"));
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [taskMeta, setTaskMeta] = useState<TaskMeta | null>(null);
   const appLanguage = i18n.resolvedLanguage === "zh-CN" ? "zh-CN" : "en";
 
   const { progress, result, error: sseError } = useSSE(jobId);
-  const { uploading, progress: uploadProgress, error: uploadError, upload } =
+  const { uploading, progress: uploadProgress, error: uploadError, errorCode: uploadErrorCode, upload } =
     useVideoUpload();
 
   const isProcessing = !!jobId;
   const isFailed = progress?.stage === "failed" || progress?.stage === "cancelled";
+
+  // Fetch task metadata (title/thumbnail) from the REST API once the SSE stage
+  // transitions from pending to an active stage, since the POST response may
+  // have empty title/thumbnail (they're populated by update_task_meta shortly
+  // after submission, before the first non-pending progress).
+  const metaFetchedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!jobId || !progress) return;
+    if (progress.stage === "pending") return;
+    if (metaFetchedFor.current === jobId) return;
+    metaFetchedFor.current = jobId;
+    void (async () => {
+      try {
+        const task = await fetchTaskById(jobId);
+        if (task.title || task.thumbnail_url || task.platform) {
+          setTaskMeta((prev) => ({
+            ...prev,
+            title: task.title ?? prev?.title,
+            thumbnail_url: task.thumbnail_url ?? prev?.thumbnail_url,
+            platform: task.platform ?? prev?.platform,
+          }));
+        }
+      } catch {
+        // Non-fatal — metadata may still arrive later
+      }
+    })();
+  }, [jobId, progress?.stage]);
 
   useEffect(() => {
     if (result && jobId) {
@@ -36,30 +64,43 @@ export function NewNotePage() {
   useEffect(() => {
     if (sseError) {
       setError(sseError);
+      // Detect PROVIDER_NOT_CONFIGURED from translated task message
+      setErrorCode(
+        sseError === t("errors.providerNotConfigured")
+          ? "PROVIDER_NOT_CONFIGURED"
+          : null,
+      );
       // Keep jobId and taskMeta so user can see the info card and retry
     }
-  }, [sseError]);
+  }, [sseError, t]);
 
   useEffect(() => {
     if (uploadError) {
       setError(uploadError);
+      setErrorCode(uploadErrorCode);
     }
-  }, [uploadError]);
+  }, [uploadError, uploadErrorCode]);
 
   const handleUrlSubmit = async (url: string) => {
     setError(null);
+    setErrorCode(null);
     try {
       const data = await submitUrl(url, appLanguage);
       setJobId(data.job_id);
       setTaskMeta({
-        title: data.title,
-        thumbnail_url: data.thumbnail_url,
-        platform: data.platform,
-        source_type: "url",
+        title: data.title || undefined,
+        thumbnail_url: data.thumbnail_url || undefined,
+        platform: data.platform || undefined,
+        source_type: data.source_type,
       });
       setSearchParams({ job: data.job_id }, { replace: true });
-    } catch {
-      setError(t("error.submitUrlFailed"));
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+        setErrorCode(err.code ?? null);
+      } else {
+        setError(t("error.submitUrlFailed"));
+      }
     }
   };
 
@@ -98,16 +139,23 @@ export function NewNotePage() {
     try {
       const data = await retryTask(jobId);
       setJobId(data.job_id);
+      metaFetchedFor.current = null;
       setTaskMeta({
-        title: data.title,
-        thumbnail_url: data.thumbnail_url,
-        platform: data.platform,
-        source_type: "url",
+        title: data.title || undefined,
+        thumbnail_url: data.thumbnail_url || undefined,
+        platform: data.platform || undefined,
+        source_type: data.source_type,
       });
       setError(null);
+      setErrorCode(null);
       setSearchParams({ job: data.job_id }, { replace: true });
-    } catch {
-      setError(t("history.retryFailed"));
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+        setErrorCode(err.code ?? null);
+      } else {
+        setError(t("history.retryFailed"));
+      }
     }
   };
 
@@ -125,6 +173,16 @@ export function NewNotePage() {
       {error && (
         <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
           {error}
+          {errorCode === "PROVIDER_NOT_CONFIGURED" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-3"
+              onClick={() => navigate("/app/settings")}
+            >
+              {t("sidebar.settings")}
+            </Button>
+          )}
         </div>
       )}
 

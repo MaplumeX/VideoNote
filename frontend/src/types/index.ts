@@ -25,11 +25,13 @@ export interface ProcessResponse {
   title: string;
   thumbnail_url: string;
   platform: string;
+  source_type: "url" | "upload";
 }
 
 export interface UploadResponse {
   job_id: string;
   file_name: string;
+  source_type: "url" | "upload";
 }
 
 export interface TaskMeta {

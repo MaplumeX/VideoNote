@@ -136,3 +136,85 @@ describe("useSSE", () => {
     expect(result.current.progress?.message).toBe("translated recovery error");
   });
 });
+
+describe("useSSE reconnect quota", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("resets reconnectAttempt after first event received, then recovers on normal close", async () => {
+    // Simulate: stream opens → first progress event received (reconnect resets) →
+    // stream closes normally (server timeout) → fetchTaskById returns processing →
+    // reconnects without consuming quota → second stream sends complete.
+    vi.mocked(authFetch)
+      .mockResolvedValueOnce(streamResponse([
+        "event: progress\r\n",
+        "data: {\"stage\":\"transcribing\",\"progress\":0.3,\"message\":\"working\"}\r\n\r\n",
+      ]))
+      .mockResolvedValueOnce(streamResponse([
+        "event: complete\r\n",
+        "data: {\"markdown\":\"# done\"}\r\n\r\n",
+      ]));
+    vi.mocked(fetchTaskById).mockResolvedValue({
+      job_id: "job-rc",
+      stage: "transcribing",
+      progress: 0.3,
+      message: "working",
+      created_at: "",
+      title: null,
+      video_url: null,
+      file_name: null,
+      platform: null,
+      language: null,
+      source_type: null,
+      folder_id: null,
+      is_favorite: false,
+      thumbnail_url: null,
+    });
+
+    const { result } = renderHook(() => useSSE("job-rc"));
+
+    await waitFor(() => {
+      expect(result.current.result).toBe("# done");
+    });
+    expect(result.current.error).toBeNull();
+    // First stream received an event (1 call) + second stream (1 call) = 2 total
+    expect(authFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("increments reconnectAttempt on true network failure before first event", async () => {
+    // Simulate: connection drops immediately (no events) — fetchTaskById returns
+    // processing — should consume a reconnect slot (exponential backoff).
+    // Then second stream succeeds.
+    vi.mocked(authFetch)
+      .mockResolvedValueOnce(streamResponse([])) // empty stream, no events
+      .mockResolvedValueOnce(streamResponse([
+        "event: complete\r\n",
+        "data: {\"markdown\":\"# recovered2\"}\r\n\r\n",
+      ]));
+    vi.mocked(fetchTaskById).mockResolvedValue({
+      job_id: "job-nf",
+      stage: "transcribing",
+      progress: 0.3,
+      message: "working",
+      created_at: "",
+      title: null,
+      video_url: null,
+      file_name: null,
+      platform: null,
+      language: null,
+      source_type: null,
+      folder_id: null,
+      is_favorite: false,
+      thumbnail_url: null,
+    });
+
+    const { result } = renderHook(() => useSSE("job-nf"));
+
+    await waitFor(() => {
+      expect(result.current.result).toBe("# recovered2");
+    });
+    expect(result.current.error).toBeNull();
+    expect(authFetch).toHaveBeenCalledTimes(2);
+  });
+});

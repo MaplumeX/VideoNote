@@ -49,7 +49,7 @@ def _shift_timestamps(text: str, offset_seconds: float) -> str:
 
 def transcribe_audio(
     audio_path: str,
-    language: str = "en",
+    language: str | None = "en",
     api_key: str | None = None,
     api_base: str | None = None,
     model: str | None = None,
@@ -93,7 +93,7 @@ def transcribe_audio(
 
 
 def _transcribe_file(
-    client: OpenAI, audio_path: str, language: str, model: str, provider: str
+    client: OpenAI, audio_path: str, language: str | None, model: str, provider: str
 ) -> str:
     """Transcribe a single file via the configured ASR provider."""
     with open(audio_path, "rb") as f:
@@ -104,13 +104,15 @@ def _transcribe_file(
             )
             return getattr(transcript, "text", "")
 
-        transcript = client.audio.transcriptions.create(
-            model=model,
-            file=f,
-            language=language,
-            response_format="verbose_json",
-            timestamp_granularities=["segment"],
-        )
+        kwargs: dict = {
+            "model": model,
+            "file": f,
+            "response_format": "verbose_json",
+            "timestamp_granularities": ["segment"],
+        }
+        if language is not None:
+            kwargs["language"] = language
+        transcript = client.audio.transcriptions.create(**kwargs)
 
     segments = getattr(transcript, "segments", [])
     if segments:
@@ -128,7 +130,7 @@ def _transcribe_file(
 def _transcribe_large_file(
     client: OpenAI,
     audio_path: str,
-    language: str,
+    language: str | None,
     model: str,
     provider: str,
     progress_cb: Callable[[float, str], None] | None = None,

@@ -300,7 +300,6 @@
     "sseConnectionLost": "与服务器连接断开",
     "taskCancelled": "任务已取消",
     "processingFailed": "处理失败",
-    "uploadSessionRefreshed": "登录状态已恢复，请重新上传文件",
     "uploadSessionExpired": "登录状态已过期，请登录后重新上传文件",
     "uploadNetworkFailed": "网络异常导致上传中断，请重试",
     "taskRecoveryUnsupportedUrl": "任务无法恢复：原视频链接已不受支持",
@@ -317,6 +316,7 @@
     "audioExtractionFailed": "音频提取失败。",
     "modelsFetchFailed": "获取模型列表失败。",
     "taskRecoveryMaxAttempts": "此任务多次失败，不再重试。",
-    "duplicateTask": "该视频已有正在进行的任务。"
+    "duplicateTask": "该视频已有正在进行的任务。",
+    "providerNotConfigured": "尚未配置 Provider，请前往设置页配置 ASR 与 LLM。"
   }
 }

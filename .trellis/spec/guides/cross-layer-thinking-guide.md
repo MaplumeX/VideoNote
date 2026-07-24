@@ -179,6 +179,7 @@ When a frontend page initiates a long-running task (via POST) and then receives 
 ### Decision rule
 
 - **Initiating page** (user just clicked Submit) → **Approach C**: extend the POST response. The frontend already has the response, no extra round-trip needed.
+  - **Late metadata caveat**: If the POST response has empty title/thumbnail (because `update_task_meta` runs in the background shortly after), the initiating page should fetch metadata via `fetchTaskById(jobId)` once the SSE stage transitions from `pending` to an active stage. By then `update_task_meta` has completed and the DB has the title/thumbnail. Use a ref guard to fetch at most once per `jobId`.
 - **Observer page** (user navigated to an existing task) → **Approach B**: fetch metadata via existing `fetchTaskById()`. The data is already in the DB schema.
 - **Don't extend SSE** for static metadata that doesn't change during processing.
 

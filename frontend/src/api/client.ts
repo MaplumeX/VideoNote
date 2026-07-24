@@ -70,10 +70,28 @@ const TASK_MESSAGE_ERROR_CODES = new Set([
   "UPLOAD_FILE_MISSING",
   "AUDIO_EXTRACTION_FAILED",
   "TASK_RECOVERY_MAX_ATTEMPTS",
+  "PROVIDER_NOT_CONFIGURED",
 ]);
 
-/** Translate stable task-state messages while preserving legacy free-form text. */
+/** Translate stable task-state messages while preserving legacy free-form text.
+ *
+ * Supports two formats:
+ * - Plain code: `"TRANSCRIPTION_FAILED"` → translated i18n string.
+ * - Code + detail: `"TRANSCRIPTION_FAILED: rate limit exceeded"` →
+ *   `"<translated>: rate limit exceeded"`.
+ */
 export function translateTaskMessage(message: string): string {
+  const colonIdx = message.indexOf(": ");
+  if (colonIdx !== -1) {
+    const code = message.slice(0, colonIdx);
+    const detail = message.slice(colonIdx + 2);
+    if (TASK_MESSAGE_ERROR_CODES.has(code)) {
+      const translated = translateApiError({ code });
+      return detail ? `${translated}: ${detail}` : translated;
+    }
+    // Unknown code with detail — return the detail part for user readability.
+    return detail || message;
+  }
   if (TASK_MESSAGE_ERROR_CODES.has(message)) {
     return translateApiError({ code: message });
   }

@@ -38,11 +38,13 @@ class ProcessResponse(BaseModel):
     title: str = ""
     thumbnail_url: str = ""
     platform: str = ""
+    source_type: Literal["url", "upload"] = "url"
 
 
 class UploadResponse(BaseModel):
     job_id: str
     file_name: str = ""
+    source_type: Literal["url", "upload"] = "upload"
 
 
 class NoteResponse(BaseModel):

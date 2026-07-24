@@ -57,6 +57,7 @@ export function useSSE(jobId: string | null) {
 
       while (!abortController.signal.aborted) {
         let terminal = false;
+        let firstEventReceived = false;
         try {
           const res = await authFetch(url, {
             signal: abortController.signal,
@@ -77,6 +78,10 @@ export function useSSE(jobId: string | null) {
               };
               setProgress(translatedData);
               stageRef.current = data.stage;
+              if (!firstEventReceived) {
+                firstEventReceived = true;
+                reconnectAttempt = 0;
+              }
               if (data.stage === "failed") {
                 terminal = true;
                 setError(
@@ -90,6 +95,10 @@ export function useSSE(jobId: string | null) {
               const data: { markdown: string } = JSON.parse(rawData);
               terminal = true;
               stageRef.current = "complete";
+              if (!firstEventReceived) {
+                firstEventReceived = true;
+                reconnectAttempt = 0;
+              }
               setResult(data.markdown);
               setError(null);
             }
@@ -137,21 +146,30 @@ export function useSSE(jobId: string | null) {
             setError(t("errors.taskCancelled"));
             return;
           }
+          // Task still processing — treat as successful recovery.
+          // Reset reconnect counter and re-enter the loop to reconnect.
+          reconnectAttempt = 0;
         } catch {
           if (abortController.signal.aborted) return;
         }
 
-        if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
-          setError(t("errors.sseConnectionLost"));
-          return;
-        }
-
-        const delay = RECONNECT_BASE_DELAY_MS * (2 ** reconnectAttempt);
-        reconnectAttempt += 1;
-        try {
-          await waitForReconnect(delay, abortController.signal);
-        } catch {
-          return;
+        // Only increment the reconnect counter if we never received an event
+        // on this connection attempt (true network error / connection drop
+        // before first event). If we did receive at least one event, the
+        // server-side close was normal and we should reconnect without
+        // consuming a retry slot.
+        if (!firstEventReceived) {
+          if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+            setError(t("errors.sseConnectionLost"));
+            return;
+          }
+          const delay = RECONNECT_BASE_DELAY_MS * (2 ** reconnectAttempt);
+          reconnectAttempt += 1;
+          try {
+            await waitForReconnect(delay, abortController.signal);
+          } catch {
+            return;
+          }
         }
       }
     })();

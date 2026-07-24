@@ -308,7 +308,7 @@ Use this contract for authenticated requests that may refresh credentials, multi
 ### 2. Signatures
 
 - `authFetch()` shares one module-level refresh promise and retries an original request at most once.
-- Multipart upload sends `language` in `FormData`; an upload 401 may refresh credentials but must not automatically replay the file.
+- Multipart upload sends `language` in `FormData`; an upload 401 may refresh credentials and, if refresh succeeds, automatically replay the file **once** (guarded by a closure flag to prevent infinite loops). If refresh fails, the user sees a localized "session expired" message.
 - SSE bytes pass through the incremental parser before hooks interpret progress, completion, failure, or cancellation events.
 - Recovery error codes pass through the API translation layer, including codes nested in error parameters.
 
@@ -318,7 +318,7 @@ Use this contract for authenticated requests that may refresh credentials, multi
 - A late response for an old token uses a newer in-memory token when available and must not start a second refresh after authentication was cleared.
 - The SSE parser retains partial fields across chunks, accepts CRLF/LF, joins multiple `data:` lines, and flushes a complete event at EOF.
 - A stream disconnect checks the task REST state before bounded reconnection. Changing job id or unmounting aborts the old stream and timers.
-- Upload progress is preserved, while an expired upload returns a localized retry instruction because automatic replay could duplicate work.
+- Upload progress is preserved across the 401 refresh+replay cycle. If refresh fails, the upload returns a localized "session expired" message and the user must manually retry.
 
 ### 4. Validation & Error Matrix
 
@@ -329,7 +329,7 @@ Use this contract for authenticated requests that may refresh credentials, multi
 | Late old-token 401 after another refresh | Retry with current token, no extra refresh |
 | SSE split at any character boundary | Each logical event dispatches exactly once |
 | SSE disconnect and task completed | Fetch result and finish without reconnect |
-| Upload receives 401 | Refresh session if possible, then ask user to retry upload |
+| Upload receives 401 | Refresh session; if successful, auto-replay the file once. If refresh fails, show localized "session expired" message |
 
 ### 5. Good / Base / Bad
 
@@ -340,7 +340,7 @@ Use this contract for authenticated requests that may refresh credentials, multi
 ### 6. Tests Required
 
 - Concurrent refresh success/failure, silent refresh joining, late old-token success/failure, and retry limit.
-- Upload `FormData.language`, progress, and 401 behavior without automatic replay.
+- Upload `FormData.language`, progress, and 401 behavior with at most one automatic replay after refresh.
 - SSE character-boundary splits, line endings, multiline data, EOF, terminal REST fallback, retry limit, and cleanup.
 - Stable recovery-code translation in both top-level and nested API errors.
 

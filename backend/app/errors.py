@@ -13,6 +13,10 @@ Frontend maps `code` to a translation key `errors.<camelCase>` and interpolates
 
 from typing import Any
 
+# Error code constants — used by both backend and frontend (via error_detail).
+# Each maps to a frontend i18n key `errors.<camelCase>`.
+PROVIDER_NOT_CONFIGURED = "PROVIDER_NOT_CONFIGURED"
+
 
 def error_detail(code: str, **params: Any) -> dict[str, Any]:
     """Build a structured error detail dict from an error code and optional params."""

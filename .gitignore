@@ -36,3 +36,4 @@ Thumbs.db
 # Trellis runtime
 .trellis/.runtime/
 .trellis/.developer
+.pi-subagents/

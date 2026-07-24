@@ -129,6 +129,8 @@ async def test_process_video_does_not_call_get_video_info(
 
     monkeypatch.setattr(routes, "get_video_info_strict", fake_get_video_info)
     monkeypatch.setattr(routes.task_runner, "schedule", lambda job_id, factory: True)
+    monkeypatch.setattr(routes, "ASR_API_KEY", "test-key")
+    monkeypatch.setattr(routes, "LLM_API_KEY", "test-key")
 
     request = VideoRequest(
         url="https://www.youtube.com/watch?v=abcdefghijk", language="en"
@@ -176,7 +178,7 @@ async def test_failed_upload_task_retains_file(
     task = await db.get_task("fail-job")
     assert task is not None
     assert task["stage"] == "failed"
-    assert task["message"] == "AUDIO_EXTRACTION_FAILED"
+    assert task["message"].startswith("AUDIO_EXTRACTION_FAILED")
     # File should still exist for retry
     assert source.exists()
     assert task["input_file_path"] is not None
@@ -206,6 +208,8 @@ async def test_retry_task_for_upload_reuses_file(
     monkeypatch.setattr(
         routes.task_runner, "schedule", lambda job_id, factory: scheduled.append(job_id) or True
     )
+    monkeypatch.setattr(routes, "ASR_API_KEY", "test-key")
+    monkeypatch.setattr(routes, "LLM_API_KEY", "test-key")
 
     response = await routes.retry_task("orig", TokenData("user"))
 
@@ -217,7 +221,11 @@ async def test_retry_task_for_upload_reuses_file(
     new_task = await db.get_task(response.job_id)
     assert new_task is not None
     assert new_task["source_type"] == "upload"
-    assert new_task["input_file_path"] == str(source)
+    # New task has its own copy of the file (not the original path)
+    assert new_task["input_file_path"] != str(source)
+    assert Path(new_task["input_file_path"]).is_file()
+    # Original failed task's file is still intact
+    assert source.exists()
 
 
 async def test_retry_upload_missing_file_raises(
@@ -233,6 +241,8 @@ async def test_retry_upload_missing_file_raises(
     await db.update_progress("missing", routes.TaskStage.failed, 0.0, "VIDEO_FETCH_FAILED")
 
     monkeypatch.setattr(routes.task_runner, "schedule", lambda job_id, factory: True)
+    monkeypatch.setattr(routes, "ASR_API_KEY", "test-key")
+    monkeypatch.setattr(routes, "LLM_API_KEY", "test-key")
 
     from fastapi import HTTPException
 
@@ -276,10 +286,10 @@ async def test_transcription_failure_uses_stable_code(
     task = await db.get_task("transcribe-fail")
     assert task is not None
     assert task["stage"] == "failed"
-    # Message must be a stable code, not raw exception text
-    assert task["message"] == "TRANSCRIPTION_FAILED"
-    assert "Whisper" not in task["message"]
-    assert "500" not in task["message"]
+    # Message starts with stable code, includes sanitized detail
+    assert task["message"].startswith("TRANSCRIPTION_FAILED")
+    # API keys must not leak into the message
+    assert "sk-" not in task["message"]
 
 
 async def test_note_generation_failure_uses_stable_code(
@@ -305,7 +315,7 @@ async def test_note_generation_failure_uses_stable_code(
         if function is routes.transcribe_audio:
             return "transcript text"
         if function is routes.generate_notes:
-            raise RuntimeError("LLM API timeout with sensitive key=sk-xxxx")
+            raise RuntimeError("LLM API timeout with sensitive key=sk-secretkey123456")
         raise AssertionError("unexpected to_thread call")
 
     monkeypatch.setattr(routes.asyncio, "to_thread", fake_to_thread)
@@ -317,8 +327,9 @@ async def test_note_generation_failure_uses_stable_code(
     task = await db.get_task("gen-fail")
     assert task is not None
     assert task["stage"] == "failed"
-    assert task["message"] == "NOTE_GENERATION_FAILED"
-    assert "sk-xxxx" not in task["message"]
+    assert task["message"].startswith("NOTE_GENERATION_FAILED")
+    # API keys must not leak into the message
+    assert "sk-secretkey123456" not in task["message"]
 
 
 # ── B1: _asr_language mapping ──────────────────────────────────────
@@ -327,7 +338,9 @@ async def test_note_generation_failure_uses_stable_code(
 def test_asr_language_mapping() -> None:
     assert routes._asr_language("en") == "en"
     assert routes._asr_language("zh-CN") == "zh"
-    assert routes._asr_language("zh-TW") == "zh"
+    assert routes._asr_language("ja") == "ja"
+    assert routes._asr_language("fr") is None
+    assert routes._asr_language("zh-TW") is None
 
 MAX_SENTINEL_SIZE = 100 * 1024 * 1024  # 100MB > openAI limit, forces chunk path
 
@@ -525,6 +538,8 @@ async def test_process_video_does_not_dedupe_terminal_task(
     )
     await db.set_result("completed", "# done")
     monkeypatch.setattr(routes.task_runner, "schedule", lambda job_id, factory: True)
+    monkeypatch.setattr(routes, "ASR_API_KEY", "test-key")
+    monkeypatch.setattr(routes, "LLM_API_KEY", "test-key")
 
     request = VideoRequest(url=url, language="en")
     response = await routes.process_video(request, TokenData("user"))

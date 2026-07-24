@@ -300,7 +300,6 @@
     "sseConnectionLost": "Connection to server lost",
     "taskCancelled": "Task cancelled",
     "processingFailed": "Processing failed",
-    "uploadSessionRefreshed": "Your session was refreshed. Please upload the file again.",
     "uploadSessionExpired": "Your session expired. Please sign in and upload the file again.",
     "uploadNetworkFailed": "The upload was interrupted by a network error. Please try again.",
     "taskRecoveryUnsupportedUrl": "This task could not be resumed because its video URL is no longer supported.",
@@ -317,6 +316,7 @@
     "audioExtractionFailed": "Audio extraction failed.",
     "modelsFetchFailed": "Failed to fetch model list.",
     "taskRecoveryMaxAttempts": "This task failed repeatedly and will no longer be retried.",
-    "duplicateTask": "A task for this video is already running."
+    "duplicateTask": "A task for this video is already running.",
+    "providerNotConfigured": "Provider not configured. Please set up your ASR and LLM providers in Settings."
   }
 }
