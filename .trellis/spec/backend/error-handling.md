@@ -94,7 +94,7 @@ All five codes must be added to the frontend `TASK_MESSAGE_ERROR_CODES` set and 
 | `AUDIO_EXTRACTION_FAILED` | Uploaded file audio extraction (ffmpeg) failed — do NOT reuse `VIDEO_FETCH_FAILED` for upload-source tasks |
 | `TASK_RECOVERY_MAX_ATTEMPTS` | Recovery skipped a task because `attempt_count >= MAX_TASK_ATTEMPTS` (5) and marked it `failed` |
 | `MODELS_FETCH_FAILED` | `/models` endpoint caught an exception; never return `str(e)` to the frontend, only this code |
-| `PROVIDER_NOT_CONFIGURED` | `/process`, `/upload`, or `/retry` was called but ASR or LLM provider has no `api_key` (neither user config nor env default). Returned as HTTP 422 before scheduling any work |
+| `PROVIDER_NOT_CONFIGURED` | `/process`, `/upload`, or `/retry` was called but ASR or LLM provider is incomplete: `api_key`, `api_base`, or `model` is empty (neither user config nor env default). Returned as HTTP 422 before scheduling any work |
 
 These must also be added to `TASK_MESSAGE_ERROR_CODES` (for codes that can appear as task progress messages) and `errors.<camelCase>` i18n keys.
 
@@ -110,8 +110,10 @@ Rules:
 - **LLM calls** (`note_gen.py`) use `_call_llm()` which retries up to 3 times with exponential backoff (2s, 4s) on `RateLimitError`, `APITimeoutError`, `APIConnectionError`, and 5xx `APIStatusError`. 4xx errors are not retried. Long transcripts are split into chunks (≤ 60000 chars each at line boundaries), each chunk generates a sub-note, and a final LLM call merges them via `_merge_notes()`. If a completion returns `finish_reason == "length"` (truncated by `max_tokens`), `_call_llm()` issues up to 2 continuation requests (appending the assistant prefix + a "continue" user turn) and concatenates the content; a warning is logged if still truncated after 2 continuations.
 - **Multi-chunk note generation** reports progress via a `progress_cb` (0.65 start → 0.90 per-chunk → 0.92 merging → 0.95 done) so the SSE stream shows incremental progress instead of stalling at a single value.
 - **Cancellation into blocking calls**: `TaskRunner.schedule` creates a `threading.Event` and passes it to the task factory. The event flows into `to_thread`-wrapped service functions (`get_video_info_strict`, `extract_subtitles`, `download_audio_via_ytdlp`, `extract_audio`, `transcribe_audio`, `generate_notes`) so cancellation aborts yt-dlp (via a `progress_hooks` that raises `yt_dlp.utils.DownloadCancelled`) and ffmpeg (`Popen.terminate()`/`kill()`), and skips further ASR/LLM chunks. When a service raises `RuntimeError("cancelled")` from a thread, the route-layer `except Exception` block checks `cancel_event.is_set()` and records `TaskStage.cancelled` instead of `failed`. OpenAI in-flight HTTP calls cannot be interrupted, but chunk-boundary checkpoints prevent new calls from starting after cancellation.
+- **Cancellation during `extract_info`**: yt-dlp's `progress_hooks` only fire during downloads, not during `extract_info(download=False)`. The route layer wraps `get_video_info_strict`, `extract_subtitles`, and `download_audio_via_ytdlp` in `_to_thread_with_cancel()`, which polls `cancel_event` every 3 seconds and cancels the asyncio task when the event is set. The underlying yt-dlp thread continues until it returns (then GC'd), but the route layer records `TaskStage.cancelled` promptly.
 - Each stage-specific `except` block MUST `return` so the outer catch-all doesn't overwrite the specific code.
 - The outer `except Exception` is a last-resort catch-all with a generic `PROCESSING_FAILED` code.
+- **Non-error progress messages**: Progress `message` can also be a non-error stage code like `FETCHING_VIDEO_INFO` (written before `get_video_info_strict` runs, so the SSE stream shows an active first step instead of `pending`/"Queued"). These are added to the frontend `TASK_MESSAGE_ERROR_CODES` set and mapped to `errors.<camelCase>` i18n keys the same way as error codes.
 
 ---
 

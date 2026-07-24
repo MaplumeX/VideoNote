@@ -51,10 +51,14 @@ def extract_audio(
 def download_audio_via_ytdlp(
     url: str, output_dir: str, *, cookiefile_path: str | None = None,
     cancel_event: threading.Event | None = None,
+    info: dict | None = None,
 ) -> str:
     """Download only the audio stream from a URL using yt-dlp.
 
     Returns the path to the downloaded WAV file.
+
+    If ``info`` is provided (a previously extracted yt-dlp info dict), it is
+    reused via ``process_ie_result`` to avoid a redundant ``extract_info``.
     """
     import yt_dlp
 
@@ -75,7 +79,10 @@ def download_audio_via_ytdlp(
     ydl_opts["quiet"] = False
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        retcode = ydl.download([url])
+        if info is not None:
+            retcode = ydl.process_ie_result(info, download=True)
+        else:
+            retcode = ydl.download([url])
 
     # List directory contents for diagnostics before searching
     dir_contents = list(Path(output_dir).iterdir())
@@ -92,8 +99,6 @@ def download_audio_via_ytdlp(
         raise FileNotFoundError(f"Audio file not found after yt-dlp download in {output_dir}")
 
     downloaded = str(audio_files[0])
-    if downloaded.endswith(".wav"):
-        return downloaded
 
     # Convert to WAV using ffmpeg directly (more reliable than yt-dlp's postprocessor)
     wav_path = str(Path(output_dir) / "audio.wav")

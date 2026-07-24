@@ -1,5 +1,6 @@
 """SQLite database management for task storage."""
 
+import asyncio
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -13,6 +14,23 @@ from app.schemas import TaskStage
 DB_PATH = Path(str(UPLOAD_DIR)) / "videonote.db"
 
 MAX_TASK_ATTEMPTS = 5
+
+TERMINAL_STAGES = (
+    TaskStage.complete.value,
+    TaskStage.failed.value,
+    TaskStage.cancelled.value,
+)
+
+# Serializes explicit BEGIN IMMEDIATE transactions so that concurrent
+# auto-commit writes (e.g. update_progress from SSE) don't interleave and
+# cause "cannot start a transaction within a transaction".
+_tag_write_lock = asyncio.Lock()
+
+
+def _escape_like(value: str) -> str:
+    """Escape LIKE wildcards (% and _) and wrap in %...% for substring search."""
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS tasks (
@@ -232,6 +250,34 @@ async def cleanup_failed_task_files(max_age_days: int = 7) -> int:
     return count
 
 
+async def cleanup_old_terminal_tasks(max_age_days: int = 30) -> int:
+    """Delete terminal tasks older than ``max_age_days`` along with their input files.
+
+    Returns the number of task rows deleted.  Associated ``note_tags`` rows are
+    removed automatically via ``ON DELETE CASCADE``.
+    """
+    cutoff = (datetime.now(UTC) - timedelta(days=max_age_days)).isoformat()
+    db = await _get_db()
+    cursor = await db.execute(
+        "SELECT job_id, input_file_path FROM tasks "
+        "WHERE stage IN (?, ?, ?) AND created_at < ? AND input_file_path IS NOT NULL",
+        (*TERMINAL_STAGES, cutoff),
+    )
+    rows = [dict(r) for r in await cursor.fetchall()]
+    upload_root = UPLOAD_DIR.resolve()
+    for row in rows:
+        if row["input_file_path"]:
+            resolved = Path(row["input_file_path"]).resolve()
+            if upload_root in resolved.parents:
+                resolved.unlink(missing_ok=True)
+    cursor = await db.execute(
+        "DELETE FROM tasks WHERE stage IN (?, ?, ?) AND created_at < ?",
+        (*TERMINAL_STAGES, cutoff),
+    )
+    await db.commit()
+    return cursor.rowcount
+
+
 async def create_task(
     job_id: str,
     message: str = "Queued",
@@ -382,6 +428,7 @@ async def get_user_tasks(
     is_favorite: bool | None = None,
     folder_null: bool = False,
     search: str | None = None,
+    exclude_cancelled: bool = False,
     sort_by: str = "created_at",
     sort_order: str = "desc",
 ) -> list[dict]:
@@ -397,6 +444,10 @@ async def get_user_tasks(
     joins = ""
     conditions = ["t.user_id = ?"]
     params.append(user_id)
+
+    if exclude_cancelled:
+        conditions.append("t.stage != ?")
+        params.append(TaskStage.cancelled.value)
 
     if tag_id is not None:
         joins += " JOIN note_tags nt ON t.job_id = nt.job_id"
@@ -416,10 +467,11 @@ async def get_user_tasks(
 
     if search is not None:
         conditions.append(
-            "(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ? "
-            "OR json_extract(t.result_json, '$.title') LIKE ?)"
+            "(t.message LIKE ? ESCAPE '\\' OR t.video_url LIKE ? ESCAPE '\\' "
+            "OR t.file_name LIKE ? ESCAPE '\\' "
+            "OR json_extract(t.result_json, '$.title') LIKE ? ESCAPE '\\')"
         )
-        like = f"%{search}%"
+        like = _escape_like(search)
         params.extend([like, like, like, like])
 
     allowed_sort = {"created_at", "title", "stage"}
@@ -467,6 +519,7 @@ async def count_user_tasks(
     is_favorite: bool | None = None,
     folder_null: bool = False,
     search: str | None = None,
+    exclude_cancelled: bool = False,
 ) -> int:
     """Count total tasks for a user with optional filters."""
     db = await _get_db()
@@ -475,6 +528,10 @@ async def count_user_tasks(
     joins = ""
     conditions = ["t.user_id = ?"]
     params.append(user_id)
+
+    if exclude_cancelled:
+        conditions.append("t.stage != ?")
+        params.append(TaskStage.cancelled.value)
 
     if tag_id is not None:
         joins += " JOIN note_tags nt ON t.job_id = nt.job_id"
@@ -494,10 +551,11 @@ async def count_user_tasks(
 
     if search is not None:
         conditions.append(
-            "(t.message LIKE ? OR t.video_url LIKE ? OR t.file_name LIKE ? "
-            "OR json_extract(t.result_json, '$.title') LIKE ?)"
+            "(t.message LIKE ? ESCAPE '\\' OR t.video_url LIKE ? ESCAPE '\\' "
+            "OR t.file_name LIKE ? ESCAPE '\\' "
+            "OR json_extract(t.result_json, '$.title') LIKE ? ESCAPE '\\')"
         )
-        like = f"%{search}%"
+        like = _escape_like(search)
         params.extend([like, like, like, like])
 
     where = " AND ".join(conditions)
@@ -972,37 +1030,38 @@ async def add_tags_to_note(job_id: str, user_id: str, tag_ids: list[str]) -> boo
     if not unique_ids:
         return True
     now = datetime.now(UTC).isoformat()
-    db = await _get_db()
-    await db.execute("BEGIN IMMEDIATE")
-    try:
-        cursor = await db.execute(
-            "SELECT 1 FROM tasks WHERE job_id = ? AND user_id = ?",
-            (job_id, user_id),
-        )
-        if await cursor.fetchone() is None:
-            await db.rollback()
-            return False
-
-        placeholders = ",".join("?" for _ in unique_ids)
-        cursor = await db.execute(
-            f"SELECT id FROM tags WHERE user_id = ? AND id IN ({placeholders})",
-            [user_id, *unique_ids],
-        )
-        owned_ids = {row["id"] for row in await cursor.fetchall()}
-        if owned_ids != set(unique_ids):
-            await db.rollback()
-            return False
-
-        for tag_id in unique_ids:
-            await db.execute(
-                "INSERT OR IGNORE INTO note_tags (job_id, tag_id, created_at) VALUES (?, ?, ?)",
-                (job_id, tag_id, now),
+    async with _tag_write_lock:
+        db = await _get_db()
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = await db.execute(
+                "SELECT 1 FROM tasks WHERE job_id = ? AND user_id = ?",
+                (job_id, user_id),
             )
-        await db.commit()
-        return True
-    except Exception:
-        await db.rollback()
-        raise
+            if await cursor.fetchone() is None:
+                await db.rollback()
+                return False
+
+            placeholders = ",".join("?" for _ in unique_ids)
+            cursor = await db.execute(
+                f"SELECT id FROM tags WHERE user_id = ? AND id IN ({placeholders})",
+                [user_id, *unique_ids],
+            )
+            owned_ids = {row["id"] for row in await cursor.fetchall()}
+            if owned_ids != set(unique_ids):
+                await db.rollback()
+                return False
+
+            for tag_id in unique_ids:
+                await db.execute(
+                    "INSERT OR IGNORE INTO note_tags (job_id, tag_id, created_at) VALUES (?, ?, ?)",
+                    (job_id, tag_id, now),
+                )
+            await db.commit()
+            return True
+        except Exception:
+            await db.rollback()
+            raise
 
 
 async def remove_tag_from_note(job_id: str, tag_id: str) -> bool:
@@ -1090,37 +1149,38 @@ async def batch_add_tag(job_ids: list[str], tag_id: str, user_id: str) -> bool:
     if not unique_job_ids:
         return True
     now = datetime.now(UTC).isoformat()
-    db = await _get_db()
-    await db.execute("BEGIN IMMEDIATE")
-    try:
-        cursor = await db.execute(
-            "SELECT 1 FROM tags WHERE id = ? AND user_id = ?",
-            (tag_id, user_id),
-        )
-        if await cursor.fetchone() is None:
-            await db.rollback()
-            return False
-
-        placeholders = ",".join("?" for _ in unique_job_ids)
-        cursor = await db.execute(
-            f"SELECT job_id FROM tasks WHERE user_id = ? AND job_id IN ({placeholders})",
-            [user_id, *unique_job_ids],
-        )
-        owned_job_ids = {row["job_id"] for row in await cursor.fetchall()}
-        if owned_job_ids != set(unique_job_ids):
-            await db.rollback()
-            return False
-
-        for job_id in unique_job_ids:
-            await db.execute(
-                "INSERT OR IGNORE INTO note_tags (job_id, tag_id, created_at) VALUES (?, ?, ?)",
-                (job_id, tag_id, now),
+    async with _tag_write_lock:
+        db = await _get_db()
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = await db.execute(
+                "SELECT 1 FROM tags WHERE id = ? AND user_id = ?",
+                (tag_id, user_id),
             )
-        await db.commit()
-        return True
-    except Exception:
-        await db.rollback()
-        raise
+            if await cursor.fetchone() is None:
+                await db.rollback()
+                return False
+
+            placeholders = ",".join("?" for _ in unique_job_ids)
+            cursor = await db.execute(
+                f"SELECT job_id FROM tasks WHERE user_id = ? AND job_id IN ({placeholders})",
+                [user_id, *unique_job_ids],
+            )
+            owned_job_ids = {row["job_id"] for row in await cursor.fetchall()}
+            if owned_job_ids != set(unique_job_ids):
+                await db.rollback()
+                return False
+
+            for job_id in unique_job_ids:
+                await db.execute(
+                    "INSERT OR IGNORE INTO note_tags (job_id, tag_id, created_at) VALUES (?, ?, ?)",
+                    (job_id, tag_id, now),
+                )
+            await db.commit()
+            return True
+        except Exception:
+            await db.rollback()
+            raise
 
 
 async def batch_remove_tag(job_ids: list[str], tag_id: str) -> None:

@@ -194,8 +194,8 @@ else:
 
 ```python
 # Search title inside result_json
-conditions.append("json_extract(t.result_json, '$.title') LIKE ?")
-params.append(f"%{search}%")
+conditions.append("json_extract(t.result_json, '$.title') LIKE ? ESCAPE '\\\\'")
+params.append(_escape_like(search))
 ```
 
 Similarly, sorting by a field that may live in JSON or a real column — use `COALESCE` to prefer the column:
@@ -206,6 +206,43 @@ sort_expr = "COALESCE(t.title, json_extract(t.result_json, '$.title'), '')"
 ```
 
 > **Pattern**: When a JSON field is needed for sorting/filtering, extract it into a real column at insert time. Then use `COALESCE(column, json_extract(...))` during migration so both old rows (JSON-only) and new rows (column populated) work correctly.
+
+### LIKE Wildcard Escaping
+
+When building `LIKE` queries from user input (e.g. the `search` parameter), always escape `%` and `_` wildcards with the `_escape_like()` helper and add `ESCAPE '\\'` to the SQL clause. Otherwise, a user searching for `a_b` would match `axb`:
+
+```python
+# GOOD — escaped LIKE
+def _escape_like(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+conditions.append("(t.message LIKE ? ESCAPE '\\' OR t.file_name LIKE ? ESCAPE '\\')")
+params.extend([like, like])
+```
+
+### Explicit Transaction Locking
+
+Functions that use explicit `BEGIN IMMEDIATE` transactions (`add_tags_to_note`, `batch_add_tag`) MUST be wrapped in `async with _tag_write_lock` (an `asyncio.Lock`). This prevents concurrency with auto-commit writes (e.g. `update_progress` from SSE) that share the singleton connection and would otherwise interleave as "cannot start a transaction within a transaction"
+
+```python
+_tag_write_lock = asyncio.Lock()
+
+async def add_tags_to_note(job_id, user_id, tag_ids):
+    async with _tag_write_lock:
+        db = await _get_db()
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            ...
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+```
+
+### Terminal Task Cleanup
+
+`cleanup_old_terminal_tasks(max_age_days=30)` deletes old terminal (complete/failed/cancelled) task rows at startup. Associated `note_tags` rows are removed via `ON DELETE CASCADE`. This complements `cleanup_failed_task_files` (which only nullifies `input_file_path` for 7-day-old failed tasks).
 
 ---
 

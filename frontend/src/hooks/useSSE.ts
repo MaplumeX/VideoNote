@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TaskStage, TaskProgress } from "../types";
 import {
+  ApiError,
   fetchResult,
   fetchTaskById,
   getProgressUrl,
@@ -130,11 +131,21 @@ export function useSSE(jobId: string | null) {
           stageRef.current = task.stage;
 
           if (task.stage === "complete") {
-            const note = await fetchResult(jobId);
-            if (abortController.signal.aborted) return;
-            setResult(note.markdown);
-            setError(null);
-            return;
+            try {
+              const note = await fetchResult(jobId);
+              if (abortController.signal.aborted) return;
+              setResult(note.markdown);
+              setError(null);
+              return;
+            } catch (e) {
+              if (abortController.signal.aborted) return;
+              // Deterministic errors (4xx) should not trigger reconnect loop.
+              // Network errors and 5xx fall through to reconnect below.
+              if (e instanceof ApiError && e.code !== "TASK_STILL_PROCESSING") {
+                setError(e.message || t("errors.fetchResultFailed"));
+                return;
+              }
+            }
           }
           if (task.stage === "failed") {
             setError(

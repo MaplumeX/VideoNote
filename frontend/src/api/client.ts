@@ -71,6 +71,7 @@ const TASK_MESSAGE_ERROR_CODES = new Set([
   "AUDIO_EXTRACTION_FAILED",
   "TASK_RECOVERY_MAX_ATTEMPTS",
   "PROVIDER_NOT_CONFIGURED",
+  "FETCHING_VIDEO_INFO",
 ]);
 
 /** Translate stable task-state messages while preserving legacy free-form text.
@@ -188,6 +189,7 @@ export async function fetchTasks(params: {
   tag?: string;
   is_favorite?: boolean;
   search?: string;
+  exclude_cancelled?: boolean;
   sort_by?: string;
   sort_order?: string;
 }): Promise<TaskListResponse> {
@@ -198,6 +200,7 @@ export async function fetchTasks(params: {
   if (params.tag) qs.set("tag", params.tag);
   if (params.is_favorite !== undefined) qs.set("is_favorite", String(params.is_favorite));
   if (params.search) qs.set("search", params.search);
+  if (params.exclude_cancelled) qs.set("exclude_cancelled", String(params.exclude_cancelled));
   if (params.sort_by) qs.set("sort_by", params.sort_by);
   if (params.sort_order) qs.set("sort_order", params.sort_order);
   return apiFetch<TaskListResponse>(`${API_BASE}/tasks?${qs.toString()}`);

@@ -12,7 +12,7 @@ from app.api.auth_routes import router as auth_router
 from app.api.cookie_routes import router as cookie_router
 from app.api.note_routes import router as note_router
 from app.api.routes import recover_incomplete_tasks, router
-from app.db import cleanup_failed_task_files, close_db, init_db
+from app.db import cleanup_failed_task_files, cleanup_old_terminal_tasks, close_db, init_db
 from app.task_runner import task_runner
 
 
@@ -24,6 +24,9 @@ async def lifespan(app: FastAPI):
     cleaned = await cleanup_failed_task_files()
     if cleaned:
         logger.info("Cleaned up %d failed task files", cleaned)
+    cleaned_tasks = await cleanup_old_terminal_tasks()
+    if cleaned_tasks:
+        logger.info("Cleaned up %d old terminal tasks", cleaned_tasks)
     try:
         yield
     finally:

@@ -147,6 +147,7 @@ export function HistoryPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pickerType, setPickerType] = useState<"tag" | "folder" | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [showCancelled, setShowCancelled] = useState(false);
   const limit = 20;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -276,6 +277,7 @@ export function HistoryPage() {
       if (filter.search) params.search = filter.search;
       if (filter.sort_by) params.sort_by = filter.sort_by;
       if (filter.sort_order) params.sort_order = filter.sort_order;
+      if (!showCancelled) params.exclude_cancelled = true;
       fetchTasks(params)
         .then((data: TaskListResponse) => {
           setTasks(data.items);
@@ -288,7 +290,7 @@ export function HistoryPage() {
           setLoading(false);
         });
     },
-    [t, filter.folder, filter.tag, filter.is_favorite, filter.search, filter.sort_by, filter.sort_order],
+    [t, filter.folder, filter.tag, filter.is_favorite, filter.search, filter.sort_by, filter.sort_order, showCancelled],
   );
 
   useEffect(() => {
@@ -584,6 +586,17 @@ export function HistoryPage() {
               <List size={16} />
             </Button>
           </div>
+
+          {/* Show cancelled toggle */}
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showCancelled}
+              onChange={(e) => setShowCancelled(e.target.checked)}
+              className="size-3.5 rounded border-muted-foreground/30"
+            />
+            {t("history.showCancelled")}
+          </label>
         </div>
 
         {/* Active filter pills */}

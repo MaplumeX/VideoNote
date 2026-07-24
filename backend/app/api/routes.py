@@ -95,6 +95,31 @@ async def _cancellation_checkpoint(job_id: str) -> None:
         raise asyncio.CancelledError
 
 
+async def _to_thread_with_cancel(
+    func: Callable[..., object],
+    *args: object,
+    cancel_event: threading.Event | None = None,
+    timeout: float = 3.0,
+    **kwargs: object,
+) -> object:
+    """Run a blocking call in a thread, polling cancel_event every ``timeout`` seconds.
+
+    Unlike ``asyncio.to_thread`` alone, this exposes cancellation within the
+    ``extract_info`` phase (where yt-dlp progress_hooks don't fire). When the
+    event is set, the asyncio task is cancelled so the route layer can record
+    ``TaskStage.cancelled`` promptly. The underlying thread continues until
+    yt-dlp returns and is then garbage-collected.
+    """
+    while True:
+        fut = asyncio.create_task(asyncio.to_thread(func, *args, **kwargs))
+        done, _ = await asyncio.wait({fut}, timeout=timeout)
+        if fut in done:
+            return fut.result()
+        if cancel_event is not None and cancel_event.is_set():
+            fut.cancel()
+            raise asyncio.CancelledError
+
+
 def _safe_upload_path(path_value: str | None) -> Path | None:
     """Resolve a persisted upload path and reject paths outside UPLOAD_DIR."""
     if not path_value:
@@ -272,9 +297,13 @@ async def _resolve_providers(user_id: str | None) -> ProviderBundle:
 
 
 async def _ensure_providers_configured(user_id: str | None) -> str | None:
-    """Return 'PROVIDER_NOT_CONFIGURED' if ASR or LLM api_key is empty, else None."""
+    """Return 'PROVIDER_NOT_CONFIGURED' if ASR or LLM provider is incomplete, else None."""
     providers = await _resolve_providers(user_id)
     if not providers.asr_api_key or not providers.llm_api_key:
+        return "PROVIDER_NOT_CONFIGURED"
+    if not providers.asr_api_base or not providers.asr_model:
+        return "PROVIDER_NOT_CONFIGURED"
+    if not providers.llm_api_base or not providers.llm_model:
         return "PROVIDER_NOT_CONFIGURED"
     return None
 
@@ -391,15 +420,20 @@ async def _process_video_url(
         await _cancellation_checkpoint(job_id)
         providers = await _resolve_providers(user_id)
 
+        await update_progress(
+            job_id, TaskStage.downloading, 0.02, "FETCHING_VIDEO_INFO"
+        )
+
         # Video info (fatal) + thumbnail (non-fatal)
         try:
-            video_info = await asyncio.to_thread(
+            video_info = await _to_thread_with_cancel(
                 get_video_info_strict, url, cookiefile_path=cookiefile_path,
                 cancel_event=cancel_event,
             )
             await _cancellation_checkpoint(job_id)
             video_title = video_info["title"]
             ext_thumb = video_info.get("thumbnail_url") or ""
+            video_info_dict = video_info.get("info")
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -426,11 +460,12 @@ async def _process_video_url(
             job_id, TaskStage.extracting_subtitles, 0.10, "Extracting subtitles..."
         )
 
-        subtitle_text = await asyncio.to_thread(
+        subtitle_text = await _to_thread_with_cancel(
             extract_subtitles, url,
             languages=_subtitle_languages(language),
             cookiefile_path=cookiefile_path,
             cancel_event=cancel_event,
+            info=video_info_dict,
         )
         await _cancellation_checkpoint(job_id)
 
@@ -444,10 +479,11 @@ async def _process_video_url(
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 try:
-                    audio_path = await asyncio.to_thread(
+                    audio_path = await _to_thread_with_cancel(
                         download_audio_via_ytdlp, url, tmpdir,
                         cookiefile_path=cookiefile_path,
                         cancel_event=cancel_event,
+                        info=video_info_dict,
                     )
                 except asyncio.CancelledError:
                     raise
@@ -856,6 +892,7 @@ async def list_tasks(
     tag: str | None = None,
     is_favorite: bool | None = None,
     search: str | None = None,
+    exclude_cancelled: bool = False,
     sort_by: str = "created_at",
     sort_order: str = "desc",
 ):
@@ -871,12 +908,12 @@ async def list_tasks(
     tasks = await get_user_tasks(
         user.user_id, limit=limit, offset=offset,
         folder_id=folder_id, tag_id=tag, is_favorite=is_favorite,
-        folder_null=folder_null, search=search,
+        folder_null=folder_null, search=search, exclude_cancelled=exclude_cancelled,
         sort_by=sort_by, sort_order=sort_order,
     )
     total = await count_user_tasks(
         user.user_id, folder_id=folder_id, tag_id=tag, is_favorite=is_favorite,
-        folder_null=folder_null, search=search,
+        folder_null=folder_null, search=search, exclude_cancelled=exclude_cancelled,
     )
     return TaskListResponse(
         items=[TaskListItem(**t) for t in tasks],
@@ -1001,7 +1038,7 @@ async def retry_task(
             job_id=new_job_id,
             title="",
             thumbnail_url="",
-            platform="upload",
+            platform="",
             source_type="upload",
         )
 

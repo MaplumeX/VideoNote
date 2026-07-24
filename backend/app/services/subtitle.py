@@ -138,12 +138,16 @@ def _srt_to_transcript(raw: str) -> str | None:
 def extract_subtitles(
     url: str, languages: list[str] | None = None, *, cookiefile_path: str | None = None,
     cancel_event: threading.Event | None = None,
+    info: dict | None = None,
 ) -> str | None:
     """Extract subtitles from a video URL using yt-dlp.
 
     Runs a single yt-dlp ``download`` call with ``skip_download=True``
     to fetch subtitle files, then picks the best match by language priority.
     Returns SRT-formatted subtitle text, or None if no subtitles found.
+
+    If ``info`` is provided (a previously extracted yt-dlp info dict), it is
+    reused via ``process_ie_result`` to avoid a redundant ``extract_info``.
     """
     if languages is None:
         languages = ["en", "zh-Hans", "zh", "ja"]
@@ -166,7 +170,10 @@ def extract_subtitles(
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+                if info is not None:
+                    ydl.process_ie_result(info, download=True)
+                else:
+                    ydl.download([url])
         except Exception as e:
             logger.warning(f"Subtitle extraction failed for {url}: {e}")
             return None
@@ -228,7 +235,7 @@ def get_video_info_strict(
     url: str, *, cookiefile_path: str | None = None,
     cancel_event: threading.Event | None = None,
 ) -> dict:
-    """Like :func:`get_video_info` but raises on failure with a classified error code.
+    """Extract video metadata (title, thumbnail) via yt-dlp, raising on failure.
 
     The raised exception has a ``code`` attribute set to the stable error code
     (e.g. ``VIDEO_PRIVATE``), falling back to ``VIDEO_FETCH_FAILED``.
@@ -241,7 +248,11 @@ def get_video_info_strict(
             info = ydl.extract_info(url, download=False)
             if info is None:
                 raise RuntimeError("yt-dlp returned no info")
-            result = {"title": info.get("title"), "thumbnail_url": info.get("thumbnail")}
+            result = {
+                "title": info.get("title"),
+                "thumbnail_url": info.get("thumbnail"),
+                "info": info,
+            }
     except Exception as e:
         code = classify_ytdlp_error(e)
         err = RuntimeError(f"{code}: {e}")
@@ -250,38 +261,6 @@ def get_video_info_strict(
     if cancel_event is not None and cancel_event.is_set():
         raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
     return result
-
-
-def get_video_title(url: str, *, cookiefile_path: str | None = None) -> str | None:
-    """Get the title of a video from its URL using yt-dlp."""
-    ydl_opts = _ydl_opts(cookiefile_path=cookiefile_path)
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            return info.get("title") if info else None
-    except Exception as e:
-        logger.warning(f"Failed to get video title for {url}: {e}")
-        return None
-
-
-def get_video_info(url: str, *, cookiefile_path: str | None = None) -> dict:
-    """Get video metadata (title, thumbnail) from its URL using yt-dlp.
-
-    Returns a dict with keys 'title' (str | None) and 'thumbnail_url' (str | None).
-    """
-    ydl_opts = _ydl_opts(cookiefile_path=cookiefile_path)
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if info is None:
-                return {"title": None, "thumbnail_url": None}
-            return {
-                "title": info.get("title"),
-                "thumbnail_url": info.get("thumbnail"),
-            }
-    except Exception as e:
-        logger.warning(f"Failed to get video info for {url}: {e}")
-        return {"title": None, "thumbnail_url": None}
 
 
 def download_thumbnail(url: str) -> str | None:

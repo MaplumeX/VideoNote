@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { authFetch } from "../auth/api";
-import { fetchResult, fetchTaskById } from "../api/client";
+import { ApiError, fetchResult, fetchTaskById } from "../api/client";
 import { useSSE } from "./useSSE";
 
 const { translate } = vi.hoisted(() => ({
@@ -17,6 +17,14 @@ vi.mock("../auth/api", () => ({
 }));
 
 vi.mock("../api/client", () => ({
+  ApiError: class extends Error {
+    code?: string;
+    constructor(message: string, code?: string) {
+      super(message);
+      this.name = "ApiError";
+      this.code = code;
+    }
+  },
   fetchResult: vi.fn(),
   fetchTaskById: vi.fn(),
   getProgressUrl: (jobId: string) => `/api/tasks/${jobId}/progress`,
@@ -134,6 +142,38 @@ describe("useSSE", () => {
       expect(result.current.error).toBe("translated recovery error");
     });
     expect(result.current.progress?.message).toBe("translated recovery error");
+  });
+
+  it("sets error when fetchResult fails with ApiError after task complete (no reconnect)", async () => {
+    vi.mocked(authFetch).mockResolvedValue(streamResponse([]));
+    vi.mocked(fetchTaskById).mockResolvedValue({
+      job_id: "job-err",
+      stage: "complete",
+      progress: 1,
+      message: "done",
+      created_at: "",
+      title: null,
+      video_url: null,
+      file_name: null,
+      platform: null,
+      language: null,
+      source_type: null,
+      folder_id: null,
+      is_favorite: false,
+      thumbnail_url: null,
+    });
+    vi.mocked(fetchResult).mockRejectedValue(
+      new ApiError("Failed to fetch", "TASK_FAILED")
+    );
+
+    const { result } = renderHook(() => useSSE("job-err"));
+
+    await waitFor(() => {
+      expect(result.current.error).toBe("Failed to fetch");
+    });
+    expect(result.current.result).toBeNull();
+    // Should NOT reconnect — only 1 authFetch call
+    expect(authFetch).toHaveBeenCalledTimes(1);
   });
 });
 
