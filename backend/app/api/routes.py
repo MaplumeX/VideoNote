@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import tempfile
+import threading
 import uuid
 from pathlib import Path
 from typing import Annotated
@@ -27,10 +28,12 @@ from app.config import (
 )
 from app.crypto import decrypt_api_key, encrypt_api_key
 from app.db import (
+    MAX_TASK_ATTEMPTS,
     clear_task_input_file,
     count_user_tasks,
     create_task,
     delete_task,
+    find_active_task_by_url,
     get_all_provider_configs,
     get_recoverable_tasks,
     get_task,
@@ -174,7 +177,8 @@ async def _get_user_cookiefile(user_id: str, url: str) -> str | None:
 
 
 async def _process_video_url(
-    job_id: str, url: str, language: str = "en", user_id: str | None = None
+    job_id: str, url: str, language: str = "en", user_id: str | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> None:
     """Process a video URL: extract subtitles or transcribe, then generate notes."""
     # Resolve per-user cookie file
@@ -200,7 +204,8 @@ async def _process_video_url(
         # Video info (fatal) + thumbnail (non-fatal)
         try:
             video_info = await asyncio.to_thread(
-                get_video_info_strict, url, cookiefile_path=cookiefile_path
+                get_video_info_strict, url, cookiefile_path=cookiefile_path,
+                cancel_event=cancel_event,
             )
             await _cancellation_checkpoint(job_id)
             video_title = video_info["title"]
@@ -208,6 +213,9 @@ async def _process_video_url(
         except asyncio.CancelledError:
             raise
         except Exception as e:
+            if cancel_event is not None and cancel_event.is_set():
+                await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+                return
             logger.exception(f"Task {job_id} video fetch failed: {e}")
             code = getattr(e, "code", None) or "VIDEO_FETCH_FAILED"
             await update_progress(job_id, TaskStage.failed, 0.0, code)
@@ -223,22 +231,23 @@ async def _process_video_url(
         await update_task_meta(job_id, video_title, thumbnail_filename)
 
         await update_progress(
-            job_id, TaskStage.extracting_subtitles, 0.2, "Extracting subtitles..."
+            job_id, TaskStage.extracting_subtitles, 0.10, "Extracting subtitles..."
         )
 
         subtitle_text = await asyncio.to_thread(
             extract_subtitles, url,
             languages=_subtitle_languages(language),
             cookiefile_path=cookiefile_path,
+            cancel_event=cancel_event,
         )
         await _cancellation_checkpoint(job_id)
 
         if subtitle_text:
             transcript = subtitle_text
-            await update_progress(job_id, TaskStage.extracting_subtitles, 0.5, "Subtitles found")
+            await update_progress(job_id, TaskStage.extracting_subtitles, 0.30, "Subtitles found")
         else:
             await update_progress(
-                job_id, TaskStage.downloading, 0.2, "No subtitles, downloading audio..."
+                job_id, TaskStage.downloading, 0.15, "No subtitles, downloading audio..."
             )
 
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -246,10 +255,14 @@ async def _process_video_url(
                     audio_path = await asyncio.to_thread(
                         download_audio_via_ytdlp, url, tmpdir,
                         cookiefile_path=cookiefile_path,
+                        cancel_event=cancel_event,
                     )
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
+                    if cancel_event is not None and cancel_event.is_set():
+                        await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+                        return
                     logger.exception(f"Task {job_id} audio download failed: {e}")
                     await update_progress(
                         job_id, TaskStage.failed, 0.0, "VIDEO_FETCH_FAILED"
@@ -257,11 +270,13 @@ async def _process_video_url(
                     return
                 await _cancellation_checkpoint(job_id)
 
-                await update_progress(job_id, TaskStage.transcribing, 0.4, "Transcribing audio...")
+                await update_progress(job_id, TaskStage.transcribing, 0.30, "Transcribing audio...")
                 loop = asyncio.get_running_loop()
 
                 def _asr_progress_cb(fraction: float, msg: str) -> None:
-                    progress = 0.4 + fraction * 0.2  # map to 0.4–0.6 range
+                    if cancel_event is not None and cancel_event.is_set():
+                        return
+                    progress = 0.30 + fraction * 0.30  # map to 0.30–0.60 range
                     asyncio.run_coroutine_threadsafe(
                         update_progress(job_id, TaskStage.transcribing, progress, msg),
                         loop,
@@ -277,10 +292,14 @@ async def _process_video_url(
                         model=asr_model,
                         provider=asr_provider,
                         progress_cb=_asr_progress_cb,
+                        cancel_event=cancel_event,
                     )
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
+                    if cancel_event is not None and cancel_event.is_set():
+                        await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+                        return
                     logger.exception(f"Task {job_id} transcription failed: {e}")
                     await update_progress(
                         job_id, TaskStage.failed, 0.0, "TRANSCRIPTION_FAILED"
@@ -288,10 +307,17 @@ async def _process_video_url(
                     return
                 await _cancellation_checkpoint(job_id)
 
-            await update_progress(job_id, TaskStage.transcribing, 0.6, "Transcription complete")
+            await update_progress(job_id, TaskStage.transcribing, 0.60, "Transcription complete")
 
-        await update_progress(job_id, TaskStage.generating_notes, 0.7, "Generating notes...")
+        await update_progress(job_id, TaskStage.generating_notes, 0.65, "Generating notes...")
         has_timestamps = "#t=" in transcript
+        loop = asyncio.get_running_loop()
+
+        def _note_progress_cb(fraction: float, msg: str) -> None:
+            asyncio.run_coroutine_threadsafe(
+                update_progress(job_id, TaskStage.generating_notes, fraction, msg), loop
+            )
+
         try:
             markdown = await asyncio.to_thread(
                 generate_notes,
@@ -302,10 +328,15 @@ async def _process_video_url(
                 api_base=llm_api_base,
                 model=llm_model,
                 has_timestamps=has_timestamps,
+                cancel_event=cancel_event,
+                progress_cb=_note_progress_cb,
             )
         except asyncio.CancelledError:
             raise
         except Exception as e:
+            if cancel_event is not None and cancel_event.is_set():
+                await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+                return
             logger.exception(f"Task {job_id} note generation failed: {e}")
             await update_progress(
                 job_id, TaskStage.failed, 0.0, "NOTE_GENERATION_FAILED"
@@ -313,15 +344,16 @@ async def _process_video_url(
             return
         await _cancellation_checkpoint(job_id)
 
-        await update_progress(job_id, TaskStage.generating_notes, 0.9, "Notes generated")
-
         await set_result(job_id, markdown, title=video_title)
 
     except asyncio.CancelledError:
         raise
     except Exception as e:
-        logger.exception(f"Task {job_id} failed: {e}")
-        await update_progress(job_id, TaskStage.failed, 0.0, "PROCESSING_FAILED")
+        if cancel_event is not None and cancel_event.is_set():
+            await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+        else:
+            logger.exception(f"Task {job_id} failed: {e}")
+            await update_progress(job_id, TaskStage.failed, 0.0, "PROCESSING_FAILED")
     finally:
         # Clean up temp cookie file
         if cookiefile_path:
@@ -329,7 +361,8 @@ async def _process_video_url(
 
 
 async def _process_video_file(
-    job_id: str, file_path: str, language: str = "en", user_id: str | None = None
+    job_id: str, file_path: str, language: str = "en", user_id: str | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> None:
     """Process an uploaded video file: extract audio, transcribe, generate notes."""
     try:
@@ -347,27 +380,34 @@ async def _process_video_file(
         llm_api_base = llm_cfg["api_base"] if llm_cfg and llm_cfg["api_base"] else LLM_API_BASE
         llm_model = llm_cfg["model"] if llm_cfg and llm_cfg["model"] else LLM_MODEL
 
-        await update_progress(job_id, TaskStage.transcribing, 0.1, "Extracting audio from video...")
+        await update_progress(job_id, TaskStage.downloading, 0.05, "Extracting audio from video...")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = str(Path(tmpdir) / "audio.wav")
             try:
-                await asyncio.to_thread(extract_audio, file_path, audio_path)
+                await asyncio.to_thread(
+                    extract_audio, file_path, audio_path, cancel_event=cancel_event
+                )
             except asyncio.CancelledError:
                 raise
             except Exception as e:
+                if cancel_event is not None and cancel_event.is_set():
+                    await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+                    return
                 logger.exception(f"Task {job_id} audio extraction failed: {e}")
                 await update_progress(
-                    job_id, TaskStage.failed, 0.0, "VIDEO_FETCH_FAILED"
+                    job_id, TaskStage.failed, 0.0, "AUDIO_EXTRACTION_FAILED"
                 )
                 return
             await _cancellation_checkpoint(job_id)
 
-            await update_progress(job_id, TaskStage.transcribing, 0.3, "Transcribing audio...")
+            await update_progress(job_id, TaskStage.transcribing, 0.20, "Transcribing audio...")
             loop = asyncio.get_running_loop()
 
             def _asr_progress_cb(fraction: float, msg: str) -> None:
-                progress = 0.4 + fraction * 0.2  # map to 0.4–0.6 range
+                if cancel_event is not None and cancel_event.is_set():
+                    return
+                progress = 0.20 + fraction * 0.40  # map to 0.20–0.60 range
                 asyncio.run_coroutine_threadsafe(
                     update_progress(job_id, TaskStage.transcribing, progress, msg),
                     loop,
@@ -383,10 +423,14 @@ async def _process_video_file(
                     model=asr_model,
                     provider=asr_provider,
                     progress_cb=_asr_progress_cb,
+                    cancel_event=cancel_event,
                 )
             except asyncio.CancelledError:
                 raise
             except Exception as e:
+                if cancel_event is not None and cancel_event.is_set():
+                    await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+                    return
                 logger.exception(f"Task {job_id} transcription failed: {e}")
                 await update_progress(
                     job_id, TaskStage.failed, 0.0, "TRANSCRIPTION_FAILED"
@@ -394,10 +438,17 @@ async def _process_video_file(
                 return
             await _cancellation_checkpoint(job_id)
 
-        await update_progress(job_id, TaskStage.transcribing, 0.6, "Transcription complete")
+        await update_progress(job_id, TaskStage.transcribing, 0.60, "Transcription complete")
 
-        await update_progress(job_id, TaskStage.generating_notes, 0.7, "Generating notes...")
+        await update_progress(job_id, TaskStage.generating_notes, 0.65, "Generating notes...")
         has_timestamps = "#t=" in transcript
+        loop = asyncio.get_running_loop()
+
+        def _note_progress_cb(fraction: float, msg: str) -> None:
+            asyncio.run_coroutine_threadsafe(
+                update_progress(job_id, TaskStage.generating_notes, fraction, msg), loop
+            )
+
         try:
             markdown = await asyncio.to_thread(
                 generate_notes,
@@ -407,10 +458,15 @@ async def _process_video_file(
                 api_base=llm_api_base,
                 model=llm_model,
                 has_timestamps=has_timestamps,
+                cancel_event=cancel_event,
+                progress_cb=_note_progress_cb,
             )
         except asyncio.CancelledError:
             raise
         except Exception as e:
+            if cancel_event is not None and cancel_event.is_set():
+                await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+                return
             logger.exception(f"Task {job_id} note generation failed: {e}")
             await update_progress(
                 job_id, TaskStage.failed, 0.0, "NOTE_GENERATION_FAILED"
@@ -418,15 +474,16 @@ async def _process_video_file(
             return
         await _cancellation_checkpoint(job_id)
 
-        await update_progress(job_id, TaskStage.generating_notes, 0.9, "Notes generated")
-
         await set_result(job_id, markdown)
 
     except asyncio.CancelledError:
         raise
     except Exception as e:
-        logger.exception(f"Task {job_id} failed: {e}")
-        await update_progress(job_id, TaskStage.failed, 0.0, "PROCESSING_FAILED")
+        if cancel_event is not None and cancel_event.is_set():
+            await update_progress(job_id, TaskStage.cancelled, 0.0, "Cancelled")
+        else:
+            logger.exception(f"Task {job_id} failed: {e}")
+            await update_progress(job_id, TaskStage.failed, 0.0, "PROCESSING_FAILED")
     finally:
         task = await get_task(job_id)
         if task is None or task["stage"] in (
@@ -455,6 +512,16 @@ async def process_video(
     language = _normalize_language(request.language)
     job_id = str(uuid.uuid4())
 
+    # Dedupe: if an active task for the same URL already exists, return it
+    existing = await find_active_task_by_url(user.user_id, url)
+    if existing:
+        return ProcessResponse(
+            job_id=existing["job_id"],
+            title="",
+            thumbnail_url="",
+            platform=existing.get("platform") or platform,
+        )
+
     await create_task(
         job_id, user_id=user.user_id,
         video_url=url, platform=platform, language=language, source_type="url",
@@ -462,7 +529,9 @@ async def process_video(
     )
     task_runner.schedule(
         job_id,
-        lambda: _process_video_url(job_id, url, language=language, user_id=user.user_id),
+        lambda ev: _process_video_url(
+            job_id, url, language=language, user_id=user.user_id, cancel_event=ev
+        ),
     )
 
     return ProcessResponse(
@@ -543,8 +612,8 @@ async def upload_video(
     )
     task_runner.schedule(
         job_id,
-        lambda: _process_video_file(
-            job_id, str(file_path), language=language, user_id=user.user_id
+        lambda ev: _process_video_file(
+            job_id, str(file_path), language=language, user_id=user.user_id, cancel_event=ev
         ),
     )
 
@@ -758,8 +827,8 @@ async def retry_task(
         )
         task_runner.schedule(
             new_job_id,
-            lambda: _process_video_url(
-                new_job_id, video_url, language=language, user_id=user.user_id
+            lambda ev: _process_video_url(
+                new_job_id, video_url, language=language, user_id=user.user_id, cancel_event=ev
             ),
         )
         return ProcessResponse(
@@ -781,8 +850,8 @@ async def retry_task(
         )
         task_runner.schedule(
             new_job_id,
-            lambda: _process_video_file(
-                new_job_id, str(file_path), language=language, user_id=user.user_id
+            lambda ev: _process_video_file(
+                new_job_id, str(file_path), language=language, user_id=user.user_id, cancel_event=ev
             ),
         )
         return ProcessResponse(
@@ -822,6 +891,13 @@ async def recover_incomplete_tasks() -> None:
     """Reschedule durable non-terminal tasks after application startup."""
     for task in await get_recoverable_tasks():
         job_id = task["job_id"]
+
+        if task.get("attempt_count", 0) >= MAX_TASK_ATTEMPTS:
+            await update_progress(
+                job_id, TaskStage.failed, 0.0, "TASK_RECOVERY_MAX_ATTEMPTS"
+            )
+            continue
+
         language = _normalize_language(task.get("language") or "en")
         user_id = task.get("user_id")
         source_type = task.get("source_type")
@@ -838,8 +914,10 @@ async def recover_incomplete_tasks() -> None:
                 continue
             task_runner.schedule(
                 job_id,
-                lambda job_id=job_id, url=url, language=language, user_id=user_id: (
-                    _process_video_url(job_id, url, language=language, user_id=user_id)
+                lambda ev, job_id=job_id, url=url, language=language, user_id=user_id: (
+                    _process_video_url(
+                        job_id, url, language=language, user_id=user_id, cancel_event=ev
+                    )
                 ),
             )
             continue
@@ -849,11 +927,12 @@ async def recover_incomplete_tasks() -> None:
             if file_path is not None and file_path.is_file():
                 task_runner.schedule(
                     job_id,
-                    lambda job_id=job_id,
+                    lambda ev, job_id=job_id,
                     file_path=file_path,
                     language=language,
                     user_id=user_id: _process_video_file(
-                        job_id, str(file_path), language=language, user_id=user_id
+                        job_id, str(file_path), language=language, user_id=user_id,
+                        cancel_event=ev
                     ),
                 )
                 continue
@@ -884,7 +963,7 @@ async def list_models(req: ModelsRequest, user: CurrentUser):
             return ModelsResponse(models=models)
     except Exception as e:
         logger.warning(f"Failed to list models for {req.api_base}: {e}")
-        return ModelsResponse(models=[], error=str(e))
+        return ModelsResponse(models=[], error="MODELS_FETCH_FAILED")
 
 
 @router.get("/providers", response_model=ProvidersResponse)

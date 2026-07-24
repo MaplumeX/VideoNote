@@ -12,6 +12,8 @@ from app.schemas import TaskStage
 
 DB_PATH = Path(str(UPLOAD_DIR)) / "videonote.db"
 
+MAX_TASK_ATTEMPTS = 5
+
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS tasks (
     job_id TEXT PRIMARY KEY,
@@ -268,6 +270,26 @@ async def get_task(job_id: str) -> dict | None:
     return dict(row)
 
 
+async def find_active_task_by_url(user_id: str, url: str) -> dict | None:
+    """Find an active (non-terminal, non-cancelled) task for the same user + URL."""
+    terminal_stages = (
+        TaskStage.complete.value,
+        TaskStage.failed.value,
+        TaskStage.cancelled.value,
+    )
+    db = await _get_db()
+    cursor = await db.execute(
+        "SELECT * FROM tasks WHERE user_id = ? AND video_url = ? "
+        "AND stage NOT IN (?, ?, ?) AND cancel_requested = 0 "
+        "ORDER BY created_at DESC LIMIT 1",
+        (user_id, url, *terminal_stages),
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
+
+
 async def get_recoverable_tasks() -> list[dict]:
     """Return all non-terminal tasks that should be resumed after process restart."""
     terminal_stages = (
@@ -294,8 +316,9 @@ async def increment_attempt(job_id: str) -> bool:
     db = await _get_db()
     cursor = await db.execute(
         "UPDATE tasks SET attempt_count = attempt_count + 1, updated_at = ? "
-        "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?)",
-        (datetime.now(UTC).isoformat(), job_id, *terminal_stages),
+        "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?) "
+        "AND attempt_count < ?",
+        (datetime.now(UTC).isoformat(), job_id, *terminal_stages, MAX_TASK_ATTEMPTS),
     )
     await db.commit()
     return cursor.rowcount > 0

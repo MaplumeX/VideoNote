@@ -2,12 +2,15 @@
 
 import logging
 import subprocess
+import threading
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-def extract_audio(video_path: str, output_path: str) -> str:
+def extract_audio(
+    video_path: str, output_path: str, *, cancel_event: threading.Event | None = None,
+) -> str:
     """Extract audio from a video file as WAV (PCM s16le, 16kHz, mono).
 
     This format is universally accepted by ASR APIs.
@@ -24,16 +27,30 @@ def extract_audio(video_path: str, output_path: str) -> str:
     ]
 
     logger.info(f"Extracting audio: {video_path} -> {output_path}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    while True:
+        try:
+            retcode = proc.wait(timeout=0.5)
+            break
+        except subprocess.TimeoutExpired:
+            if cancel_event is not None and cancel_event.is_set():
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+                raise RuntimeError("cancelled") from None
 
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed: {result.stderr}")
-
+    if retcode != 0:
+        _, stderr = proc.communicate()
+        raise RuntimeError(f"ffmpeg failed: {stderr.decode() if stderr else ''}")
     return output_path
 
 
 def download_audio_via_ytdlp(
     url: str, output_dir: str, *, cookiefile_path: str | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> str:
     """Download only the audio stream from a URL using yt-dlp.
 
@@ -50,6 +67,7 @@ def download_audio_via_ytdlp(
     # some formats. We convert to WAV separately via extract_audio().
     ydl_opts = _ydl_opts(
         cookiefile_path=cookiefile_path,
+        cancel_event=cancel_event,
         format="bestaudio/best",
         outtmpl=output_path,
     )
@@ -79,5 +97,5 @@ def download_audio_via_ytdlp(
 
     # Convert to WAV using ffmpeg directly (more reliable than yt-dlp's postprocessor)
     wav_path = str(Path(output_dir) / "audio.wav")
-    extract_audio(downloaded, wav_path)
+    extract_audio(downloaded, wav_path, cancel_event=cancel_event)
     return wav_path

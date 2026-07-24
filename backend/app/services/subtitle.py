@@ -3,6 +3,7 @@
 import logging
 import re
 import tempfile
+import threading
 import uuid
 from pathlib import Path
 
@@ -36,6 +37,7 @@ def _parse_cookies_from_browser(value: str) -> tuple[str, str | None, str | None
 def _ydl_opts(
     *,
     cookiefile_path: str | None = None,
+    cancel_event: threading.Event | None = None,
     **extra: object,
 ) -> dict:
     opts: dict = {"quiet": True, "no_warnings": True, "remote_components": ["ejs:github"], **extra}
@@ -49,6 +51,13 @@ def _ydl_opts(
             opts["cookiesfrombrowser"] = _parse_cookies_from_browser(YT_DLP_COOKIES_FROM_BROWSER)
         if YT_DLP_COOKIES_FILE:
             opts["cookiefile"] = YT_DLP_COOKIES_FILE
+    if cancel_event is not None:
+        def _cancel_hook(d: dict) -> None:
+            if cancel_event.is_set():
+                raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
+        hooks = opts.get("progress_hooks", [])
+        hooks.append(_cancel_hook)
+        opts["progress_hooks"] = hooks
     return opts
 
 
@@ -127,7 +136,8 @@ def _srt_to_transcript(raw: str) -> str | None:
 
 
 def extract_subtitles(
-    url: str, languages: list[str] | None = None, *, cookiefile_path: str | None = None
+    url: str, languages: list[str] | None = None, *, cookiefile_path: str | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> str | None:
     """Extract subtitles from a video URL using yt-dlp.
 
@@ -139,6 +149,7 @@ def extract_subtitles(
 
     ydl_opts = _ydl_opts(
         cookiefile_path=cookiefile_path,
+        cancel_event=cancel_event,
         writesubtitles=True,
         writeautomaticsub=True,
         subtitleslangs=languages,
@@ -164,6 +175,7 @@ def extract_subtitles(
                             return _download_and_read_subtitle(
                                 url, lang, auto=False, languages=languages,
                                 cookiefile_path=cookiefile_path,
+                                cancel_event=cancel_event,
                             )
 
             # Try auto-generated captions
@@ -173,6 +185,7 @@ def extract_subtitles(
                     return _download_and_read_subtitle(
                         url, lang, auto=True, languages=languages,
                         cookiefile_path=cookiefile_path,
+                        cancel_event=cancel_event,
                     )
 
             logger.info(f"No subtitles found for {url}")
@@ -186,11 +199,13 @@ def extract_subtitles(
 def _download_and_read_subtitle(
     url: str, lang: str, auto: bool, languages: list[str],
     *, cookiefile_path: str | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> str | None:
     """Download subtitle file via yt-dlp and read its content."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ydl_opts = _ydl_opts(
             cookiefile_path=cookiefile_path,
+            cancel_event=cancel_event,
             writesubtitles=not auto,
             writeautomaticsub=auto,
             subtitleslangs=[lang],
@@ -248,13 +263,16 @@ def classify_ytdlp_error(exc: Exception) -> str:
     return "VIDEO_FETCH_FAILED"
 
 
-def get_video_info_strict(url: str, *, cookiefile_path: str | None = None) -> dict:
+def get_video_info_strict(
+    url: str, *, cookiefile_path: str | None = None,
+    cancel_event: threading.Event | None = None,
+) -> dict:
     """Like :func:`get_video_info` but raises on failure with a classified error code.
 
     The raised exception has a ``code`` attribute set to the stable error code
     (e.g. ``VIDEO_PRIVATE``), falling back to ``VIDEO_FETCH_FAILED``.
     """
-    ydl_opts = _ydl_opts(cookiefile_path=cookiefile_path)
+    ydl_opts = _ydl_opts(cookiefile_path=cookiefile_path, cancel_event=cancel_event)
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)

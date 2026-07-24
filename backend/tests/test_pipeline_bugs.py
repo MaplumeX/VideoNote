@@ -175,7 +175,7 @@ async def test_failed_upload_task_retains_file(
     task = await db.get_task("fail-job")
     assert task is not None
     assert task["stage"] == "failed"
-    assert task["message"] == "VIDEO_FETCH_FAILED"
+    assert task["message"] == "AUDIO_EXTRACTION_FAILED"
     # File should still exist for retry
     assert source.exists()
     assert task["input_file_path"] is not None
@@ -443,3 +443,194 @@ def test_generate_notes_splits_long_transcript(
         _, kwargs = call
         user_content = kwargs["messages"][1]["content"]
         assert len(user_content) < len(long_transcript)
+
+
+# ── Phase F: duplicate submit dedupe ─────────────────────────────────
+
+
+async def test_find_active_task_by_url_returns_active_task(
+    isolated_db: Path,
+) -> None:
+    url = "https://www.youtube.com/watch?v=abcdefghijk"
+    await db.create_task(
+        "job-1",
+        user_id="user",
+        video_url=url,
+        platform="youtube",
+        source_type="url",
+    )
+    # Terminal task should be ignored
+    await db.create_task(
+        "job-2",
+        user_id="user",
+        video_url=url,
+        platform="youtube",
+        source_type="url",
+    )
+    await db.set_result("job-2", "# done")
+    # Cancelled task should be ignored
+    await db.create_task(
+        "job-3",
+        user_id="user",
+        video_url=url,
+        platform="youtube",
+        source_type="url",
+    )
+    await db.request_task_cancel("job-3", user_id="user")
+
+    found = await db.find_active_task_by_url("user", url)
+    assert found is not None
+    assert found["job_id"] == "job-1"
+
+    # Different user → no match
+    assert await db.find_active_task_by_url("other", url) is None
+
+    # Different URL → no match
+    assert await db.find_active_task_by_url("user", "https://other.com") is None
+
+
+async def test_process_video_dedupes_active_task(
+    isolated_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url = "https://www.youtube.com/watch?v=abcdefghijk"
+    await db.create_task(
+        "existing",
+        user_id="user",
+        video_url=url,
+        platform="youtube",
+        source_type="url",
+    )
+    monkeypatch.setattr(routes.task_runner, "schedule", lambda job_id, factory: True)
+
+    request = VideoRequest(url=url, language="en")
+    response = await routes.process_video(request, TokenData("user"))
+
+    assert response.job_id == "existing"
+    # No new task should have been created
+    tasks = await db.get_user_tasks("user")
+    assert len(tasks) == 1
+
+
+async def test_process_video_does_not_dedupe_terminal_task(
+    isolated_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url = "https://www.youtube.com/watch?v=abcdefghijk"
+    await db.create_task(
+        "completed",
+        user_id="user",
+        video_url=url,
+        platform="youtube",
+        source_type="url",
+    )
+    await db.set_result("completed", "# done")
+    monkeypatch.setattr(routes.task_runner, "schedule", lambda job_id, factory: True)
+
+    request = VideoRequest(url=url, language="en")
+    response = await routes.process_video(request, TokenData("user"))
+
+    assert response.job_id != "completed"
+    tasks = await db.get_user_tasks("user")
+    assert len(tasks) == 2
+
+
+# ── Phase G: /models error leakage ──────────────────────────────────
+
+
+async def test_models_endpoint_returns_stable_error_code(
+    isolated_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The /models endpoint must not leak internal exception text."""
+    from app.schemas import ModelsRequest
+
+    # Force the OpenAI import to fail with a sensitive error
+    def bad_async_openai(**kwargs):
+        raise RuntimeError("Connection refused to https://internal.api.com key=sk-leaked")
+
+    import openai
+
+    monkeypatch.setattr(openai, "AsyncOpenAI", bad_async_openai)
+
+    req = ModelsRequest(api_key="sk-test", api_base="https://api.test.com/v1", category="llm")
+    response = await routes.list_models(req, TokenData("user"))
+
+    assert response.error == "MODELS_FETCH_FAILED"
+    assert response.models == []
+    # Ensure no leakage of internal details
+    assert "sk-leaked" not in (response.error or "")
+    assert "internal.api.com" not in (response.error or "")
+
+
+# ── Phase D: recovery attempt limit ───────────────────────────────
+
+
+async def test_recover_incomplete_tasks_marks_over_limit_failed(
+    isolated_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tasks exceeding MAX_TASK_ATTEMPTS are marked failed during recovery."""
+    from app.db import MAX_TASK_ATTEMPTS
+
+    await db.create_task(
+        "over-limit",
+        user_id="user",
+        video_url="https://www.youtube.com/watch?v=abc123",
+        platform="youtube",
+        source_type="url",
+        language="en",
+    )
+    # Bump attempt_count to MAX_TASK_ATTEMPTS
+    for _ in range(MAX_TASK_ATTEMPTS):
+        await db.increment_attempt("over-limit")
+
+    scheduled: list[str] = []
+    monkeypatch.setattr(
+        routes.task_runner, "schedule",
+        lambda job_id, factory: scheduled.append(job_id) or True,
+    )
+
+    await routes.recover_incomplete_tasks()
+
+    assert scheduled == []
+    task = await db.get_task("over-limit")
+    assert task is not None
+    assert task["stage"] == "failed"
+    assert task["message"] == "TASK_RECOVERY_MAX_ATTEMPTS"
+
+
+# ── Phase E: truncation continuation ───────────────────────────────
+
+
+def test_generate_notes_continues_on_truncation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LLM output truncated by max_tokens is detected and continued."""
+    truncated_response = MagicMock()
+    truncated_response.choices = [
+        MagicMock(
+            message=MagicMock(content="# Title\n"),
+            finish_reason="length",
+        )
+    ]
+
+    continued_response = MagicMock()
+    continued_response.choices = [
+        MagicMock(
+            message=MagicMock(content="## Section"),
+            finish_reason="stop",
+        )
+    ]
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.side_effect = [
+        truncated_response, continued_response,
+    ]
+    monkeypatch.setattr(note_gen, "OpenAI", lambda **kwargs: mock_client)
+
+    result = note_gen._call_llm(
+        mock_client,
+        [{"role": "user", "content": "test"}],
+        "test-model",
+    )
+
+    assert "# Title" in result
+    assert "## Section" in result
+    assert mock_client.chat.completions.create.call_count == 2

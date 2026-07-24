@@ -142,7 +142,7 @@ async def test_task_runner_keeps_reference_and_prevents_duplicates(
         attempts.append(job_id)
         return True
 
-    async def worker() -> None:
+    async def worker(ev) -> None:
         started.set()
         await release.wait()
 

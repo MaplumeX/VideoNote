@@ -1,7 +1,9 @@
 """LLM-based note generation from transcript text."""
 
 import logging
+import threading
 import time
+from collections.abc import Callable
 
 from openai import (
     APIConnectionError,
@@ -111,24 +113,23 @@ def _is_retryable(exc: Exception) -> bool:
     return False
 
 
-def _call_llm(
+def _llm_create_with_retry(
     client: OpenAI,
     messages: list[dict[str, str]],
     model: str,
-    temperature: float = 0.3,
-    max_tokens: int = 8192,
-) -> str:
-    """Call LLM with exponential-backoff retry for transient failures."""
+    temperature: float,
+    max_tokens: int,
+):
+    """Call chat.completions.create with exponential-backoff retry."""
     max_attempts = 3
     for attempt in range(max_attempts):
         try:
-            response = client.chat.completions.create(
+            return client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            return response.choices[0].message.content
         except Exception as e:
             if attempt + 1 >= max_attempts or not _is_retryable(e):
                 raise
@@ -137,7 +138,47 @@ def _call_llm(
                 f"LLM call attempt {attempt + 1} failed, retrying in {wait}s: {e}"
             )
             time.sleep(wait)
-    return ""  # unreachable
+    return None  # unreachable
+
+
+def _call_llm(
+    client: OpenAI,
+    messages: list[dict[str, str]],
+    model: str,
+    temperature: float = 0.3,
+    max_tokens: int = 8192,
+) -> str:
+    """Call LLM with exponential-backoff retry for transient failures.
+
+    If the response is truncated (finish_reason == "length"), up to 2
+    continuation requests are made to complete the output.
+    """
+    response = _llm_create_with_retry(client, messages, model, temperature, max_tokens)
+    content = response.choices[0].message.content or ""
+    finish_reason = response.choices[0].finish_reason
+
+    continuations = 0
+    while finish_reason == "length" and continuations < 2:
+        continuations += 1
+        cont_messages = [
+            *messages,
+            {"role": "assistant", "content": content},
+            {
+                "role": "user",
+                "content": (
+                    "Continue exactly where you left off. "
+                    "Do not repeat, do not wrap in a code block."
+                ),
+            },
+        ]
+        response = _llm_create_with_retry(client, cont_messages, model, temperature, max_tokens)
+        content += response.choices[0].message.content or ""
+        finish_reason = response.choices[0].finish_reason
+
+    if finish_reason == "length":
+        logger.warning(f"LLM output still truncated after {continuations} continuations")
+
+    return content
 
 
 def _split_transcript(transcript: str, max_chars: int = MAX_TRANSCRIPT_CHARS) -> list[str]:
@@ -259,6 +300,8 @@ def generate_notes(
     api_base: str | None = None,
     model: str | None = None,
     has_timestamps: bool = True,
+    cancel_event: threading.Event | None = None,
+    progress_cb: Callable[[float, str], None] | None = None,
 ) -> str:
     """Generate structured Markdown notes from a transcript using LLM.
 
@@ -287,6 +330,8 @@ def generate_notes(
     chunks = _split_transcript(transcript)
 
     if len(chunks) == 1:
+        if progress_cb:
+            progress_cb(0.65, "Generating notes...")
         notes = _generate_notes_single(
             chunks[0],
             video_title,
@@ -296,11 +341,17 @@ def generate_notes(
             _model,
             has_timestamps,
         )
+        if progress_cb:
+            progress_cb(0.95, "Notes generated")
         return normalize_note_markdown(notes)
 
     # Multi-chunk: generate sub-notes per chunk, then merge.
+    if progress_cb:
+        progress_cb(0.65, "Generating notes...")
     sub_notes: list[str] = []
     for i, chunk in enumerate(chunks):
+        if cancel_event is not None and cancel_event.is_set():
+            raise RuntimeError("cancelled")
         logger.info(f"Generating notes for chunk {i + 1}/{len(chunks)}")
         sub_notes.append(
             _generate_notes_single(
@@ -313,6 +364,17 @@ def generate_notes(
                 has_timestamps,
             )
         )
+        if progress_cb:
+            progress_cb(
+                0.65 + 0.25 * ((i + 1) / len(chunks)),
+                f"Generating notes {i + 1}/{len(chunks)}",
+            )
 
+    if cancel_event is not None and cancel_event.is_set():
+        raise RuntimeError("cancelled")
+    if progress_cb:
+        progress_cb(0.92, "Merging notes...")
     merged = _merge_notes(sub_notes, video_title, language, _api_key, _api_base, _model)
+    if progress_cb:
+        progress_cb(0.95, "Notes generated")
     return normalize_note_markdown(merged)

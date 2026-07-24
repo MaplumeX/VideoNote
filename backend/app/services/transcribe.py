@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
 from collections.abc import Callable
 
 from openai import OpenAI
@@ -54,6 +55,7 @@ def transcribe_audio(
     model: str | None = None,
     provider: str | None = None,
     progress_cb: Callable[[float, str], None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> str:
     """Transcribe an audio file using configured ASR provider.
 
@@ -76,6 +78,8 @@ def transcribe_audio(
     audio_size = os.path.getsize(audio_path)
 
     if audio_size <= max_size:
+        if cancel_event is not None and cancel_event.is_set():
+            raise RuntimeError("cancelled")
         result = _transcribe_file(client, audio_path, language, _model, _provider)
         if progress_cb:
             progress_cb(1.0, "Transcription complete")
@@ -84,7 +88,7 @@ def transcribe_audio(
     size_mb = audio_size / 1024 / 1024
     logger.info(f"Audio file {audio_path} is {size_mb:.1f}MB, splitting")
     return _transcribe_large_file(
-        client, audio_path, language, _model, _provider, progress_cb
+        client, audio_path, language, _model, _provider, progress_cb, cancel_event
     )
 
 
@@ -128,6 +132,7 @@ def _transcribe_large_file(
     model: str,
     provider: str,
     progress_cb: Callable[[float, str], None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> str:
     """Split a large audio file into chunks and transcribe each."""
     probe_cmd = [
@@ -164,6 +169,8 @@ def _transcribe_large_file(
         start = 0.0
         chunk_idx = 0
         while start < total_seconds:
+            if cancel_event is not None and cancel_event.is_set():
+                raise RuntimeError("cancelled")
             chunk_path = os.path.join(tmpdir, f"chunk_{chunk_idx}.wav")
             split_cmd = [
                 "ffmpeg",
