@@ -147,3 +147,36 @@ Diagnosed Bilibili 403/FileNotFoundError during audio download: _to_thread_with_
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Review core pipeline and fix P0/P1 bugs
+
+**Date**: 2026-09-02
+**Task**: Review core pipeline and fix P0/P1 bugs
+**Branch**: `review/core-pipeline-bugs`
+
+### Summary
+
+Read-only review of the core pipeline (task lifecycle, subtitle/audio/ASR/note-gen stages, SPA serving) found 2 P0 + 4 P1 bugs; then fixed all six with regression tests: (P0) process_ie_result dict misused as yt-dlp retcode broke every no-subtitle ASR-fallback task; SPA fallback percent-decoded path traversal allowed unauthenticated arbitrary file reads. (P1) leaked partial files on upload disconnect; Retry button shown for cancelled tasks; cleanup cutoffs used isoformat against CURRENT_TIMESTAMP created_at (deleted tasks ~1 day early); random SECRET_KEY silently invalidated encrypted provider keys/cookies after restart. Backend 91 tests + frontend 43 tests pass, ruff clean; pitfalls recorded in backend specs. P2 findings documented in the review and left for future tasks.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2488f96` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
