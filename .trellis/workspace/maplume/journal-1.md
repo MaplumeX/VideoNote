@@ -114,3 +114,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Fix duplicate yt-dlp downloads in _to_thread_with_cancel
+
+**Date**: 2026-09-02
+**Task**: Fix duplicate yt-dlp downloads in _to_thread_with_cancel
+**Branch**: `fix/bilibili-cookie-download-403`
+
+### Summary
+
+Diagnosed Bilibili 403/FileNotFoundError during audio download: _to_thread_with_cancel created a new asyncio.to_thread future inside its polling loop, re-dispatching the blocking call every 3s and spawning concurrent yt-dlp threads writing the same audio.m4a.part. Fixed by creating the future once and adding a _cancel_watcher for prompt cancellation; added 5 regression tests (exactly-once execution verified to fail on old code, 74 tests pass, ruff clean). Cookie handling itself was working correctly.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f5b0e3f` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
