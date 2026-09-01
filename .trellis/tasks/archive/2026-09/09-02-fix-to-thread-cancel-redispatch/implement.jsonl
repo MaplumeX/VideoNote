@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Lint/type/async rules; blocking calls must go through asyncio.to_thread; forbidden patterns"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Service-layer error conventions for the fix and test assertions"}
