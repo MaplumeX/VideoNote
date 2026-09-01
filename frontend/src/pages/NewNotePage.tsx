@@ -26,7 +26,8 @@ export function NewNotePage() {
     useVideoUpload();
 
   const isProcessing = !!jobId;
-  const isFailed = progress?.stage === "failed" || progress?.stage === "cancelled";
+  const isTerminal = progress?.stage === "failed" || progress?.stage === "cancelled";
+  const isFailed = progress?.stage === "failed";
 
   // Fetch task metadata (title/thumbnail) from the REST API once the SSE stage
   // transitions from pending to an active stage, since the POST response may
@@ -159,7 +160,7 @@ export function NewNotePage() {
     }
   };
 
-  const showCancelButton = isProcessing && !isFailed && !uploading;
+  const showCancelButton = isProcessing && !isTerminal && !uploading;
   const showRetryButton = isFailed;
 
   return (
@@ -218,7 +219,7 @@ export function NewNotePage() {
           </div>
 
           {/* Progress message */}
-          {!uploading && !isFailed && progress?.message && (
+          {!uploading && !isTerminal && progress?.message && (
             <p className="text-center text-sm text-muted-foreground">
               {progress.message}
             </p>

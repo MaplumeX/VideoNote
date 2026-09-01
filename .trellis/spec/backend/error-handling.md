@@ -30,11 +30,42 @@ Use the `error_detail(code, **params)` helper from `app/errors.py` to build deta
 |--------|------|
 | 401 | Invalid/expired token, bad credentials, token reuse |
 | 404 | Task/result not found, user not found |
-| 409 | Email already registered |
+| 409 | Email already registered, task already finished, only-failed-can-retry |
 | 413 | File exceeds size limit |
 | 415 | Unsupported file type |
 | 422 | Invalid input (URL not YouTube/Bilibili) |
 | 500 | Service failure (yt-dlp, ASR, LLM) |
+
+---
+
+## Pitfalls (learned from real bugs)
+
+### yt-dlp return-value semantics
+
+`YoutubeDL.download(urls)` returns an **int retcode**, but
+`YoutubeDL.process_ie_result(info, download=True)` returns the resolved **info
+dict**. Never assign their return values into the same variable. The shared
+retcode lives on the instance: `getattr(ydl, "_download_retcode", 0)` (private
+attr; guard with a default and a pinned-version attribute test — see
+`backend/tests/test_audio_download.py`).
+
+### Path handling with user-influenced path segments
+
+Starlette **percent-decodes** path parameters before they reach the handler, so
+`/%2Fetc%2Fpasswd` arrives as `full_path = "/etc/passwd"`, and
+`Path(base) / "/etc/passwd"` replaces the base entirely. `..`-traversal is
+also possible after decoding. Whenever a route serves files from a request
+path, resolve and enforce strict containment:
+
+```python
+resolved_root = base_dir.resolve()
+candidate = (base_dir / user_path).resolve()
+if candidate.is_file() and resolved_root in candidate.parents:
+    ...  # safe
+```
+
+(`_safe_upload_path` in `routes.py` and `spa_fallback` in `main.py` are the
+reference implementations.)
 
 ---
 

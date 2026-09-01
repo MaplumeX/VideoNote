@@ -12,6 +12,7 @@ from app.api.auth_routes import router as auth_router
 from app.api.cookie_routes import router as cookie_router
 from app.api.note_routes import router as note_router
 from app.api.routes import recover_incomplete_tasks, router
+from app.config import SECRET_KEY_IS_RANDOM
 from app.db import cleanup_failed_task_files, cleanup_old_terminal_tasks, close_db, init_db
 from app.task_runner import task_runner
 
@@ -19,6 +20,13 @@ from app.task_runner import task_runner
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger = logging.getLogger(__name__)
+    if SECRET_KEY_IS_RANDOM:
+        logger.warning(
+            "SECRET_KEY is not set — a random key was generated for this boot. "
+            "Encrypted provider API keys and cookies stored in the database will "
+            "become unreadable after every restart. Set SECRET_KEY to a stable "
+            "value in the environment to persist encrypted data."
+        )
     await init_db()
     await recover_incomplete_tasks()
     cleaned = await cleanup_failed_task_files()
@@ -60,6 +68,7 @@ async def health():
 # exists, FastAPI serves Vite assets and falls back to index.html for the SPA.
 frontend_dist = Path(os.getenv("FRONTEND_STATIC_DIR", "/app/static"))
 if frontend_dist.is_dir():
+    _frontend_dist_resolved = frontend_dist.resolve()
     _assets = frontend_dist / "assets"
     if _assets.is_dir():
         app.mount("/assets", StaticFiles(directory=_assets), name="frontend-assets")
@@ -67,8 +76,12 @@ if frontend_dist.is_dir():
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str):
         # Return a root-level static file (e.g. favicon.ico) if it exists.
-        candidate = frontend_dist / full_path
-        if full_path and candidate.is_file():
+        # Path-safety: starlette percent-decodes the path param, so an encoded
+        # absolute path (/%2Fetc%2Fpasswd) or ../ traversal could escape the
+        # dist dir. Resolve the candidate and require strict containment
+        # (mirrors _safe_upload_path in routes.py).
+        candidate = (frontend_dist / full_path).resolve()
+        if full_path and candidate.is_file() and _frontend_dist_resolved in candidate.parents:
             return FileResponse(candidate)
         index = frontend_dist / "index.html"
         if index.is_file():

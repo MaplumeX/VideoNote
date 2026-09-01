@@ -200,6 +200,10 @@ async def _get_user_provider(user_id: str, category: str) -> dict | None:
             api_key = decrypt_api_key(config["api_key_encrypted"])
         except Exception:
             api_key = ""
+            logger.warning(
+                f"Failed to decrypt {category} provider API key for user {user_id}; "
+                "SECRET_KEY may have changed"
+            )
     return {
         "provider": config.get("provider", ""),
         "model": config.get("model", ""),
@@ -772,16 +776,23 @@ async def upload_video(
     file_path = UPLOAD_DIR / f"{job_id}_{safe_name}"
 
     size = 0
-    with open(file_path, "wb") as f:
-        while chunk := await file.read(1024 * 1024):
-            size += len(chunk)
-            if size > max_bytes:
-                file_path.unlink(missing_ok=True)
-                raise HTTPException(
-                    status_code=413,
-                    detail=error_detail("FILE_TOO_LARGE", maxMb=MAX_UPLOAD_SIZE_MB),
-                )
-            f.write(chunk)
+    upload_complete = False
+    try:
+        with open(file_path, "wb") as f:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > max_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=error_detail("FILE_TOO_LARGE", maxMb=MAX_UPLOAD_SIZE_MB),
+                    )
+                f.write(chunk)
+        upload_complete = True
+    finally:
+        # Client disconnect / cancellation mid-upload surfaces as an exception
+        # from file.read() — remove the partial file so it doesn't leak.
+        if not upload_complete:
+            file_path.unlink(missing_ok=True)
 
     await create_task(
         job_id, message="Uploaded, queued", user_id=user.user_id,

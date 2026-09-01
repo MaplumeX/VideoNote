@@ -127,6 +127,14 @@ async def init_db() -> None:
 - **Timestamps**: `created_at`, `updated_at`, `expires_at`, `revoked_at` (stored as ISO 8601 text)
 - **Indexes**: `idx_<table>_<column>` (`idx_refresh_tokens_user_id`, `idx_refresh_tokens_token_hash`)
 
+> ⚠️ **Timestamp format split**: `tasks.created_at` is written by SQLite
+> `CURRENT_TIMESTAMP` (`YYYY-MM-DD HH:MM:SS`, no `T`/timezone), while all other
+timestamp columns are written by the app as `datetime.now(UTC).isoformat()`.
+> When comparing a Python-computed cutoff against `created_at` as a string,
+> you MUST format it with `_sqlite_utc_timestamp()` (see `app/db.py`) — an
+> isoformat cutoff silently mis-sorts every same-day row as "older" because
+> `' ' (0x20) < 'T' (0x54)` in string comparison.
+
 ---
 
 ## Common Mistakes

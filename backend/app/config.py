@@ -30,6 +30,7 @@ UPLOAD_DIR: Path = Path(os.getenv("UPLOAD_DIR", "/tmp/videonote_uploads"))
 MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "500"))
 
 # Auth
+SECRET_KEY_IS_RANDOM: bool = not os.getenv("SECRET_KEY", "")
 SECRET_KEY: str = os.getenv("SECRET_KEY", "") or secrets.token_urlsafe(32)
 ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
 REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))

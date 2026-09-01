@@ -217,6 +217,16 @@ async def close_db() -> None:
         _db_conn = None
 
 
+def _sqlite_utc_timestamp(dt: datetime) -> str:
+    """Format a UTC datetime the way SQLite CURRENT_TIMESTAMP does.
+
+    ``tasks.created_at`` is written by SQLite ``CURRENT_TIMESTAMP`` as
+    ``YYYY-MM-DD HH:MM:SS`` (UTC, no timezone suffix). Cleanup cutoffs are
+    compared against it as strings, so they must use the same format — an
+    ISO-8601 ``T`` separator would sort every same-day row as "older".
+    """
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
 async def cleanup_failed_task_files(max_age_days: int = 7) -> int:
     """Delete input files for failed tasks older than ``max_age_days``.
 
@@ -224,7 +234,7 @@ async def cleanup_failed_task_files(max_age_days: int = 7) -> int:
     ``input_file_path`` column is nullified.  Returns the number of files
     removed.
     """
-    cutoff = (datetime.now(UTC) - timedelta(days=max_age_days)).isoformat()
+    cutoff = _sqlite_utc_timestamp(datetime.now(UTC) - timedelta(days=max_age_days))
     db = await _get_db()
     cursor = await db.execute(
         "SELECT job_id, input_file_path FROM tasks "
@@ -256,7 +266,7 @@ async def cleanup_old_terminal_tasks(max_age_days: int = 30) -> int:
     Returns the number of task rows deleted.  Associated ``note_tags`` rows are
     removed automatically via ``ON DELETE CASCADE``.
     """
-    cutoff = (datetime.now(UTC) - timedelta(days=max_age_days)).isoformat()
+    cutoff = _sqlite_utc_timestamp(datetime.now(UTC) - timedelta(days=max_age_days))
     db = await _get_db()
     cursor = await db.execute(
         "SELECT job_id, input_file_path FROM tasks "
