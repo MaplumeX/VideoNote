@@ -80,9 +80,13 @@ def download_audio_via_ytdlp(
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         if info is not None:
-            retcode = ydl.process_ie_result(info, download=True)
+            # process_ie_result returns the resolved info dict, NOT a retcode;
+            # both paths funnel into __download_wrapper, which records the
+            # retcode on the YoutubeDL instance (this is what download() returns).
+            ydl.process_ie_result(info, download=True)
         else:
-            retcode = ydl.download([url])
+            ydl.download([url])
+        retcode = getattr(ydl, "_download_retcode", 0)
 
     # List directory contents for diagnostics before searching
     dir_contents = list(Path(output_dir).iterdir())

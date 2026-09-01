@@ -650,3 +650,103 @@ def test_generate_notes_continues_on_truncation(
     assert "# Title" in result
     assert "## Section" in result
     assert mock_client.chat.completions.create.call_count == 2
+
+
+# ── P1-3: upload partial file cleanup on client disconnect ─────────
+
+async def test_upload_disconnect_removes_partial_file(
+    isolated_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A read exception mid-upload (client disconnect) must not leak a partial file."""
+
+    class _FailingRead:
+        content_type = "video/mp4"
+        filename = "test.mp4"
+
+        def __init__(self) -> None:
+            self._chunks = [b"first chunk of video data"]
+            self.read_called = False
+
+        async def read(self, size: int = -1) -> bytes:
+            if not self.read_called:
+                self.read_called = True
+                return self._chunks[0]
+            raise ConnectionResetError("client disconnected")
+
+    monkeypatch.setattr(routes, "create_task", db.create_task)
+    monkeypatch.setattr(routes.task_runner, "schedule", lambda job_id, factory: True)
+    monkeypatch.setattr(routes, "ASR_API_KEY", "test-key")
+    monkeypatch.setattr(routes, "LLM_API_KEY", "test-key")
+
+    failing_file = _FailingRead()
+    with pytest.raises(ConnectionResetError):
+        await routes.upload_video(failing_file, TokenData("user"))  # type: ignore[arg-type]
+
+    assert list(isolated_db.iterdir()) == [] or all(
+        not f.name.startswith(tuple("0123456789abcdef")) for f in isolated_db.iterdir()
+    )
+    leftovers = [f for f in isolated_db.iterdir() if f.name.endswith("_test.mp4")]
+    assert leftovers == []
+
+
+# ── P1-5: cleanup cutoff uses CURRENT_TIMESTAMP format ─────────────
+
+def test_sqlite_utc_timestamp_format() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    now = datetime(2025, 9, 2, 12, 0, 0, tzinfo=UTC)
+    cutoff = db._sqlite_utc_timestamp(now - timedelta(days=7))
+    assert cutoff == "2025-08-26 12:00:00"
+    assert "T" not in cutoff
+    assert "+" not in cutoff
+
+    # Same-instant created_at (CURRENT_TIMESTAMP format) is NOT older than
+    # the same-instant cutoff — the old isoformat() cutoff deleted it early.
+    same_instant = db._sqlite_utc_timestamp(now)
+    assert not (same_instant < cutoff)  # type: ignore[operator]
+
+    # An older timestamp IS older than the cutoff.
+    older = db._sqlite_utc_timestamp(now - timedelta(days=8))
+    assert older < cutoff  # type: ignore[operator]
+
+
+def test_sqlite_current_timestamp_string_comparison() -> None:
+    """SQLite CURRENT_TIMESTAMP produces 'YYYY-MM-DD HH:MM:SS'; comparing it
+    against an ISO cutoff ('...THH:MM:SS+00:00') sorts same-day rows early."""
+    created = "2025-09-02 12:00:00"  # what SQLite CURRENT_TIMESTAMP writes
+    iso_cutoff = "2025-09-02T12:00:00+00:00"
+    # The old bug: ' ' < 'T' so the row looks older than the same-moment cutoff.
+    assert created < iso_cutoff
+    sqlite_cutoff = db._sqlite_utc_timestamp(
+        __import__("datetime").datetime(2025, 9, 2, 12, 0, 0, tzinfo=__import__("datetime").UTC)
+    )
+    assert not (created < sqlite_cutoff)
+
+
+# ── P1-6: decryption failure warning in _get_user_provider ─────────
+
+async def test_get_user_provider_logs_warning_on_decrypt_failure(
+    isolated_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def fake_get_all_provider_configs(user_id: str) -> dict:
+        return {"llm": {"api_key_encrypted": "not-encrypted-garbage", "provider": "openai"}}
+
+    monkeypatch.setattr(routes, "get_all_provider_configs", fake_get_all_provider_configs)
+
+    def broken_decrypt(value: str) -> str:
+        raise ValueError("bad fernet token")
+
+    monkeypatch.setattr(routes, "decrypt_api_key", broken_decrypt)
+
+    import logging as _logging
+
+    with caplog.at_level(_logging.WARNING, logger="app.api.routes"):
+        config = await routes._get_user_provider("user-1", "llm")
+
+    assert config is not None
+    assert config["api_key"] == ""
+    warning_records = [r for r in caplog.records if "user-1" in r.message and "llm" in r.message]
+    assert warning_records, "expected a decrypt-failure warning mentioning user and category"
+    assert any("SECRET_KEY" in r.message for r in warning_records)
