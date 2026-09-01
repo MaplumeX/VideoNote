@@ -110,14 +110,25 @@ async def _to_thread_with_cancel(
     ``TaskStage.cancelled`` promptly. The underlying thread continues until
     yt-dlp returns and is then garbage-collected.
     """
-    while True:
-        fut = asyncio.create_task(asyncio.to_thread(func, *args, **kwargs))
-        done, _ = await asyncio.wait({fut}, timeout=timeout)
-        if fut in done:
-            return fut.result()
-        if cancel_event is not None and cancel_event.is_set():
-            fut.cancel()
-            raise asyncio.CancelledError
+    async def _cancel_watcher() -> None:
+        if cancel_event is None:
+            return
+        while not cancel_event.is_set():
+            await asyncio.sleep(timeout)
+        fut.cancel()
+
+    fut = asyncio.create_task(asyncio.to_thread(func, *args, **kwargs))
+    watcher = asyncio.create_task(_cancel_watcher())
+    try:
+        while True:
+            done, _ = await asyncio.wait({fut}, timeout=timeout)
+            if fut in done:
+                return fut.result()
+            if cancel_event is not None and cancel_event.is_set():
+                fut.cancel()
+                raise asyncio.CancelledError
+    finally:
+        watcher.cancel()
 
 
 def _safe_upload_path(path_value: str | None) -> Path | None:

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify ruff clean, type hints, no blocking calls in async context"}
+{"file": ".trellis/tasks/09-02-fix-to-thread-cancel-redispatch/prd.md", "reason": "Acceptance criteria checklist for the check agent"}
