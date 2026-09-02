@@ -1,6 +1,6 @@
 [project]
 name = "videonote-backend"
-version = "1.0.1"
+version = "1.0.2"
 description = "VideoNote backend — FastAPI + asyncio for AI video note generation"
 requires-python = ">=3.11"
 dependencies = [

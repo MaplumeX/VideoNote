@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
         await close_db()
 
 
-app = FastAPI(title="VideoNote", version="1.0.1", lifespan=lifespan)
+app = FastAPI(title="VideoNote", version="1.0.2", lifespan=lifespan)
 
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
 app.add_middleware(
