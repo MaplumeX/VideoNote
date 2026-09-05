@@ -180,3 +180,36 @@ Read-only review of the core pipeline (task lifecycle, subtitle/audio/ASR/note-g
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: C1 pipeline state machine & persistence (contract baseline)
+
+**Date**: 2026-09-05
+**Task**: C1 pipeline state machine & persistence (contract baseline)
+**Branch**: `refactor/rewrite-core-pipeline`
+
+### Summary
+
+Rewrote planning for core pipeline rewrite (parent + 5 child tasks, architecture-upgrade option approved). Implemented C1: app/pipeline package (TaskStatus/PipelinePhase state machine with transition table, 15-code ErrorCode with sanitize-on-construct PipelineError, two-level progress model, Stage/ArtifactStore protocols), incremental DB migration (5 new task columns + backfill, task_artifacts table, conditional checkpoint writes), docs/pipeline-contract.md frozen at G1 gate. 173 tests passed, legacy pipeline untouched.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a75548f` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
