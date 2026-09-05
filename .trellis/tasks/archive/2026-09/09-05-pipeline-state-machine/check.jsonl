@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查 ruff/类型/禁用模式合规"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "检查迁移幂等性、条件写、singleton 连接未被破坏"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "检查错误码集中定义与脱敏（构造即脱敏）实现"}
+{"file": ".trellis/tasks/09-05-pipeline-state-machine/implement.md", "reason": "对照执行计划逐项验收 checklist 与边界（禁改旧链路）"}
