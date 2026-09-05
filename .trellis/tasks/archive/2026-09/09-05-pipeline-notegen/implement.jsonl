@@ -1,0 +1,4 @@
+{"file": "docs/pipeline-contract.md", "reason": "C1 冻结契约：错误码/进度/Stage 接口事实源"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "LLM 重试/续写/多块合并的既有语义描述（_call_llm 契约）"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "ruff/类型/禁用模式"}
+{"file": ".trellis/tasks/09-05-pipeline-notegen/design.md", "reason": "本任务详细设计：LLMClient/NoteGenStage/进度映射/测试设计"}
