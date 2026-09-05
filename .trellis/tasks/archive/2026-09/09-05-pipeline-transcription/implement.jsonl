@@ -1,0 +1,5 @@
+{"file": "docs/pipeline-contract.md", "reason": "C1 冻结契约：枚举/错误码/进度/Stage 接口的唯一事实源"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "yt-dlp 错误分类关键词表（VIDEO_* 五码）与脱敏规则迁移的事实源"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "ruff/类型/禁用模式；yt-dlp 共享选项集中构建规范（_ydl_opts 等价迁移为 build_ytdlp_args）"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "阶段模块日志级别与脱敏规范"}
+{"file": ".trellis/tasks/09-05-pipeline-transcription/design.md", "reason": "本任务详细设计：subprocess_util/四个 stage/取消语义/测试设计"}
