@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
+- **Total Sessions**: 6
 - **Last Active**: 2026-09-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~215 | Active |
+| `journal-1.md` | ~248 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-09-05 | C2+C3 transcription & note-gen stages (parallel) | `5293c92` | `refactor/rewrite-core-pipeline` |
 | 5 | 2026-09-05 | C1 pipeline state machine & persistence (contract baseline) | `a75548f` | `refactor/rewrite-core-pipeline` |
 | 4 | 2026-09-02 | Review core pipeline and fix P0/P1 bugs | `2488f96` | `review/core-pipeline-bugs` |
 | 3 | 2026-09-02 | Fix duplicate yt-dlp downloads in _to_thread_with_cancel | `f5b0e3f` | `fix/bilibili-cookie-download-403` |

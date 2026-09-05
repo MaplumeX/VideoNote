@@ -213,3 +213,36 @@ Rewrote planning for core pipeline rewrite (parent + 5 child tasks, architecture
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: C2+C3 transcription & note-gen stages (parallel)
+
+**Date**: 2026-09-05
+**Task**: C2+C3 transcription & note-gen stages (parallel)
+**Branch**: `refactor/rewrite-core-pipeline`
+
+### Summary
+
+Implemented C2 and C3 in parallel against the frozen C1 contract: subprocess_util (managed killable subprocesses, centralized yt-dlp CLI args, error classification), stages fetch/subtitle/audio/transcribe/notegen (Async[OI] clients, verbatim semantic migration of subtitle parsing, ASR chunking, LLM prompts/retry/continuation), StageContext/StageResult extra fields. 100 new tests incl. real-subprocess cancel proof (<3s, no residual); suite at 274 passed. Check agents fixed WAV concurrency overwrite (per-job filenames) and a test anti-pattern; C3 clean.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5293c92` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
