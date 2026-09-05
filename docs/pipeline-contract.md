@@ -1,0 +1,246 @@
+# Pipeline Contract (C1 Baseline)
+
+> **Single source of truth** for the pipeline rewrite contract (subtasks C2–C5 and the
+> frontend). Frozen at the G1 gate; any change to state/errors/progress semantics must go
+> back to the parent task for review.
+>
+> Implementation: `backend/app/pipeline/` (state.py, errors.py, progress.py, stages/base.py).
+
+## 1. Task Status & Pipeline Phase
+
+The legacy single `TaskStage` enum is split into two dimensions:
+
+```python
+class TaskStatus(StrEnum):   # task lifecycle (persisted in tasks.status)
+    pending    # created, not yet scheduled
+    running    # executing; current phase is tasks.phase
+    complete   # terminal
+    failed     # terminal; reason in tasks.last_error_code
+    cancelled  # terminal
+
+class PipelinePhase(StrEnum):  # execution phase within a run (persisted in tasks.phase)
+    fetching    # URL only: video metadata + thumbnail
+    subtitle    # URL only: subtitle extraction (hit -> skip audio+transcribe)
+    audio       # audio download / extraction
+    transcribe  # ASR transcription
+    notegen     # LLM note generation
+```
+
+`phase` is `NULL` when `status` is `pending` or terminal.
+
+### 1.1 Paths
+
+```
+URL_PATH:  fetching → subtitle → audio → transcribe → notegen
+FILE_PATH: audio → transcribe → notegen
+```
+
+### 1.2 Transition table (`ALLOWED_TRANSITIONS`)
+
+| From | To |
+|------|-----|
+| *(start)* | `fetching`, `audio` |
+| `fetching` | `subtitle` |
+| `subtitle` | `audio` *(subtitle miss)*, `notegen` *(subtitle hit — skips audio+transcribe)* |
+| `audio` | `transcribe` |
+| `transcribe` | `notegen` |
+| `notegen` | *(pipeline completes)* |
+
+Rules:
+
+- Phase transitions are phase-level only. Terminal statuses (`failed`/`cancelled`) are
+  reachable from ANY phase and are validated at the `TaskStatus` level, not in the table.
+- `validate_transition(src, dst)` raises `InvalidTransitionError` on illegal transitions.
+- `validate_completion(phase)` — only `notegen` may complete the pipeline.
+- `next_phases(path, current)` returns the legal successors within a path
+  (`current=None` → valid starting phases).
+
+ASCII diagram:
+
+```
+ (start) ──> fetching ──> subtitle ──miss──> audio ──> transcribe ──> notegen ──> (complete)
+   │                        │                                ▲
+   └──────────> audio ──────┴─────hit────────────────────────┘
+```
+
+### 1.3 Checkpoints
+
+```python
+@dataclass(frozen=True)
+class Checkpoint:
+    completed_phase: PipelinePhase   # last successfully finished phase
+    artifacts: frozenset[ArtifactKind]
+```
+
+Resume rule — `resume_point(path, checkpoint) -> PipelinePhase`:
+
+- No checkpoint → first phase of the path ("run from scratch"; this is also the semantics
+  of legacy rows whose `checkpoint_phase` is NULL).
+- Subtitle artifact present → resume at `notegen` (conditional skip).
+- Otherwise → first allowed successor of `completed_phase` within the path. If the
+  completed phase exhausted the path (`notegen`), re-run the final phase so the terminal
+  write is idempotent.
+
+## 2. Progress Model (SSE)
+
+The global 0–1 percentage is **abolished**. Progress is two-level: `phase` + within-phase
+fraction. A frontend wanting a total bar synthesizes it as
+`(phase_index + phase_progress) / phase_count` per path.
+
+### 2.1 `ProgressEvent` SSE payload schema
+
+Emitted on the task progress stream (event: `progress`):
+
+```json
+{
+  "status": "running",
+  "phase": "transcribe",
+  "phase_progress": 0.42,
+  "message": "Transcribing chunk 2/4",
+  "attempt": 1,
+  "timestamp": "2025-01-01T12:00:00.123456+00:00"
+}
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `status` | enum string | `pending` \| `running` \| `complete` \| `failed` \| `cancelled` |
+| `phase` | enum string \| null | `null` when `status` is `pending` or terminal |
+| `phase_progress` | number ∈ [0,1] | within-phase fraction; **not** global |
+| `message` | string | display text, or `SCREAMING_SNAKE_CASE` error code (optionally `"CODE: sanitized detail"`) |
+| `attempt` | integer | execution attempt count (0-based first run) |
+| `timestamp` | string | ISO 8601 UTC |
+
+### 2.2 Monotonicity guard
+
+`PhaseProgressTracker.update(phase, fraction)`:
+
+- Clamps `fraction` to [0, 1].
+- Within the same phase, fraction only ever moves **up**; a regression returns the
+  running max and logs a warning.
+- Switching phase resets the guard.
+
+`ProgressPublisher` protocol (implemented by the orchestrator in C4):
+
+```python
+async def publish(self, phase: PipelinePhase, fraction: float, message: str) -> None: ...
+```
+
+### 2.3 REST changes (C4/C5 scope, noted here for planning)
+
+- `POST /tasks/{id}/retry` — semantics enhanced: resumes from the persisted checkpoint.
+- Other endpoint paths unchanged; response models switch to the new enums.
+- **No compatibility layer** — frontend and backend switch together (D2).
+
+## 3. Intermediate Artifacts
+
+Table `task_artifacts`:
+
+```sql
+CREATE TABLE IF NOT EXISTS task_artifacts (
+    job_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    content_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (job_id, kind)
+);
+```
+
+Kinds:
+
+| Kind | Producer phase | Content |
+|------|----------------|---------|
+| `video_meta` | `fetching` | JSON object (title, duration, thumbnail ref, …) |
+| `subtitle` | `subtitle` | Subtitle text (plain string) |
+| `transcript` | `transcribe` | Transcript text (plain string) |
+| `notes_draft` | `notegen` | *Reserved* for C3 multi-chunk intermediate state; no writer in C1 |
+
+DB API: `save_artifact(job_id, kind, content)` (UPSERT), `get_artifact(job_id, kind)`.
+Plain strings are stored as `{"text": "..."}`; the reader unwraps single-`text` objects
+transparently.
+
+## 4. Error Codes
+
+All pipeline failures carry a stable code from `app.pipeline.errors.ErrorCode`. Raw
+exception text stays in server logs only.
+
+| Code | When |
+|------|------|
+| `VIDEO_PRIVATE` | yt-dlp: private video |
+| `VIDEO_GEO_RESTRICTED` | yt-dlp: geo/region restriction |
+| `VIDEO_NOT_FOUND` | yt-dlp: 404 / deleted / unavailable |
+| `VIDEO_COOKIE_INVALID` | yt-dlp: cookie/login required |
+| `VIDEO_FETCH_FAILED` | video fetch catch-all |
+| `SUBTITLE_EXTRACTION_FAILED` | subtitle stage failed |
+| `AUDIO_EXTRACTION_FAILED` | audio download/extraction failed (also for uploads; never reuse `VIDEO_FETCH_FAILED` for upload-source tasks) |
+| `TRANSCRIPTION_FAILED` | ASR stage failed |
+| `NOTE_GENERATION_FAILED` | LLM note generation failed |
+| `PROCESSING_FAILED` | catch-all unexpected failure |
+| `PROVIDER_NOT_CONFIGURED` | ASR or LLM provider incomplete (key/base/model) |
+| `TASK_RECOVERY_MAX_ATTEMPTS` | recovery skipped: attempt count exhausted (max 5) |
+| `TASK_RECOVERY_INPUT_INVALID` | recovery input missing/invalid |
+| `TASK_RECOVERY_UNSUPPORTED_URL` | persisted URL not YouTube/Bilibili |
+| `TASK_CANCELLED` | task was cancelled |
+
+Non-pipeline codes (e.g. `MODELS_FETCH_FAILED`) stay in `app/errors.py` — not migrated.
+
+### 4.1 `PipelineError` & sanitization
+
+```python
+class PipelineError(Exception):
+    code: ErrorCode
+    detail: str  # sanitized at construction, ≤ 200 chars
+```
+
+- `detail` is sanitized **at construction** (`sk-*` API keys, `Bearer` tokens, and
+  `Cookie:`/`Set-Cookie:` headers redacted to `[REDACTED]`; stripped and truncated to
+  200 chars). Reading `error.detail` is therefore always safe — forgetting to sanitize is
+  structurally impossible.
+- `sanitize_detail(text)` is the single centralized implementation.
+
+## 5. Stage Interface (C2/C3 implementation contract)
+
+```python
+@dataclass
+class StageContext:
+    job_id: str
+    language: str
+    provider: ProviderConfig            # asr/llm ProviderEndpoint: api_key/api_base/model/provider
+    artifacts: ArtifactStore            # get(kind) / put(kind, content), DB-backed
+    progress: ProgressPublisher
+    register_cancel: CancelHandleRegistrar  # register/unregister a kill/cancel handle
+
+@dataclass
+class StageResult:
+    outputs: dict[ArtifactKind, object] # persisted by the orchestrator
+
+class Stage(Protocol):
+    phase: ClassVar[PipelinePhase]
+    async def run(self, ctx: StageContext, *, resume: bool) -> StageResult: ...
+```
+
+- `resume=True` tells the stage a checkpoint exists; it may skip work whose outputs are
+  already in the artifact store.
+- The cancel handle terminates in-flight work (subprocess kill or asyncio cancel); the
+  orchestrator (C4) invokes it. Registering `None` unregisters.
+
+## 6. DB Schema Additions (backward compatible)
+
+New columns on `tasks` (legacy `stage`/`progress` columns stay untouched until C4):
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `status` | TEXT | new `TaskStatus` value; NULL on rows created by the new chain before first write |
+| `phase` | TEXT | current `PipelinePhase`; NULL when not running |
+| `phase_progress` | REAL | within-phase fraction |
+| `checkpoint_phase` | TEXT | last completed phase; NULL = run from scratch |
+| `last_error_code` | TEXT | error code for `failed` tasks |
+
+One-time backfill (idempotent via `WHERE status IS NULL`): legacy `stage` →
+`pending`→`pending`; `downloading`/`extracting_subtitles`/`transcribing`/`generating_notes`→`running`;
+`complete`/`failed`/`cancelled`→same name. `checkpoint_phase` stays NULL for legacy rows.
+
+Conditional writes (`save_checkpoint`) follow the Durable Single-Process Video Tasks
+contract: the state guard and the write are one SQLite operation guarded by
+`cancel_requested = 0` AND non-terminal `status`/`stage` — cancellation and terminal
+states always win races against progress/checkpoint writes.

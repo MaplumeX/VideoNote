@@ -125,6 +125,14 @@ CREATE TABLE IF NOT EXISTS user_cookies (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS task_artifacts (
+    job_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    content_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (job_id, kind)
+);
+
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER NOT NULL,
     applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -188,6 +196,34 @@ async def init_db() -> None:
                 await _db_conn.execute(col_def)
             except aiosqlite.OperationalError:
                 pass
+        # Add pipeline-rewrite columns (C1): new status/phase model alongside
+        # the legacy stage/progress columns (legacy chain keeps using those
+        # until the orchestrator switch in C4; no physical removal).
+        for col_def in [
+            "ALTER TABLE tasks ADD COLUMN status TEXT",
+            "ALTER TABLE tasks ADD COLUMN phase TEXT",
+            "ALTER TABLE tasks ADD COLUMN phase_progress REAL",
+            "ALTER TABLE tasks ADD COLUMN checkpoint_phase TEXT",
+            "ALTER TABLE tasks ADD COLUMN last_error_code TEXT",
+        ]:
+            try:
+                await _db_conn.execute(col_def)
+            except aiosqlite.OperationalError:
+                pass
+        # One-time backfill: map legacy stage values to the new status column.
+        # WHERE status IS NULL guarantees idempotency (never re-runs) and keeps
+        # rows created by the new chain untouched.
+        await _db_conn.executescript(
+            """
+            UPDATE tasks SET status = CASE
+                WHEN stage IN ('downloading', 'extracting_subtitles',
+                               'transcribing', 'generating_notes') THEN 'running'
+                WHEN stage IN ('complete', 'failed', 'cancelled') THEN stage
+                ELSE 'pending'
+            END
+            WHERE status IS NULL;
+            """
+        )
         # Add indexes for new columns
         await _db_conn.executescript("""
             CREATE INDEX IF NOT EXISTS idx_tasks_folder_id ON tasks(folder_id);
@@ -1317,3 +1353,112 @@ async def delete_user_cookie(user_id: str, platform: str) -> bool:
     )
     await db.commit()
     return cursor.rowcount > 0
+
+
+# --- Pipeline artifact / checkpoint operations (C1 contract baseline) ---
+
+# New-model terminal statuses (app.pipeline.state.TaskStatus), kept as plain
+# strings here to avoid importing the pipeline package into db.py (which the
+# legacy chain must not depend on).
+_NEW_TERMINAL_STATUSES = ("complete", "failed", "cancelled")
+
+
+def _artifact_json(content: object) -> str:
+    """Serialize artifact content to JSON (pass through plain strings)."""
+    if isinstance(content, str):
+        return json.dumps({"text": content})
+    return json.dumps(content, ensure_ascii=False, default=str)
+
+
+def _artifact_content(content_json: str) -> object:
+    """Deserialize artifact content, returning the inner text when applicable."""
+    data = json.loads(content_json)
+    if isinstance(data, dict) and set(data.keys()) == {"text"}:
+        return data["text"]
+    return data
+
+
+async def save_artifact(job_id: str, kind: str, content: object) -> None:
+    """UPSERT an intermediate artifact for a task (task_artifacts table)."""
+    now = datetime.now(UTC).isoformat()
+    db = await _get_db()
+    await db.execute(
+        "INSERT INTO task_artifacts (job_id, kind, content_json, created_at) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(job_id, kind) DO UPDATE SET "
+        "content_json=excluded.content_json, created_at=excluded.created_at",
+        (job_id, kind, _artifact_json(content), now),
+    )
+    await db.commit()
+
+
+async def get_artifact(job_id: str, kind: str) -> object | None:
+    """Read an intermediate artifact. Returns None when absent."""
+    db = await _get_db()
+    cursor = await db.execute(
+        "SELECT content_json FROM task_artifacts WHERE job_id = ? AND kind = ?",
+        (job_id, kind),
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return _artifact_content(row["content_json"])
+
+
+async def save_checkpoint(
+    job_id: str,
+    completed_phase: str,
+    *,
+    status: str | None = None,
+    phase: str | None = None,
+    phase_progress: float | None = None,
+) -> bool:
+    """Persist a phase checkpoint with conditional (guarded) writes.
+
+    The checkpoint and the optional status/phase/phase_progress updates are
+    one SQLite operation guarded by ``cancel_requested = 0`` and a non-terminal
+    ``status`` (falls back to the legacy ``stage`` column for pre-backfill
+    rows, so the guard works in every migration state). Returns True when the
+    row was updated, False when cancellation or a terminal state won the race.
+    """
+    db = await _get_db()
+    now = datetime.now(UTC).isoformat()
+    sets = ["checkpoint_phase = ?", "updated_at = ?"]
+    params: list[object] = [completed_phase, now]
+    if status is not None:
+        sets.append("status = ?")
+        params.append(status)
+    if phase is not None:
+        sets.append("phase = ?")
+        params.append(phase)
+    if phase_progress is not None:
+        sets.append("phase_progress = ?")
+        params.append(phase_progress)
+    params.append(job_id)
+    cursor = await db.execute(
+        "UPDATE tasks SET " + ", ".join(sets) +
+        " WHERE job_id = ? AND cancel_requested = 0"
+        " AND (status IS NULL OR status NOT IN (?, ?, ?))"
+        " AND (stage IS NULL OR stage NOT IN (?, ?, ?))",
+        (*params, *_NEW_TERMINAL_STATUSES, *_NEW_TERMINAL_STATUSES),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def read_checkpoint(job_id: str) -> dict | None:
+    """Read a task's checkpoint. Returns None when the task is missing.
+
+    The returned dict carries ``checkpoint_phase`` (None = run from scratch),
+    ``attempt_count``, and the current ``status``/``cancel_requested``.
+    """
+    db = await _get_db()
+    cursor = await db.execute(
+        "SELECT checkpoint_phase, attempt_count, status, cancel_requested "
+        "FROM tasks WHERE job_id = ?",
+        (job_id,),
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return dict(row)
