@@ -209,10 +209,12 @@ class StageContext:
     artifacts: ArtifactStore            # get(kind) / put(kind, content), DB-backed
     progress: ProgressPublisher
     register_cancel: CancelHandleRegistrar  # register/unregister a kill/cancel handle
+    extra: dict[str, object]            # task-level inputs: "url", "input_path" (see below)
 
 @dataclass
 class StageResult:
     outputs: dict[ArtifactKind, object] # persisted by the orchestrator
+    extra: dict[str, object]            # non-artifact values (see below)
 
 class Stage(Protocol):
     phase: ClassVar[PipelinePhase]
@@ -221,8 +223,56 @@ class Stage(Protocol):
 
 - `resume=True` tells the stage a checkpoint exists; it may skip work whose outputs are
   already in the artifact store.
+- `StageContext.extra` carries task-level inputs that are not artifacts: the source
+  `url` (fetch/subtitle/audio for URL tasks) and the uploaded `input_path` (audio for
+  file tasks), injected by the orchestrator from the task row.
+- `StageResult.extra` carries values that are not artifacts: C2's `audio_path` (path to
+  the extracted audio for the next stage) and C3's `notes` (the final note text — the
+  orchestrator writes it to `tasks.result_json`, matching the legacy chain; `notes` is
+  deliberately NOT an `ArtifactKind`).
 - The cancel handle terminates in-flight work (subprocess kill or asyncio cancel); the
   orchestrator (C4) invokes it. Registering `None` unregisters.
+
+### 5.1 Transcription-side stage semantics (C2)
+
+- `fetching`: yt-dlp CLI `--dump-json --no-download` for title/thumbnail; stderr text is
+  classified by the legacy keyword table into the `VIDEO_*` codes. Thumbnail download
+  (httpx async, Bilibili Referer) is non-fatal. Output: `video_meta` artifact
+  (`{title, thumbnail}`; thumbnail is a local filename under `UPLOAD_DIR/thumbnails`).
+- `subtitle`: yt-dlp CLI `--write-subs --write-auto-subs --convert-subs srt
+  --skip-download`; language priority follows the note language (`zh*` →
+  `zh-Hans,zh,en,ja`, else `en,zh-Hans,zh,ja`). Hit → `subtitle` artifact; miss →
+  **empty outputs** (the orchestrator follows the transition table to `audio`); yt-dlp
+  failure → `SUBTITLE_EXTRACTION_FAILED`.
+- `audio`: URL tasks run yt-dlp `-f bestaudio/best` then ffmpeg WAV conversion
+  (pcm_s16le/16 kHz/mono); file (upload) tasks run ffmpeg only and failures are
+  `AUDIO_EXTRACTION_FAILED` (never `VIDEO_FETCH_FAILED`). The WAV path is passed via
+  `StageResult.extra["audio_path"]`; the orchestrator owns its cleanup after the run.
+- `transcribe`: Async [OI] ASR. Provider incomplete → `PROVIDER_NOT_CONFIGURED`.
+  File ≤ 25 MB ([OI]-compatible) / 50 MB (SiliconFlow) → single call; over the limit →
+  ffprobe duration probe + ffmpeg chunk split + per-chunk timestamp offsetting. Chunk
+  progress publishes `start/total`. ASR failures wrap into `TRANSCRIPTION_FAILED`.
+- Subprocess management (`app/pipeline/subprocess_util.py`): all yt-dlp/ffmpeg/ffprobe
+  calls go through `run_managed_process` (exec list args, cancel handle → SIGTERM →
+  SIGKILL after 5 s, timeout- and cancellation-safe, no process leaks). Shared yt-dlp
+  argv building (`build_ytdlp_args`) preserves proxy/cookie/browser-cookie semantics;
+  `classify_ytdlp_error(text) -> ErrorCode` migrates the legacy keyword table.
+
+### 5.2 notegen stage semantics (C3)
+
+- Input: the `transcript` artifact (guaranteed by the transition table; missing →
+  defensive `PROCESSING_FAILED`). `PROVIDER_NOT_CONFIGURED` is raised inside the stage
+  when the LLM endpoint is incomplete.
+- Transcript > 60000 chars is split at line boundaries (oversize single lines kept as-is);
+  per-chunk sub-notes are generated and merged with a final LLM call.
+- Within-phase progress: single chunk → `0.0` ("Generating notes...") → `1.0` ("Notes
+  generated"). Multi-chunk → chunk *i* publishes `(i+1)/n * 0.9` ("Generating notes
+  i/n"), merge → `0.9` ("Merging notes..."), done → `1.0` ("Notes generated"). All
+  within-phase fractions are monotonic via `PhaseProgressTracker`.
+- Cancellation: every chunk/merge call is a separate `await` on the async LLM client;
+  `asyncio.Task.cancel()` aborts the in-flight request and no further calls start.
+- `resume=True` re-runs the whole phase (sub-notes are not persisted); LLM calls are
+  side-effect free, so this is idempotent.
 
 ## 6. DB Schema Additions (backward compatible)
 

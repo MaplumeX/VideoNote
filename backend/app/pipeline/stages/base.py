@@ -65,13 +65,23 @@ class StageContext:
     artifacts: ArtifactStore
     progress: ProgressPublisher
     register_cancel: CancelHandleRegistrar
+    # Task-level inputs that are not artifacts: the source URL (fetch/subtitle/
+    # audio URL tasks) and the uploaded file path (audio file tasks), injected
+    # by the orchestrator. Keys: "url", "input_path".
+    extra: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
 class StageResult:
-    """Outputs produced by a stage; the orchestrator persists them."""
+    """Outputs produced by a stage; the orchestrator persists them.
+
+    ``outputs`` are artifacts keyed by kind; ``extra`` carries values that
+    are not artifacts (e.g. C3's ``notes`` text — the orchestrator writes it
+    to ``tasks.result_json``; C2's ``audio_path`` for the next stage).
+    """
 
     outputs: dict[ArtifactKind, object] = field(default_factory=dict)
+    extra: dict[str, object] = field(default_factory=dict)
 
 
 @runtime_checkable
