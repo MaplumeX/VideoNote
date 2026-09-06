@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
+- **Total Sessions**: 8
 - **Last Active**: 2026-09-06
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~281 | Active |
+| `journal-1.md` | ~314 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-09-06 | C5 frontend contract adaptation | `ca7e7ec` | `refactor/rewrite-core-pipeline` |
 | 7 | 2026-09-06 | C4 orchestrator & API layer switchover | `cdd1054` | `refactor/rewrite-core-pipeline` |
 | 6 | 2026-09-05 | C2+C3 transcription & note-gen stages (parallel) | `5293c92` | `refactor/rewrite-core-pipeline` |
 | 5 | 2026-09-05 | C1 pipeline state machine & persistence (contract baseline) | `a75548f` | `refactor/rewrite-core-pipeline` |

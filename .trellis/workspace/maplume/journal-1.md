@@ -279,3 +279,36 @@ Implemented C4 (three relayed implement agents + check + approved patch): state-
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: C5 frontend contract adaptation
+
+**Date**: 2026-09-06
+**Task**: C5 frontend contract adaptation
+**Branch**: `refactor/rewrite-core-pipeline`
+
+### Summary
+
+Implemented C5: frontend switched to the new pipeline contract — TaskStatus/TaskPhase types, ProgressEvent SSE payload, phase-based StepIndicator with failedPhase highlighting, shared progress synthesis module (URL/upload paths), status-based terminal detection in useSSE, i18n rewrite (en/zh-CN) with new phase and error-code keys. 60/60 frontend tests green, build passes; check agent verified zero contract drift field-by-field. All 5 subtasks of the core-pipeline rewrite are now delivered (G1-G4 gates passed).
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ca7e7ec` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
