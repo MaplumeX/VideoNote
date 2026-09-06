@@ -3,7 +3,7 @@
   "name": "rewrite-core-pipeline",
   "title": "重写核心流水线：转录 + LLM 笔记生成",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

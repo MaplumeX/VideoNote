@@ -131,3 +131,26 @@ raise PipelineError(ErrorCode.TRANSCRIPTION_FAILED, detail=str(e), cause=e) from
 
 The legacy `app/services/` pipeline remains the live path until C4 switches
 over; do not modify it while `app/pipeline/` is under construction.
+
+---
+
+## Pipeline Package Status (final, after the C1–C5 rewrite)
+
+The pipeline rewrite is **fully shipped**: `app/pipeline/` is the one and
+only processing chain (the legacy `app/services/` sync chain and
+`app/task_runner.py` were deleted in C4). Authoritative contracts:
+`docs/pipeline-contract.md`. Architecture highlights proven in production
+acceptance:
+
+- `orchestrator.py` — phase-driven main loop, checkpoint resume/retry,
+  durable-vs-shutdown cancellation distinction, immediate `update_task_meta`
+  on `video_meta` persistence (title/thumbnail visible during processing)
+- `runner.py` — asyncio-native scheduling, no threading.Event anywhere
+- `stages/fetch.py` emits `video_meta` as a **plain dict** (never a dataclass:
+  artifact serialization uses `default=str`, and a dataclass repr reads back
+  as a string — the complete-time title extraction silently failed on that
+  bug once)
+- `stages/audio.py` retries transport-class failures (VIDEO_FETCH_FAILED
+  catch-all only) up to 3 attempts; deterministic codes fail fast
+- `stages/transcribe.py` handles both SDK segment objects (attribute access)
+  and dict-shaped segments (test fakes)
