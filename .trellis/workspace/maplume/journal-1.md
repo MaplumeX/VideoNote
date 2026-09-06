@@ -246,3 +246,36 @@ Implemented C2 and C3 in parallel against the frozen C1 contract: subprocess_uti
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: C4 orchestrator & API layer switchover
+
+**Date**: 2026-09-06
+**Task**: C4 orchestrator & API layer switchover
+**Branch**: `refactor/rewrite-core-pipeline`
+
+### Summary
+
+Implemented C4 (three relayed implement agents + check + approved patch): state-machine orchestrator with checkpoint resume/recovery matrix/retry, asyncio-native runner, routes.py rewritten to 450-line thin API layer with ProgressEvent SSE, legacy chain (task_runner + 4 services + 7 old test files) deleted. Check agent fixed 5 substantive defects (subtitle-hit resume skip, audio_path restore, shutdown-preserved-recoverable, NULL-status 500, fake-pass cancel test); main session diagnosed TestClient/ASGITransport SSE deadlock (transport awaits full ASGI completion; httpx timeout ineffective) — tests use raw-ASGI consume helper. Approved freeze exception: per-user cookiefile wired into all yt-dlp stages. 281 tests passed.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cdd1054` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
