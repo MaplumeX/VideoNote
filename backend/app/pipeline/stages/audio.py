@@ -8,6 +8,7 @@ files are deliberately not artifacts — they must not land in the DB).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import shutil
 import tempfile
@@ -20,6 +21,7 @@ from app.pipeline.state import PipelinePhase
 from app.pipeline.subprocess_util import (
     FFMPEG_BIN,
     build_ytdlp_args,
+    classify_ytdlp_error,
     run_managed_process,
 )
 
@@ -27,6 +29,14 @@ logger = logging.getLogger(__name__)
 
 AUDIO_TIMEOUT_SECONDS = 1200.0
 FFMPEG_TIMEOUT_SECONDS = 1200.0
+
+# Stage-level retry for yt-dlp audio downloads. Bilibili's CDN / risk control
+# intermittently rejects requests (HTTP 412 / "Remote end closed connection"),
+# which yt-dlp's internal 10 retries alone do not always ride out. Only the
+# catch-all VIDEO_FETCH_FAILED (transport-class failures) is retried —
+# deterministic errors (private/not-found/geo/cookie) fail fast.
+_MAX_DOWNLOAD_ATTEMPTS = 3
+_RETRY_DELAY_SECONDS = 2.0
 
 def _cookiefile(ctx: StageContext) -> str | None:
     """The per-user cookie temp file injected by the orchestrator (if any)."""
@@ -126,30 +136,53 @@ class AudioStage:
         return StageResult(extra={"audio_path": final_path})
 
     async def _download(self, ctx: StageContext, url: str, tmpdir: str) -> str:
-        """Download the best audio stream via yt-dlp; return the file path."""
+        """Download the best audio stream via yt-dlp; return the file path.
+
+        Transient failures (``VIDEO_FETCH_FAILED``) are retried up to
+        ``_MAX_DOWNLOAD_ATTEMPTS`` times with a short backoff; deterministic
+        yt-dlp error classes raise immediately. The retry sleep propagates
+        ``CancelledError`` so cancellation is never swallowed.
+        """
         output_path = str(Path(tmpdir) / "audio")
         argv = build_ytdlp_args(
             ["-f", "bestaudio/best", "-o", output_path, url],
             quiet=False,
             cookiefile_path=_cookiefile(ctx),
         )
-        result = await run_managed_process(
-            argv,
-            register_cancel=ctx.register_cancel,
-            timeout=AUDIO_TIMEOUT_SECONDS,
-        )
-        if result.returncode != 0:
+        last_error: PipelineError | None = None
+        for attempt in range(1, _MAX_DOWNLOAD_ATTEMPTS + 1):
+            result = await run_managed_process(
+                argv,
+                register_cancel=ctx.register_cancel,
+                timeout=AUDIO_TIMEOUT_SECONDS,
+            )
+            if result.returncode == 0:
+                break
+
             text = result.stderr or result.stdout
+            code = classify_ytdlp_error(text)
             logger.warning(
-                "yt-dlp audio download failed for %s (retcode=%d): %s",
+                "yt-dlp audio download failed for %s (retcode=%d, attempt %d/%d): %s",
                 url,
                 result.returncode,
+                attempt,
+                _MAX_DOWNLOAD_ATTEMPTS,
                 text.strip()[:500],
             )
-            raise PipelineError(
-                ErrorCode.VIDEO_FETCH_FAILED,
-                detail=f"yt-dlp download failed (retcode={result.returncode})",
+            error = PipelineError(
+                code,
+                detail=_last_error_line(text)
+                or f"yt-dlp download failed (retcode={result.returncode})",
             )
+            if code is not ErrorCode.VIDEO_FETCH_FAILED:
+                raise error
+            last_error = error
+            if attempt < _MAX_DOWNLOAD_ATTEMPTS:
+                # CancelledError from the sleep must propagate (never swallowed).
+                await asyncio.sleep(_RETRY_DELAY_SECONDS)
+        else:
+            assert last_error is not None
+            raise last_error
 
         # Find the downloaded file (yt-dlp usually appends an extension, but
         # some extractors produce files without one).
@@ -170,6 +203,19 @@ class AudioStage:
             )
         return str(audio_files[0])
 
+
+def _last_error_line(text: str) -> str:
+    """Return the last non-empty (stripped) line of a yt-dlp error output.
+
+    yt-dlp's final line is the actionable diagnosis (e.g. "Remote end closed
+    connection without response"); earlier lines are retry noise. Returned
+    verbatim — ``PipelineError`` sanitizes its detail at construction.
+    """
+    for line in reversed(text.splitlines()):
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
 
 def _persist_wav(wav_path: str, *, job_id: str) -> str:
     """Copy the WAV into a job-scoped temp location that outlives the tmpdir.

@@ -215,6 +215,8 @@ exit 0
         with pytest.raises(PipelineError) as exc_info:
             await SubtitleStage().run(make_ctx(), resume=False)
         assert exc_info.value.code is ErrorCode.SUBTITLE_EXTRACTION_FAILED
+        # detail carries the real stderr line (integration-fix requirement)
+        assert "download error" in exc_info.value.detail
 
     async def test_language_priority_prefers_requested_language(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch

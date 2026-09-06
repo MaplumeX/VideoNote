@@ -20,6 +20,7 @@ from app.pipeline.stages.base import StageContext, StageResult
 from app.pipeline.state import ArtifactKind, PipelinePhase
 from app.pipeline.subprocess_util import (
     build_ytdlp_args,
+    classify_ytdlp_error,
     run_managed_process,
 )
 
@@ -149,7 +150,8 @@ class SubtitleStage:
         """Run yt-dlp to download subtitle files; return parsed text or None.
 
         None means "no subtitles found" (miss -> audio fallback). A yt-dlp
-        failure (nonzero retcode) raises ``SUBTITLE_EXTRACTION_FAILED``.
+        failure (nonzero retcode) raises with the last real stderr line as the
+        detail (sanitized at ``PipelineError`` construction).
         """
         languages = subtitle_languages(ctx.language)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -176,13 +178,22 @@ class SubtitleStage:
                 timeout=SUBTITLE_TIMEOUT_SECONDS,
             )
             if result.returncode != 0:
+                text = result.stderr or result.stdout
+                # Classify for logging fidelity; the subtitle stage keeps its
+                # own error code (a download failure here falls back nowhere).
+                _code = classify_ytdlp_error(text)
                 logger.warning(
-                    "Subtitle extraction failed for %s (retcode=%d): %s",
+                    "Subtitle extraction failed for %s (retcode=%d, classified=%s): %s",
                     url,
                     result.returncode,
-                    (result.stderr or result.stdout).strip()[:500],
+                    _code.value,
+                    text.strip()[:500],
                 )
-                raise PipelineError(ErrorCode.SUBTITLE_EXTRACTION_FAILED)
+                last = _last_error_line(text)
+                raise PipelineError(
+                    ErrorCode.SUBTITLE_EXTRACTION_FAILED,
+                    detail=last or f"yt-dlp failed (retcode={result.returncode})",
+                )
 
             # Collect subtitle files, sorted by language priority (the
             # requested order mirrors the CLI --sub-langs order).
@@ -205,3 +216,15 @@ class SubtitleStage:
 
             logger.info("No subtitles found for %s", url)
             return None
+
+def _last_error_line(text: str) -> str:
+    """Return the last non-empty (stripped) line of a yt-dlp error output.
+
+    Mirrors ``stages.audio._last_error_line``; ``PipelineError`` sanitizes the
+    detail at construction, so no manual sanitization here.
+    """
+    for line in reversed(text.splitlines()):
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
