@@ -26,8 +26,8 @@ export function NewNotePage() {
     useVideoUpload();
 
   const isProcessing = !!jobId;
-  const isTerminal = progress?.stage === "failed" || progress?.stage === "cancelled";
-  const isFailed = progress?.stage === "failed";
+  const isTerminal = progress?.status === "failed" || progress?.status === "cancelled";
+  const isFailed = progress?.status === "failed";
 
   // Fetch task metadata (title/thumbnail) from the REST API once the SSE stage
   // transitions from pending to an active stage, since the POST response may
@@ -36,7 +36,7 @@ export function NewNotePage() {
   const metaFetchedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!jobId || !progress) return;
-    if (progress.stage === "pending") return;
+    if (progress.status === "pending") return;
     if (metaFetchedFor.current === jobId) return;
     metaFetchedFor.current = jobId;
     void (async () => {
@@ -54,7 +54,7 @@ export function NewNotePage() {
         // Non-fatal — metadata may still arrive later
       }
     })();
-  }, [jobId, progress?.stage]);
+  }, [jobId, progress?.status]);
 
   useEffect(() => {
     if (result && jobId) {
@@ -205,14 +205,17 @@ export function NewNotePage() {
           <div className="flex justify-center">
             {uploading ? (
               <StepIndicator
-                stage="downloading"
-                progress={uploadProgress}
+                status="running"
+                phase={taskMeta?.source_type === "upload" ? "audio" : "fetching"}
+                phaseProgress={uploadProgress}
                 sourceType={taskMeta?.source_type === "upload" ? "upload" : "url"}
               />
             ) : (
               <StepIndicator
-                stage={progress?.stage ?? null}
-                progress={progress?.progress ?? 0}
+                status={progress?.status ?? null}
+                phase={progress?.phase ?? null}
+                phaseProgress={progress?.phase_progress ?? 0}
+                failedPhase={progress?.phase ?? null}
                 sourceType={taskMeta?.source_type === "upload" ? "upload" : "url"}
               />
             )}

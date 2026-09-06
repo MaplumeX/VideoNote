@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查子代理需按质量标准与禁用模式审查重写代码"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "检查统一错误码与脱敏实现是否符合错误处理规范"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "检查 DB 迁移是否符合 SQLite/迁移规范"}

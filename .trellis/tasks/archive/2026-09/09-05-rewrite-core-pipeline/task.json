@@ -1,0 +1,32 @@
+{
+  "id": "rewrite-core-pipeline",
+  "name": "rewrite-core-pipeline",
+  "title": "重写核心流水线：转录 + LLM 笔记生成",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "maplume",
+  "assignee": "maplume",
+  "createdAt": "2026-09-05",
+  "completedAt": "2026-09-06",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-05-pipeline-state-machine",
+    "09-05-pipeline-transcription",
+    "09-05-pipeline-notegen",
+    "09-05-pipeline-orchestrator",
+    "09-05-pipeline-frontend-adapt"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

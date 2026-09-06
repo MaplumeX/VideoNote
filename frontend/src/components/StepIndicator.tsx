@@ -1,11 +1,16 @@
 import { useTranslation } from "react-i18next";
 import { Check, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { TaskStage } from "@/types";
+import type { TaskPhase, TaskStatus } from "@/types";
+import { pathForSource, stepIndexForPhase, synthesizeProgress } from "@/lib/phaseProgress";
 
 interface StepIndicatorProps {
-  stage: TaskStage | null;
-  progress: number;
+  status: TaskStatus | null;
+  phase: TaskPhase | null;
+  phaseProgress: number;
+  /** Phase the task failed/was cancelled in — terminal rows have a null phase;
+   * pass the last phase seen during the SSE stream when available. */
+  failedPhase?: TaskPhase | null;
   sourceType?: "url" | "upload";
 }
 
@@ -29,35 +34,49 @@ const UPLOAD_STEPS: StepDef[] = [
 ];
 
 export function getStepStatuses(
-  stage: TaskStage | null,
-  progress: number
+  status: TaskStatus | null,
+  phase: TaskPhase | null,
+  failedPhase?: TaskPhase | null,
 ): StepStatus[] {
-  if (!stage || stage === "pending") return ["pending", "pending", "pending"];
-  if (stage === "downloading" || stage === "extracting_subtitles")
-    return ["active", "pending", "pending"];
-  if (stage === "transcribing") return ["done", "active", "pending"];
-  if (stage === "generating_notes") return ["done", "done", "active"];
-  if (stage === "complete") return ["done", "done", "done"];
-  if (stage === "failed" || stage === "cancelled") {
-    if (progress < 0.3) return ["error", "pending", "pending"];
-    if (progress < 0.65) return ["done", "error", "pending"];
-    return ["done", "done", "error"];
+  if (!status || status === "pending") return ["pending", "pending", "pending"];
+  if (status === "running") {
+    if (!phase) return ["pending", "pending", "pending"];
+    const active = stepIndexForPhase(phase);
+    return [
+      active > 0 ? "done" : "active",
+      active > 1 ? "done" : active === 1 ? "active" : "pending",
+      active === 2 ? "active" : "pending",
+    ];
   }
-  return ["pending", "pending", "pending"];
+  if (status === "complete") return ["done", "done", "done"];
+  // failed / cancelled: mark the failure step (and everything after) as error.
+  if (failedPhase) {
+    const failed = stepIndexForPhase(failedPhase);
+    return [
+      failed === 0 ? "error" : "done",
+      failed === 1 ? "error" : failed > 1 ? "done" : "pending",
+      failed === 2 ? "error" : "pending",
+    ];
+  }
+  // Terminal row without phase info — mark the whole row (legacy behaviour).
+  return ["error", "error", "error"];
 }
 
-export function StepIndicator({ stage, progress, sourceType }: StepIndicatorProps) {
+export function StepIndicator({ status, phase, phaseProgress, failedPhase, sourceType }: StepIndicatorProps) {
   const { t } = useTranslation();
   const steps = sourceType === "upload" ? UPLOAD_STEPS : URL_STEPS;
-  const statuses = getStepStatuses(stage, progress);
-  const percentage = Math.round(progress * 100);
+  const statuses = getStepStatuses(status, phase, failedPhase);
+  const percentage = Math.round(
+    synthesizeProgress(phase, phaseProgress, pathForSource(sourceType)) * 100,
+  );
+  const isTerminal = status === "failed" || status === "cancelled";
 
   return (
     <div className="w-full max-w-md mx-auto">
       {/* Steps */}
       <div className="flex items-center">
         {steps.map((step, i) => {
-          const status = statuses[i];
+          const status2 = statuses[i];
           const isLast = i === steps.length - 1;
           return (
             <div key={step.key} className="flex items-center flex-1 last:flex-none">
@@ -65,26 +84,26 @@ export function StepIndicator({ stage, progress, sourceType }: StepIndicatorProp
                 <div
                   className={cn(
                     "w-9 h-9 rounded-full flex items-center justify-center border-2 transition-colors",
-                    status === "pending" && "border-muted-foreground/30 bg-background",
-                    status === "active" && "border-primary bg-primary text-primary-foreground",
-                    status === "done" && "border-green-500 bg-green-500 text-white dark:border-green-400 dark:bg-green-400",
-                    status === "error" && "border-destructive bg-destructive text-destructive-foreground"
+                    status2 === "pending" && "border-muted-foreground/30 bg-background",
+                    status2 === "active" && "border-primary bg-primary text-primary-foreground",
+                    status2 === "done" && "border-green-500 bg-green-500 text-white dark:border-green-400 dark:bg-green-400",
+                    status2 === "error" && "border-destructive bg-destructive text-destructive-foreground"
                   )}
                 >
-                  {status === "active" && <Loader2 size={16} className="animate-spin" />}
-                  {status === "done" && <Check size={16} />}
-                  {status === "error" && <X size={16} />}
-                  {status === "pending" && (
+                  {status2 === "active" && <Loader2 size={16} className="animate-spin" />}
+                  {status2 === "done" && <Check size={16} />}
+                  {status2 === "error" && <X size={16} />}
+                  {status2 === "pending" && (
                     <span className="text-xs font-medium text-muted-foreground/50">{i + 1}</span>
                   )}
                 </div>
                 <span
                   className={cn(
                     "mt-1.5 text-xs font-medium whitespace-nowrap",
-                    status === "pending" && "text-muted-foreground/50",
-                    status === "active" && "text-foreground",
-                    status === "done" && "text-foreground",
-                    status === "error" && "text-destructive"
+                    status2 === "pending" && "text-muted-foreground/50",
+                    status2 === "active" && "text-foreground",
+                    status2 === "done" && "text-foreground",
+                    status2 === "error" && "text-destructive"
                   )}
                 >
                   {t(step.labelKey)}
@@ -104,14 +123,14 @@ export function StepIndicator({ stage, progress, sourceType }: StepIndicatorProp
       </div>
 
       {/* Progress percentage */}
-      {stage && stage !== "complete" && stage !== "failed" && stage !== "cancelled" && (
+      {status && !isTerminal && status !== "complete" && status !== "pending" && (
         <p className="text-center text-sm text-muted-foreground mt-4">
           {t("steps.inProgress", { percent: percentage })}
         </p>
       )}
-      {(stage === "failed" || stage === "cancelled") && (
+      {isTerminal && (
         <p className="text-center text-sm text-destructive mt-4">
-          {t(stage === "failed" ? "progress.failed" : "progress.cancelled")}
+          {t(status === "failed" ? "progress.failed" : "progress.cancelled")}
         </p>
       )}
     </div>

@@ -40,6 +40,9 @@ from app.db import (
     update_tag,
 )
 from app.errors import error_detail
+from app.pipeline.markdown import normalize_note_markdown
+from app.pipeline.orchestrator import orchestrator
+from app.pipeline.runner import pipeline_runner
 from app.schemas import (
     BatchDeleteRequest,
     BatchFavoriteRequest,
@@ -61,8 +64,6 @@ from app.schemas import (
     TaskListItem,
     TaskListResponse,
 )
-from app.services.markdown import normalize_note_markdown
-from app.task_runner import task_runner
 
 CurrentUser = Annotated[TokenData, Depends(get_current_user)]
 
@@ -470,7 +471,8 @@ async def batch_delete_endpoint(req: BatchDeleteRequest, user: CurrentUser):
 
     for job_id in req.job_ids:
         await request_task_cancel(job_id, user_id=user.user_id)
-        await task_runner.cancel_and_wait(job_id)
+        orchestrator.cancel(job_id)
+        await pipeline_runner.cancel_and_wait(job_id)
     upload_root = UPLOAD_DIR.resolve()
     for task in tasks:
         if not task.get("input_file_path"):

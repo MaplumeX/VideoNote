@@ -1,17 +1,27 @@
-export type TaskStage =
+/** Task lifecycle status (contract §1 — replaces the legacy TaskStage). */
+export type TaskStatus =
   | "pending"
-  | "downloading"
-  | "extracting_subtitles"
-  | "transcribing"
-  | "generating_notes"
+  | "running"
   | "complete"
   | "failed"
   | "cancelled";
 
+/** Execution phase within a running task (contract §1). */
+export type TaskPhase =
+  | "fetching"
+  | "subtitle"
+  | "audio"
+  | "transcribe"
+  | "notegen";
+
+/** SSE `progress` event payload (contract §2.1). */
 export interface TaskProgress {
-  stage: TaskStage;
-  progress: number;
+  status: TaskStatus;
+  phase: TaskPhase | null;
+  phase_progress: number; // within-phase fraction ∈ [0, 1]
   message: string;
+  attempt: number; // 1-based
+  timestamp: string; // ISO 8601
 }
 
 export interface NoteResult {
@@ -79,8 +89,9 @@ export interface SettingsRequest {
 
 export interface TaskItem {
   job_id: string;
-  stage: TaskStage;
-  progress: number;
+  status: TaskStatus;
+  phase: TaskPhase | null;
+  phase_progress: number | null;
   message: string;
   created_at: string;
   title: string | null;

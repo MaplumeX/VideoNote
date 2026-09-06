@@ -180,3 +180,170 @@ Read-only review of the core pipeline (task lifecycle, subtitle/audio/ASR/note-g
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: C1 pipeline state machine & persistence (contract baseline)
+
+**Date**: 2026-09-05
+**Task**: C1 pipeline state machine & persistence (contract baseline)
+**Branch**: `refactor/rewrite-core-pipeline`
+
+### Summary
+
+Rewrote planning for core pipeline rewrite (parent + 5 child tasks, architecture-upgrade option approved). Implemented C1: app/pipeline package (TaskStatus/PipelinePhase state machine with transition table, 15-code ErrorCode with sanitize-on-construct PipelineError, two-level progress model, Stage/ArtifactStore protocols), incremental DB migration (5 new task columns + backfill, task_artifacts table, conditional checkpoint writes), docs/pipeline-contract.md frozen at G1 gate. 173 tests passed, legacy pipeline untouched.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a75548f` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 6: C2+C3 transcription & note-gen stages (parallel)
+
+**Date**: 2026-09-05
+**Task**: C2+C3 transcription & note-gen stages (parallel)
+**Branch**: `refactor/rewrite-core-pipeline`
+
+### Summary
+
+Implemented C2 and C3 in parallel against the frozen C1 contract: subprocess_util (managed killable subprocesses, centralized yt-dlp CLI args, error classification), stages fetch/subtitle/audio/transcribe/notegen (Async[OI] clients, verbatim semantic migration of subtitle parsing, ASR chunking, LLM prompts/retry/continuation), StageContext/StageResult extra fields. 100 new tests incl. real-subprocess cancel proof (<3s, no residual); suite at 274 passed. Check agents fixed WAV concurrency overwrite (per-job filenames) and a test anti-pattern; C3 clean.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5293c92` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 7: C4 orchestrator & API layer switchover
+
+**Date**: 2026-09-06
+**Task**: C4 orchestrator & API layer switchover
+**Branch**: `refactor/rewrite-core-pipeline`
+
+### Summary
+
+Implemented C4 (three relayed implement agents + check + approved patch): state-machine orchestrator with checkpoint resume/recovery matrix/retry, asyncio-native runner, routes.py rewritten to 450-line thin API layer with ProgressEvent SSE, legacy chain (task_runner + 4 services + 7 old test files) deleted. Check agent fixed 5 substantive defects (subtitle-hit resume skip, audio_path restore, shutdown-preserved-recoverable, NULL-status 500, fake-pass cancel test); main session diagnosed TestClient/ASGITransport SSE deadlock (transport awaits full ASGI completion; httpx timeout ineffective) — tests use raw-ASGI consume helper. Approved freeze exception: per-user cookiefile wired into all yt-dlp stages. 281 tests passed.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cdd1054` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 8: C5 frontend contract adaptation
+
+**Date**: 2026-09-06
+**Task**: C5 frontend contract adaptation
+**Branch**: `refactor/rewrite-core-pipeline`
+
+### Summary
+
+Implemented C5: frontend switched to the new pipeline contract — TaskStatus/TaskPhase types, ProgressEvent SSE payload, phase-based StepIndicator with failedPhase highlighting, shared progress synthesis module (URL/upload paths), status-based terminal detection in useSSE, i18n rewrite (en/zh-CN) with new phase and error-code keys. 60/60 frontend tests green, build passes; check agent verified zero contract drift field-by-field. All 5 subtasks of the core-pipeline rewrite are now delivered (G1-G4 gates passed).
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ca7e7ec` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 9: Parent task: live acceptance + integration fixes + wrap-up
+
+**Date**: 2026-09-06
+**Task**: Parent task: live acceptance + integration fixes + wrap-up
+**Branch**: `refactor/rewrite-core-pipeline`
+
+### Summary
+
+Live acceptance of the rewritten pipeline against real Bilibili URLs surfaced and fixed 3 integration defects: (1) stage-level retry for transient CDN failures with real yt-dlp stderr surfaced and classified; (2) video_meta dict serialization + immediate update_task_meta (title/thumbnail were NULL during processing and lost even at completion); (3) SDK TranscriptionSegment attribute access (migrated code used dict subscripts). Final state: 290 backend + 60 frontend tests green, builds pass, end-to-end URL task produces timestamped Markdown notes (48 clickable links on acceptance video). All 5 subtasks + parent archived; spec updated with final pipeline status and lessons (dataclass artifacts, dict-vs-object SDK shapes, transport retry policy).
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `36b3997` | (see git log) |
+| `27681a2` | (see git log) |
+| `8f0074e` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

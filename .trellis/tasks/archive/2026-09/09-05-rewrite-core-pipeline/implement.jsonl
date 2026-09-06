@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "后端规范总索引：重写流水线前了解项目后端约定"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "新 pipeline/ 包的模块组织需遵循目录结构规范"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "C1 统一错误码体系与 PipelineError 需符合错误处理规范"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "tasks 表迁移与 task_artifacts 新表需遵循 SQLite/aiosqlite 与 schema_version 规范"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "重写代码需符合质量标准与禁用模式"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "编排器/阶段模块的日志需遵循日志规范（含脱敏）"}

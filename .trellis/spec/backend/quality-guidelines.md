@@ -63,6 +63,15 @@ async def hash_password(password: str) -> str:
 
 ## Required Patterns
 
+> **Deprecated subsections (C4)**: "Scenario: yt-dlp Shared Options" (replaced by
+> `app/pipeline/subprocess_util.build_ytdlp_args` + CLI subprocess invocation),
+> "Async task delegation" (replaced by `app/pipeline/runner.PipelineTaskRunner`
+> + `orchestrator.schedule_task`), and "Progress reporting" (replaced by the
+> phase + within-phase `PhaseProgressTracker` model — the global 0–1 progress
+> value is abolished; see `docs/pipeline-contract.md` §2) describe the deleted
+> legacy chain. The "Pipeline Stage Implementation Rules" section below is the
+> authoritative guidance for `app/pipeline/**`.
+
 ### Scenario: yt-dlp Shared Options
 
 #### 1. Scope / Trigger
@@ -193,3 +202,33 @@ decrypted = decrypt_api_key(encrypted)
 - Pytest for backend tests (with `pytest-asyncio`, `asyncio_mode = "auto"`)
 - Test service functions with mocked external APIs (OpenAI, yt-dlp)
 - Test API endpoints with FastAPI `TestClient`
+
+---
+
+## Pipeline Stage Implementation Rules (C2/C3, supersedes sync-service rules for pipeline code)
+
+> **C4 update**: the parenthetical below about the legacy `app/services/`
+> sync + `to_thread` path remaining valid no longer applies — the legacy chain
+> was deleted in C4. These rules are now the only pipeline guidance; the
+> deprecated sync-service rules elsewhere in this file are kept for historical
+> reference only.
+
+Rules below apply to `app/pipeline/**` (the new core pipeline). The legacy
+`app/services/**` sync + `to_thread` pattern remains valid only for the legacy
+path until C4 deletes it.
+
+### Forbidden in pipeline code
+- `threading.Event` for cancellation — use asyncio cancellation + cancel handles.
+- `asyncio.to_thread` wrapping yt-dlp/ffmpeg — both run as managed subprocesses via `pipeline/subprocess_util.run_managed_process`.
+- `shell=True` — subprocesses use `create_subprocess_exec` with list args only.
+- Sync `[OI]` clients — use `Async[OI]` (cancellation propagates into in-flight requests).
+- `time.sleep` — use `asyncio.sleep` (retry backoff in `LLMClient` is `asyncio.sleep(2**(attempt+1))`).
+
+### Required
+- Subprocess cancellation path: on `CancelledError` or timeout, terminate → (5s grace) → kill, then re-raise. Proven by real-subprocess tests (`test_subprocess_util.py`): cancel terminates in <3s with no residual process.
+- yt-dlp is invoked via CLI subprocess (`--dump-json` / `--no-download` / `--write-subs --write-auto-subs` / `-f bestaudio/best`); shared args are built centrally in `subprocess_util.build_ytdlp_args` (proxy/cookie priority: per-user cookiefile > browser cookies > config file). Never use the yt-dlp Python API in pipeline code (un-interruptible `extract_info` was a historical bug source).
+- yt-dlp error text is classified by `subprocess_util.classify_ytdlp_error(text) -> ErrorCode` (keyword table identical to the legacy one).
+- Stage outputs: DB-worthy data goes in `StageResult.outputs` (artifact kinds); ephemeral cross-stage data (e.g. `audio_path`, final `notes`) goes in `StageResult.extra`; stage inputs like `url`/`input_path` arrive via `StageContext.extra`. Stages never write SQLite directly.
+- WAV files produced by AudioStage live in `tmp/videonote_pipeline_audio/{job_id}.wav` (per-job names — a shared `audio.wav` name caused overwrites under concurrency); cleanup is the orchestrator's (C4) responsibility.
+- `except asyncio.CancelledError: raise` must precede `except Exception` in every stage/retry loop — swallowing CancelledError in a retry loop silently breaks cancellation.
+- Prompts in `stages/notegen.py` are character-for-character snapshots of the legacy `services/note_gen.py` prompts, locked by snapshot tests. Do not "improve" them without a task that explicitly changes note-generation behavior.

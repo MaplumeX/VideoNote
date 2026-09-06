@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { TaskStage, TaskProgress } from "../types";
+import type { TaskPhase, TaskProgress } from "../types";
 import {
   ApiError,
   fetchResult,
@@ -39,14 +39,16 @@ export function useSSE(jobId: string | null) {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const stageRef = useRef<TaskStage | null>(null);
+  // Last phase observed while running — terminal SSE/REST payloads have
+  // phase=null, but the UI needs it to localize which step failed.
+  const lastPhaseRef = useRef<TaskPhase | null>(null);
 
   useEffect(() => {
     if (!jobId) return;
 
     const abortController = new AbortController();
     abortRef.current = abortController;
-    stageRef.current = null;
+    lastPhaseRef.current = null;
     setProgress(null);
     setResult(null);
     setError(null);
@@ -78,24 +80,24 @@ export function useSSE(jobId: string | null) {
                 message: translateTaskMessage(data.message),
               };
               setProgress(translatedData);
-              stageRef.current = data.stage;
+              if (data.phase) lastPhaseRef.current = data.phase;
               if (!firstEventReceived) {
                 firstEventReceived = true;
                 reconnectAttempt = 0;
               }
-              if (data.stage === "failed") {
+              if (data.status === "failed") {
                 terminal = true;
                 setError(
                   translatedData.message || t("errors.processingFailed"),
                 );
-              } else if (data.stage === "cancelled") {
+              } else if (data.status === "cancelled") {
                 terminal = true;
                 setError(t("errors.taskCancelled"));
               }
             } else if (event === "complete") {
               const data: { markdown: string } = JSON.parse(rawData);
               terminal = true;
-              stageRef.current = "complete";
+              lastPhaseRef.current = "notegen";
               if (!firstEventReceived) {
                 firstEventReceived = true;
                 reconnectAttempt = 0;
@@ -123,14 +125,17 @@ export function useSSE(jobId: string | null) {
           const task = await fetchTaskById(jobId);
           if (abortController.signal.aborted) return;
           const recoveredProgress: TaskProgress = {
-            stage: task.stage,
-            progress: task.progress,
+            status: task.status,
+            phase: task.phase,
+            phase_progress: task.phase_progress ?? 0,
             message: translateTaskMessage(task.message),
+            attempt: 1,
+            timestamp: new Date().toISOString(),
           };
           setProgress(recoveredProgress);
-          stageRef.current = task.stage;
+          if (task.phase) lastPhaseRef.current = task.phase;
 
-          if (task.stage === "complete") {
+          if (task.status === "complete") {
             try {
               const note = await fetchResult(jobId);
               if (abortController.signal.aborted) return;
@@ -147,13 +152,13 @@ export function useSSE(jobId: string | null) {
               }
             }
           }
-          if (task.stage === "failed") {
+          if (task.status === "failed") {
             setError(
               recoveredProgress.message || t("errors.processingFailed"),
             );
             return;
           }
-          if (task.stage === "cancelled") {
+          if (task.status === "cancelled") {
             setError(t("errors.taskCancelled"));
             return;
           }
@@ -188,7 +193,7 @@ export function useSSE(jobId: string | null) {
     return () => {
       abortController.abort();
       abortRef.current = null;
-      stageRef.current = null;
+      lastPhaseRef.current = null;
     };
   }, [jobId, t]);
 

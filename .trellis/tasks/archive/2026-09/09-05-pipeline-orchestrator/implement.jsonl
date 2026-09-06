@@ -1,0 +1,6 @@
+{"file": "docs/pipeline-contract.md", "reason": "C1 冻结契约：ProgressEvent schema/状态机/artifact kinds/Stage 接口——SSE 载荷与响应模型的事实源"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Durable Single-Process Video Tasks 契约（恢复矩阵/条件写/防重复调度）与迁移模式"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "端点错误码/状态码矩阵、上传安全校验、yt-dlp 错误分类——API 层需保留的语义"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "pipeline 阶段实现规则（C2/C3 新增节）与禁用模式"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "pipeline 包结构规范与旧 services 布局（D4 需标记废弃）"}
+{"file": ".trellis/tasks/09-05-pipeline-orchestrator/design.md", "reason": "本任务详细设计：orchestrator 主循环/runner/routes 瘦身/恢复语义/测试设计"}

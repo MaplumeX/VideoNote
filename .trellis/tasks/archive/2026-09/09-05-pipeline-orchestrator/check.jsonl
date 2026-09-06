@@ -1,0 +1,5 @@
+{"file": "docs/pipeline-contract.md", "reason": "检查 SSE 载荷与响应模型与冻结契约零漂移"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "检查恢复矩阵、条件写、防重复调度符合 Durable 契约"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "检查上传安全/路径遏制/错误码矩阵保留"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查禁用模式与 pipeline 实现规则"}
+{"file": ".trellis/tasks/09-05-pipeline-orchestrator/implement.md", "reason": "对照 checklist/边界/完成定义验收（G3 门禁）"}

@@ -1,4 +1,4 @@
-from app.services.markdown import normalize_note_markdown
+from app.pipeline.markdown import normalize_note_markdown
 
 
 def test_normalize_note_markdown_removes_markdown_fence() -> None:

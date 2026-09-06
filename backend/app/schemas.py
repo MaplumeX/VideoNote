@@ -16,6 +16,8 @@ class VideoRequest(BaseModel):
 
 
 class TaskStage(StrEnum):
+    """Legacy stage values (pre-C4 rows); kept for COALESCE-style display."""
+
     pending = "pending"
     downloading = "downloading"
     extracting_subtitles = "extracting_subtitles"
@@ -25,12 +27,36 @@ class TaskStage(StrEnum):
     failed = "failed"
     cancelled = "cancelled"
 
+# --- New pipeline task contract (C4; docs/pipeline-contract.md) ---
+
+class TaskStatus(StrEnum):
+    """Task lifecycle status (mirrors app.pipeline.state.TaskStatus)."""
+
+    pending = "pending"
+    running = "running"
+    complete = "complete"
+    failed = "failed"
+    cancelled = "cancelled"
+
+class TaskPhase(StrEnum):
+    """Execution phase within a running task (mirrors app.pipeline.state.PipelinePhase)."""
+
+    fetching = "fetching"
+    subtitle = "subtitle"
+    audio = "audio"
+    transcribe = "transcribe"
+    notegen = "notegen"
+
 
 class TaskProgress(BaseModel):
-    job_id: str
-    stage: TaskStage = TaskStage.pending
-    progress: float = 0.0  # 0.0 ~ 1.0
+    """SSE progress event payload (contract §2.1 — zero drift)."""
+
+    status: TaskStatus = TaskStatus.pending
+    phase: TaskPhase | None = None
+    phase_progress: float = 0.0  # within-phase fraction, clamped to [0, 1]
     message: str = ""
+    attempt: int = 0
+    timestamp: str = ""
 
 
 class ProcessResponse(BaseModel):
@@ -80,8 +106,9 @@ class UserResponse(BaseModel):
 
 class TaskListItem(BaseModel):
     job_id: str
-    stage: TaskStage
-    progress: float
+    status: TaskStatus
+    phase: TaskPhase | None = None
+    phase_progress: float | None = None
     message: str
     created_at: str
     title: str | None = None
