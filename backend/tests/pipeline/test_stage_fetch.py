@@ -93,8 +93,8 @@ class TestFetchStage:
 
         assert isinstance(result, StageResult)
         meta = result.outputs[ArtifactKind.video_meta]
-        assert meta.title == "My Video"
-        assert meta.thumbnail == "thumb-123.jpg"
+        assert meta["title"] == "My Video"
+        assert meta["thumbnail"] == "thumb-123.jpg"
         # progress: 0.0 start, 1.0 done
         assert ctx.progress.events[0] == ("fetching", 0.0, "Fetching video info")
         assert ctx.progress.events[-1] == ("fetching", 1.0, "Video info fetched")
@@ -189,8 +189,8 @@ class TestFetchStage:
 
         result = await FetchStage().run(make_ctx(url="u"), resume=False)
         meta = result.outputs[ArtifactKind.video_meta]
-        assert meta.title == "My Video"
-        assert meta.thumbnail is None
+        assert meta["title"] == "My Video"
+        assert meta["thumbnail"] is None
 
     async def test_invalid_json_output(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch
@@ -211,10 +211,10 @@ class TestFetchStage:
         assert exc_info.value.code is ErrorCode.PROCESSING_FAILED
 
     async def test_resume_skips_when_artifact_present(self) -> None:
-        from app.pipeline.stages.fetch import FetchStage, VideoMeta
+        from app.pipeline.stages.fetch import FetchStage
 
         store = FakeStore()
-        store.items[ArtifactKind.video_meta] = VideoMeta("Cached", None)
+        store.items[ArtifactKind.video_meta] = {"title": "Cached", "thumbnail": None}
         ctx = StageContext(
             job_id="j",
             language="en",
@@ -225,7 +225,7 @@ class TestFetchStage:
             extra={"url": "u"},
         )
         result = await FetchStage().run(ctx, resume=True)
-        assert result.outputs[ArtifactKind.video_meta].title == "Cached"
+        assert result.outputs[ArtifactKind.video_meta]["title"] == "Cached"
 
     async def test_stub_argv_includes_shared_options(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch

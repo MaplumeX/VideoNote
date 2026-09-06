@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from dataclasses import dataclass
 from typing import ClassVar
 
 import httpx
@@ -37,14 +36,6 @@ def _cookiefile(ctx: StageContext) -> str | None:
     return path if isinstance(path, str) and path else None
 
 
-@dataclass
-class VideoMeta:
-    """``video_meta`` artifact content (persisted by the orchestrator)."""
-
-    title: str | None
-    thumbnail: str | None  # local filename under UPLOAD_DIR/thumbnails
-
-
 class FetchStage:
     """Fetch video title + thumbnail for a URL task."""
 
@@ -52,7 +43,7 @@ class FetchStage:
 
     async def run(self, ctx: StageContext, *, resume: bool) -> StageResult:
         existing = await ctx.artifacts.get(ArtifactKind.video_meta)
-        if resume and isinstance(existing, VideoMeta):
+        if resume and isinstance(existing, dict) and existing.get("title"):
             return StageResult(outputs={ArtifactKind.video_meta: existing})
 
         url = self._source_url(ctx)
@@ -63,7 +54,12 @@ class FetchStage:
         thumbnail_filename = await self._download_thumbnail(info.get("thumbnail"))
         await ctx.progress.publish(self.phase, 1.0, "Video info fetched")
         return StageResult(
-            outputs={ArtifactKind.video_meta: VideoMeta(title, thumbnail_filename)}
+            outputs={
+                ArtifactKind.video_meta: {
+                    "title": title,
+                    "thumbnail": thumbnail_filename,
+                }
+            }
         )
 
     def _source_url(self, ctx: StageContext) -> str:

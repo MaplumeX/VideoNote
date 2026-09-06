@@ -135,15 +135,27 @@ class _AsyncOpenAIAdapter:
                 kwargs["language"] = language
             transcript = await self._client.audio.transcriptions.create(**kwargs)
 
-        segments = getattr(transcript, "segments", [])
+        segments = getattr(transcript, "segments", []) or []
         if segments:
             lines = []
             for seg in segments:
-                start = format_timestamp(seg["start"])
-                text = seg["text"].strip()
+                # The SDK returns TranscriptionSegment objects (attribute
+                # access); fake clients in tests may use dicts. Support both.
+                def _field(obj: object, name: str) -> object:
+                    if isinstance(obj, dict):
+                        return obj.get(name)
+                    return getattr(obj, name, None)
+
+                seg_start = _field(seg, "start")
+                seg_text = _field(seg, "text")
+                if not isinstance(seg_start, (int, float)) or not isinstance(seg_text, str):
+                    continue
+                start = format_timestamp(seg_start)
+                text = seg_text.strip()
                 if text:
-                    lines.append(f"[{start}](#t={int(seg['start'])}) {text}")
-            return "\n".join(lines)
+                    lines.append(f"[{start}](#t={int(seg_start)}) {text}")
+            if lines:
+                return "\n".join(lines)
 
         return getattr(transcript, "text", "")
 

@@ -307,3 +307,76 @@ class TestTranscribeStageLargeFile:
         messages = [e[2] for e in ctx.progress.events]
         assert "Transcribing chunk 1..." in messages
         assert "Transcribing chunk 3..." in messages
+
+
+class TestSegmentsParsing:
+    """Regression tests for _transcribe_file segment handling.
+
+    The SDK returns TranscriptionSegment objects (attribute access), but the
+    original migration used dict subscripting and crashed at runtime
+    ('TranscriptionSegment' object is not subscriptable). These tests drive
+    _Async[OI]Adapter.transcribe directly with SDK-shaped objects.
+    """
+
+    class _FakeTranscriptions:
+        def __init__(self, transcript) -> None:
+            self._transcript = transcript
+
+        async def create(self, **kwargs):
+            return self._transcript
+
+    class _FakeAudio:
+        def __init__(self, transcript) -> None:
+            self.transcriptions = TestSegmentsParsing._FakeTranscriptions(transcript)
+
+    class _FakeAsyncClient:
+        def __init__(self, transcript) -> None:
+            self.audio = TestSegmentsParsing._FakeAudio(transcript)
+
+    class _SegmentObj:
+        """SDK-shaped segment: plain attribute access, no dict interface."""
+
+        def __init__(self, start: float, text: str) -> None:
+            self.start = start
+            self.text = text
+
+    class _TranscriptObj:
+        def __init__(self, segments, text: str = "") -> None:
+            self.segments = segments
+            self.text = text
+
+    async def _run(self, transcript, tmp_path, language: str | None = "en") -> str:
+        from app.pipeline.stages import transcribe as transcribe_mod
+
+        adapter = transcribe_mod._AsyncOpenAIAdapter(self._FakeAsyncClient(transcript))
+
+        audio = make_sine_wav(str(tmp_path / "a.wav"))
+        return await adapter.transcribe(
+            model="whisper-1", file_path=audio, language=language, provider="openai"
+        )
+
+    async def test_sdk_object_segments(self, tmp_path) -> None:
+        transcript = self._TranscriptObj(
+            [self._SegmentObj(0.0, " hello "), self._SegmentObj(65.5, "world")]
+        )
+        out = await self._run(transcript, tmp_path)
+        assert out == "[00:00:00](#t=0) hello\n[00:01:05](#t=65) world"
+
+    async def test_dict_segments_still_supported(self, tmp_path) -> None:
+        transcript = self._TranscriptObj(
+            [{"start": 0.0, "text": "from dict"}, {"start": 10.0, "text": ""}]
+        )
+        out = await self._run(transcript, tmp_path)
+        assert out == "[00:00:00](#t=0) from dict"
+
+    async def test_malformed_segments_skipped(self, tmp_path) -> None:
+        transcript = self._TranscriptObj(
+            [self._SegmentObj(0.0, "ok"), "garbage", {"no_start": True}]
+        )
+        out = await self._run(transcript, tmp_path)
+        assert out == "[00:00:00](#t=0) ok"
+
+    async def test_no_segments_falls_back_to_text(self, tmp_path) -> None:
+        transcript = self._TranscriptObj([], text="plain fallback")
+        out = await self._run(transcript, tmp_path)
+        assert out == "plain fallback"

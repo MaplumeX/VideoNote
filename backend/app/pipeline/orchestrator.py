@@ -151,6 +151,17 @@ class Orchestrator:
                 for kind, content in result.outputs.items():
                     await db.save_artifact(job_id, kind.value, content)
                     artifacts = artifacts | {kind}
+                    if kind is ArtifactKind.video_meta and isinstance(content, dict):
+                        # Surface title/thumbnail on the task row immediately
+                        # (legacy update_task_meta semantics) so the UI shows
+                        # them while the pipeline is still running — the
+                        # complete-time write alone leaves them NULL for the
+                        # whole run.
+                        await db.update_task_meta(
+                            job_id,
+                            content.get("title") or None,
+                            content.get("thumbnail") or None,
+                        )
                 saved = await db.save_checkpoint(
                     job_id,
                     phase.value,
