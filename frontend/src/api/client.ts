@@ -72,6 +72,8 @@ const TASK_MESSAGE_ERROR_CODES = new Set([
   "TASK_RECOVERY_MAX_ATTEMPTS",
   "PROVIDER_NOT_CONFIGURED",
   "FETCHING_VIDEO_INFO",
+  "SUBTITLE_EXTRACTION_FAILED",
+  "TASK_CANCELLED",
 ]);
 
 /** Translate stable task-state messages while preserving legacy free-form text.

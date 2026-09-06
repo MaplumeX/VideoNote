@@ -52,8 +52,9 @@ describe("useSSE", () => {
     vi.mocked(authFetch).mockResolvedValue(streamResponse([]));
     vi.mocked(fetchTaskById).mockResolvedValue({
       job_id: "job-1",
-      stage: "complete",
-      progress: 1,
+      status: "complete",
+      phase: null,
+      phase_progress: null,
       message: "done",
       created_at: "",
       title: null,
@@ -87,14 +88,15 @@ describe("useSSE", () => {
       .mockResolvedValueOnce(streamResponse([]))
       .mockResolvedValueOnce(streamResponse([
         "event: progress\r\n",
-        "data: {\"stage\":\"complete\",\"progress\":1,\"message\":\"done\"}\r\n\r\n",
+        "data: {\"status\":\"complete\",\"phase\":null,\"phase_progress\":1,\"message\":\"done\",\"attempt\":1,\"timestamp\":\"2025-01-01T12:00:00Z\"}\r\n\r\n",
         "event: complete\r\n",
         "data: {\"markdown\":\"# streamed\"}\r\n\r\n",
       ]));
     vi.mocked(fetchTaskById).mockResolvedValue({
       job_id: "job-2",
-      stage: "transcribing",
-      progress: 0.5,
+      status: "running",
+      phase: "transcribe",
+      phase_progress: 0.5,
       message: "working",
       created_at: "",
       title: null,
@@ -133,7 +135,7 @@ describe("useSSE", () => {
   it("translates a stable recovery failure code from the stream", async () => {
     vi.mocked(authFetch).mockResolvedValue(streamResponse([
       "event: progress\n",
-      "data: {\"stage\":\"failed\",\"progress\":0,\"message\":\"TASK_RECOVERY_INPUT_INVALID\"}\n\n",
+      "data: {\"status\":\"failed\",\"phase\":null,\"phase_progress\":0,\"message\":\"TASK_RECOVERY_INPUT_INVALID\",\"attempt\":1,\"timestamp\":\"2025-01-01T12:00:00Z\"}\n\n",
     ]));
 
     const { result } = renderHook(() => useSSE("job-4"));
@@ -148,8 +150,9 @@ describe("useSSE", () => {
     vi.mocked(authFetch).mockResolvedValue(streamResponse([]));
     vi.mocked(fetchTaskById).mockResolvedValue({
       job_id: "job-err",
-      stage: "complete",
-      progress: 1,
+      status: "complete",
+      phase: null,
+      phase_progress: null,
       message: "done",
       created_at: "",
       title: null,
@@ -189,7 +192,7 @@ describe("useSSE reconnect quota", () => {
     vi.mocked(authFetch)
       .mockResolvedValueOnce(streamResponse([
         "event: progress\r\n",
-        "data: {\"stage\":\"transcribing\",\"progress\":0.3,\"message\":\"working\"}\r\n\r\n",
+        "data: {\"status\":\"running\",\"phase\":\"transcribe\",\"phase_progress\":0.3,\"message\":\"working\",\"attempt\":1,\"timestamp\":\"2025-01-01T12:00:00Z\"}\r\n\r\n",
       ]))
       .mockResolvedValueOnce(streamResponse([
         "event: complete\r\n",
@@ -197,8 +200,9 @@ describe("useSSE reconnect quota", () => {
       ]));
     vi.mocked(fetchTaskById).mockResolvedValue({
       job_id: "job-rc",
-      stage: "transcribing",
-      progress: 0.3,
+      status: "running",
+      phase: "transcribe",
+      phase_progress: 0.3,
       message: "working",
       created_at: "",
       title: null,
@@ -234,8 +238,9 @@ describe("useSSE reconnect quota", () => {
       ]));
     vi.mocked(fetchTaskById).mockResolvedValue({
       job_id: "job-nf",
-      stage: "transcribing",
-      progress: 0.3,
+      status: "running",
+      phase: "transcribe",
+      phase_progress: 0.3,
       message: "working",
       created_at: "",
       title: null,

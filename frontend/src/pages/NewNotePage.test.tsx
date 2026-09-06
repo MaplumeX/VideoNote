@@ -29,8 +29,12 @@ vi.mock("react-router", () => ({
 
 import { NewNotePage } from "./NewNotePage";
 
-function renderWithStage(stage: string) {
-  mockUseSSE.mockReturnValue({ progress: { stage, progress: 0.1, message: null }, result: null, error: null });
+function renderWithStage(status: string) {
+  mockUseSSE.mockReturnValue({
+    progress: { status, phase: null, phase_progress: 0, message: null, attempt: 1, timestamp: "" },
+    result: null,
+    error: null,
+  });
   render(<NewNotePage />);
 }
 

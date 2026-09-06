@@ -75,7 +75,7 @@ import type {
 } from "@/types";
 
 function isRetriable(task: TaskItem): boolean {
-  return task.stage === "failed" && task.source_type === "url" && !!task.video_url;
+  return task.status === "failed" && task.source_type === "url" && !!task.video_url;
 }
 
 function SourceBadge({ task }: { task: TaskItem }) {
@@ -420,7 +420,7 @@ export function HistoryPage() {
   };
 
   const getDisplayTitle = (task: TaskItem) => {
-    return task.title || task.video_url || task.file_name || task.message || task.stage;
+    return task.title || task.video_url || task.file_name || task.message || t(`progress.${task.status}`);
   };
 
   // Active filter pills
@@ -644,7 +644,7 @@ export function HistoryPage() {
         /* Card view */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {tasks.map((task) => {
-            const clickable = task.stage === "complete";
+            const clickable = task.status === "complete";
             const isSelected = selectedIds.has(task.job_id);
             const taskFav = task.is_favorite;
             const ctxItems = getContextMenuItems(task);
@@ -798,7 +798,7 @@ export function HistoryPage() {
             <span></span>
           </div>
           {tasks.map((task) => {
-            const clickable = task.stage === "complete";
+            const clickable = task.status === "complete";
             const isSelected = selectedIds.has(task.job_id);
             const taskFav = task.is_favorite;
             const ctxItems = getContextMenuItems(task);

@@ -141,15 +141,15 @@ export function NoteDetailPage() {
   }, [folderId, folderTree]);
 
   useEffect(() => {
-    if (progress?.stage === "failed" && processing) {
+    if (progress?.status === "failed" && processing) {
       setError(progress.message || t("error.processingFailed"));
       setProcessing(false);
     }
-    if (progress?.stage === "cancelled" && processing) {
+    if (progress?.status === "cancelled" && processing) {
       setError(t("processing.cancelled"));
       setProcessing(false);
     }
-  }, [progress?.stage, processing, t]);
+  }, [progress?.status, processing, t]);
 
   useEffect(() => {
     if (sseResult && processing && jobId) {
@@ -272,7 +272,7 @@ export function NoteDetailPage() {
   }
 
   if (processing) {
-    const isFailed = progress?.stage === "failed" || progress?.stage === "cancelled";
+    const isFailed = progress?.status === "failed" || progress?.status === "cancelled";
     const showCancelButton = !isFailed;
     const showRetryButton = isFailed;
 
@@ -311,7 +311,12 @@ export function NoteDetailPage() {
           />
         )}
         <div className="flex justify-center">
-          <StepIndicator stage={progress?.stage ?? null} progress={progress?.progress ?? 0} />
+          <StepIndicator
+            status={progress?.status ?? null}
+            phase={progress?.phase ?? null}
+            phaseProgress={progress?.phase_progress ?? 0}
+            failedPhase={progress?.phase ?? null}
+          />
         </div>
         {(showCancelButton || showRetryButton) && (
           <div className="flex justify-center gap-3">

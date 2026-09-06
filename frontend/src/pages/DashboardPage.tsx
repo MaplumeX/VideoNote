@@ -58,11 +58,11 @@ export function DashboardPage() {
   }, [loadRecent, loadFavorites]);
 
   const getDisplayTitle = (task: TaskItem) => {
-    return task.title || task.video_url || task.file_name || task.message || task.stage;
+    return task.title || task.video_url || task.file_name || task.message || t(`progress.${task.status}`);
   };
 
   const TaskRow = ({ task }: { task: TaskItem }) => {
-    const clickable = task.stage === "complete" || isActiveTask(task);
+    const clickable = task.status === "complete" || isActiveTask(task);
     const taskFav = task.is_favorite;
     const thumbSrc = task.thumbnail_url
       ? task.thumbnail_url.startsWith("http")

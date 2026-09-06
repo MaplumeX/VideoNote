@@ -16,10 +16,12 @@
   "progress": {
     "uploading": "Uploading video... {{percent}}%",
     "pending": "Queued",
-    "downloading": "Downloading video",
-    "extracting_subtitles": "Extracting subtitles",
-    "transcribing": "Transcribing audio",
-    "generating_notes": "Generating notes",
+    "running": "Processing",
+    "fetching": "Fetching video info",
+    "subtitle": "Extracting subtitles",
+    "audio": "Downloading audio",
+    "transcribe": "Transcribing audio",
+    "notegen": "Generating notes",
     "complete": "Complete",
     "failed": "Failed",
     "cancelled": "Cancelled"
@@ -299,7 +301,7 @@
     "registrationFailed": "Registration failed",
     "sseConnectionFailed": "Failed to connect to progress stream",
     "sseConnectionLost": "Connection to server lost",
-    "taskCancelled": "Task cancelled",
+    "taskCancelled": "Task cancelled.",
     "processingFailed": "Processing failed",
     "fetchResultFailed": "Failed to fetch the note result.",
     "uploadSessionExpired": "Your session expired. Please sign in and upload the file again.",
@@ -320,6 +322,7 @@
     "taskRecoveryMaxAttempts": "This task failed repeatedly and will no longer be retried.",
     "duplicateTask": "A task for this video is already running.",
     "providerNotConfigured": "Provider not configured. Please set up your ASR and LLM providers in Settings.",
-    "fetchingVideoInfo": "Fetching video info..."
+    "fetchingVideoInfo": "Fetching video info...",
+    "subtitleExtractionFailed": "Subtitle extraction failed."
   }
 }

@@ -61,3 +61,29 @@ describe("translateTaskMessage prefix matching", () => {
     expect(translateTaskMessage("TRANSCRIPTION_FAILED")).toBe("Audio transcription failed.");
   });
 });
+
+describe("translateTaskMessage new pipeline codes", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  it("translates SUBTITLE_EXTRACTION_FAILED", async () => {
+    await i18n.changeLanguage("en");
+    expect(translateTaskMessage("SUBTITLE_EXTRACTION_FAILED")).toBe("Subtitle extraction failed.");
+  });
+
+  it("translates SUBTITLE_EXTRACTION_FAILED with detail suffix", async () => {
+    await i18n.changeLanguage("en");
+    const result = translateTaskMessage("SUBTITLE_EXTRACTION_FAILED: no subtitle tracks");
+    expect(result).toContain("Subtitle extraction failed");
+    expect(result).toContain("no subtitle tracks");
+  });
+
+  it("translates TASK_CANCELLED in both supported languages", async () => {
+    await i18n.changeLanguage("en");
+    expect(translateTaskMessage("TASK_CANCELLED")).toBe("Task cancelled.");
+
+    await i18n.changeLanguage("zh-CN");
+    expect(translateTaskMessage("TASK_CANCELLED")).toBe("任务已取消。");
+  });
+});
