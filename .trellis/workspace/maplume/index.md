@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
+- **Total Sessions**: 9
 - **Last Active**: 2026-09-06
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~314 | Active |
+| `journal-1.md` | ~349 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-09-06 | Parent task: live acceptance + integration fixes + wrap-up | `36b3997`, `27681a2`, `8f0074e` | `refactor/rewrite-core-pipeline` |
 | 8 | 2026-09-06 | C5 frontend contract adaptation | `ca7e7ec` | `refactor/rewrite-core-pipeline` |
 | 7 | 2026-09-06 | C4 orchestrator & API layer switchover | `cdd1054` | `refactor/rewrite-core-pipeline` |
 | 6 | 2026-09-05 | C2+C3 transcription & note-gen stages (parallel) | `5293c92` | `refactor/rewrite-core-pipeline` |

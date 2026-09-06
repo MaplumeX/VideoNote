@@ -312,3 +312,38 @@ Implemented C5: frontend switched to the new pipeline contract — TaskStatus/Ta
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: Parent task: live acceptance + integration fixes + wrap-up
+
+**Date**: 2026-09-06
+**Task**: Parent task: live acceptance + integration fixes + wrap-up
+**Branch**: `refactor/rewrite-core-pipeline`
+
+### Summary
+
+Live acceptance of the rewritten pipeline against real Bilibili URLs surfaced and fixed 3 integration defects: (1) stage-level retry for transient CDN failures with real yt-dlp stderr surfaced and classified; (2) video_meta dict serialization + immediate update_task_meta (title/thumbnail were NULL during processing and lost even at completion); (3) SDK TranscriptionSegment attribute access (migrated code used dict subscripts). Final state: 290 backend + 60 frontend tests green, builds pass, end-to-end URL task produces timestamped Markdown notes (48 clickable links on acceptance video). All 5 subtasks + parent archived; spec updated with final pipeline status and lessons (dataclass artifacts, dict-vs-object SDK shapes, transport retry policy).
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `36b3997` | (see git log) |
+| `27681a2` | (see git log) |
+| `8f0074e` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
