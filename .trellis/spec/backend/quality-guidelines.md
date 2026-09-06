@@ -63,6 +63,15 @@ async def hash_password(password: str) -> str:
 
 ## Required Patterns
 
+> **Deprecated subsections (C4)**: "Scenario: yt-dlp Shared Options" (replaced by
+> `app/pipeline/subprocess_util.build_ytdlp_args` + CLI subprocess invocation),
+> "Async task delegation" (replaced by `app/pipeline/runner.PipelineTaskRunner`
+> + `orchestrator.schedule_task`), and "Progress reporting" (replaced by the
+> phase + within-phase `PhaseProgressTracker` model — the global 0–1 progress
+> value is abolished; see `docs/pipeline-contract.md` §2) describe the deleted
+> legacy chain. The "Pipeline Stage Implementation Rules" section below is the
+> authoritative guidance for `app/pipeline/**`.
+
 ### Scenario: yt-dlp Shared Options
 
 #### 1. Scope / Trigger
@@ -197,6 +206,12 @@ decrypted = decrypt_api_key(encrypted)
 ---
 
 ## Pipeline Stage Implementation Rules (C2/C3, supersedes sync-service rules for pipeline code)
+
+> **C4 update**: the parenthetical below about the legacy `app/services/`
+> sync + `to_thread` path remaining valid no longer applies — the legacy chain
+> was deleted in C4. These rules are now the only pipeline guidance; the
+> deprecated sync-service rules elsewhere in this file are kept for historical
+> reference only.
 
 Rules below apply to `app/pipeline/**` (the new core pipeline). The legacy
 `app/services/**` sync + `to_thread` pattern remains valid only for the legacy

@@ -71,6 +71,14 @@ reference implementations.)
 
 ## Service Layer Error Handling
 
+> **Deprecated (C4)**: this section describes the deleted legacy chain
+> (`app/services/` sync services + route-layer `_process_video_*` orchestration
+> with `to_thread` + `threading.Event` cancellation). Replacement: pipeline
+> stages raise structured `PipelineError(code, detail=...)` (`app/pipeline/errors.py`,
+> sanitized at construction) and the orchestrator (`app/pipeline/orchestrator.py`)
+> is the sole writer of task terminal state. Kept for historical reference and
+> for the still-valid error-code mapping tables below.
+
 Services raise exceptions with descriptive messages. Route-level `_process_video_*` functions catch exceptions per-stage, log the full traceback, and store `failed` status in SQLite with a **stable error code** as the progress message (not raw `str(e)`):
 
 ```python

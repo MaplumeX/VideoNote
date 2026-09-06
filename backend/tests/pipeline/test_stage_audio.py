@@ -175,6 +175,50 @@ class TestAudioStageUrlSource:
         fmt_idx = recorded.index("-f")
         assert recorded[fmt_idx + 1] == "bestaudio/best"
 
+    async def test_cookiefile_passed_to_ytdlp_url_download(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ctx.extra['cookiefile'] must reach the yt-dlp argv (--cookies) —
+        URL branch only (uploads never invoke yt-dlp)."""
+        # Stub: records argv, fails the download (assertion is on argv).
+        argv_path = tmp_path / "argv.txt"
+        stub = tmp_path / "yt-dlp"
+        stub.write_text(
+            "#!/bin/sh\n"
+            f"for a in \"$@\"; do echo \"$a\" >> {argv_path}; done\n"
+            "echo 'download failed' >&2\nexit 1\n"
+        )
+        stub.chmod(0o755)
+        monkeypatch.setattr(subprocess_util, "YT_DLP_BIN", str(stub))
+
+        cookiefile = str(tmp_path / "cookies.txt")
+        ctx = make_ctx(url="https://youtu.be/x", cookiefile=cookiefile)
+        with pytest.raises(PipelineError):
+            await AudioStage().run(ctx, resume=False)
+        recorded = argv_path.read_text().splitlines()
+        cookies_idx = recorded.index("--cookies")
+        assert recorded[cookies_idx + 1] == cookiefile
+
+    async def test_no_cookiefile_key_falls_back_to_shared_opts(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without a cookiefile in extra, argv carries no --cookies from the stage."""
+        argv_path = tmp_path / "argv.txt"
+        stub = tmp_path / "yt-dlp"
+        stub.write_text(
+            "#!/bin/sh\n"
+            f"for a in \"$@\"; do echo \"$a\" >> {argv_path}; done\n"
+            "echo 'download failed' >&2\nexit 1\n"
+        )
+        stub.chmod(0o755)
+        monkeypatch.setattr(subprocess_util, "YT_DLP_BIN", str(stub))
+
+        ctx = make_ctx(url="https://youtu.be/x")
+        with pytest.raises(PipelineError):
+            await AudioStage().run(ctx, resume=False)
+        recorded = argv_path.read_text().splitlines()
+        assert "--cookies" not in recorded
+
     async def test_url_download_failure_raises_video_fetch_failed(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

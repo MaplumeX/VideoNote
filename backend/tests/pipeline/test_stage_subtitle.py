@@ -39,7 +39,11 @@ class NoopRegistrar:
         pass
 
 
-def make_ctx(store: FakeStore | None = None, language: str = "en") -> StageContext:
+def make_ctx(
+    store: FakeStore | None = None, language: str = "en", **extra: object
+) -> StageContext:
+    base_extra: dict[str, object] = {"url": "https://youtu.be/x"}
+    base_extra.update(extra)
     return StageContext(
         job_id="job-1",
         language=language,
@@ -47,7 +51,7 @@ def make_ctx(store: FakeStore | None = None, language: str = "en") -> StageConte
         artifacts=store or FakeStore(),
         progress=Recorder(),
         register_cancel=NoopRegistrar(),
-        extra={"url": "https://youtu.be/x"},
+        extra=base_extra,
     )
 
 
@@ -162,6 +166,35 @@ exit 0
         assert "--convert-subs" in recorded
         sublangs_idx = recorded.index("--sub-langs")
         assert recorded[sublangs_idx + 1] == "en,zh-Hans,zh,ja"
+
+    async def test_cookiefile_passed_to_ytdlp(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ctx.extra['cookiefile'] must reach the yt-dlp argv (--cookies)."""
+        stub = self._stub_with_subtitle(
+            tmp_path, "video.en.srt", "1\n00:00:01,000 --> 00:00:02,000\nHello\n"
+        )
+        monkeypatch.setattr(subprocess_util, "YT_DLP_BIN", stub)
+
+        cookiefile = str(tmp_path / "cookies.txt")
+        ctx = make_ctx(language="en", cookiefile=cookiefile)
+        await SubtitleStage().run(ctx, resume=False)
+        recorded = (tmp_path / "argv.txt").read_text().splitlines()
+        cookies_idx = recorded.index("--cookies")
+        assert recorded[cookies_idx + 1] == cookiefile
+
+    async def test_no_cookiefile_key_falls_back_to_shared_opts(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without a cookiefile in extra, argv carries no --cookies from the stage."""
+        stub = self._stub_with_subtitle(
+            tmp_path, "video.en.srt", "1\n00:00:01,000 --> 00:00:02,000\nHello\n"
+        )
+        monkeypatch.setattr(subprocess_util, "YT_DLP_BIN", stub)
+
+        await SubtitleStage().run(make_ctx(language="en"), resume=False)
+        recorded = (tmp_path / "argv.txt").read_text().splitlines()
+        assert "--cookies" not in recorded
 
     async def test_miss_returns_empty_outputs(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch

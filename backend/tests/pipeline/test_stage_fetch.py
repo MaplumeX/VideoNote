@@ -246,3 +246,41 @@ class TestFetchStage:
         assert "--remote-components" in recorded
         assert "ejs:github" in recorded
         assert "https://youtu.be/abc" in recorded
+
+    async def test_cookiefile_passed_to_ytdlp(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ctx.extra['cookiefile'] must reach the yt-dlp argv (--cookies)."""
+        argv_path = tmp_path / "argv.txt"
+        stub = write_stub_ytdlp(
+            tmp_path,
+            "#!/bin/sh\nfor a in \"$@\"; do echo \"$a\" >> "
+            f"{argv_path}\ndone\necho '{json.dumps({'title': 'T'})}'\n",
+        )
+        monkeypatch.setattr(subprocess_util, "YT_DLP_BIN", stub)
+        from app.pipeline.stages.fetch import FetchStage
+
+        cookiefile = str(tmp_path / "cookies.txt")
+        await FetchStage().run(
+            make_ctx(url="https://youtu.be/x", cookiefile=cookiefile), resume=False
+        )
+        recorded = argv_path.read_text().splitlines()
+        cookies_idx = recorded.index("--cookies")
+        assert recorded[cookies_idx + 1] == cookiefile
+
+    async def test_no_cookiefile_key_falls_back_to_shared_opts(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without a cookiefile in extra, argv carries no --cookies from the stage."""
+        argv_path = tmp_path / "argv.txt"
+        stub = write_stub_ytdlp(
+            tmp_path,
+            "#!/bin/sh\nfor a in \"$@\"; do echo \"$a\" >> "
+            f"{argv_path}\ndone\necho '{json.dumps({'title': 'T'})}'\n",
+        )
+        monkeypatch.setattr(subprocess_util, "YT_DLP_BIN", stub)
+        from app.pipeline.stages.fetch import FetchStage
+
+        await FetchStage().run(make_ctx(url="https://youtu.be/x"), resume=False)
+        recorded = argv_path.read_text().splitlines()
+        assert "--cookies" not in recorded

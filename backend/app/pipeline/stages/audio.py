@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 AUDIO_TIMEOUT_SECONDS = 1200.0
 FFMPEG_TIMEOUT_SECONDS = 1200.0
 
+def _cookiefile(ctx: StageContext) -> str | None:
+    """The per-user cookie temp file injected by the orchestrator (if any)."""
+    path = ctx.extra.get("cookiefile")
+    return path if isinstance(path, str) and path else None
+
 
 async def extract_audio_wav(
     input_path: str,
@@ -126,6 +131,7 @@ class AudioStage:
         argv = build_ytdlp_args(
             ["-f", "bestaudio/best", "-o", output_path, url],
             quiet=False,
+            cookiefile_path=_cookiefile(ctx),
         )
         result = await run_managed_process(
             argv,

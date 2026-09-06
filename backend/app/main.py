@@ -11,10 +11,12 @@ from fastapi.staticfiles import StaticFiles
 from app.api.auth_routes import router as auth_router
 from app.api.cookie_routes import router as cookie_router
 from app.api.note_routes import router as note_router
-from app.api.routes import recover_incomplete_tasks, router
+from app.api.provider_routes import router as provider_router
+from app.api.routes import router as main_router
 from app.config import SECRET_KEY_IS_RANDOM
 from app.db import cleanup_failed_task_files, cleanup_old_terminal_tasks, close_db, init_db
-from app.task_runner import task_runner
+from app.pipeline.orchestrator import orchestrator
+from app.pipeline.runner import pipeline_runner
 
 
 @asynccontextmanager
@@ -28,7 +30,7 @@ async def lifespan(app: FastAPI):
             "value in the environment to persist encrypted data."
         )
     await init_db()
-    await recover_incomplete_tasks()
+    await orchestrator.recover()
     cleaned = await cleanup_failed_task_files()
     if cleaned:
         logger.info("Cleaned up %d failed task files", cleaned)
@@ -38,7 +40,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        await task_runner.shutdown()
+        await pipeline_runner.shutdown()
         await close_db()
 
 
@@ -56,7 +58,8 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api")
 app.include_router(cookie_router, prefix="/api")
 app.include_router(note_router, prefix="/api")
-app.include_router(router, prefix="/api")
+app.include_router(provider_router, prefix="/api")
+app.include_router(main_router, prefix="/api")
 
 
 @app.get("/api/health")

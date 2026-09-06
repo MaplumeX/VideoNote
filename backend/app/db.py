@@ -9,6 +9,7 @@ from pathlib import Path
 import aiosqlite
 
 from app.config import UPLOAD_DIR
+from app.pipeline.state import TERMINAL_STATUSES
 from app.schemas import TaskStage
 
 DB_PATH = Path(str(UPLOAD_DIR)) / "videonote.db"
@@ -20,6 +21,10 @@ TERMINAL_STAGES = (
     TaskStage.failed.value,
     TaskStage.cancelled.value,
 )
+
+# Terminal statuses of the new pipeline model (pipeline.state.TaskStatus),
+# kept as plain strings because their values are the frozen DB contract.
+_NEW_TERMINAL_STATUSES = tuple(sorted(s.value for s in TERMINAL_STATUSES))
 
 # Serializes explicit BEGIN IMMEDIATE transactions so that concurrent
 # auto-commit writes (e.g. update_progress from SSE) don't interleave and
@@ -400,17 +405,16 @@ async def get_recoverable_tasks() -> list[dict]:
 
 async def increment_attempt(job_id: str) -> bool:
     """Increment execution attempt if the task is still runnable."""
-    terminal_stages = (
-        TaskStage.complete.value,
-        TaskStage.failed.value,
-        TaskStage.cancelled.value,
-    )
     db = await _get_db()
     cursor = await db.execute(
         "UPDATE tasks SET attempt_count = attempt_count + 1, updated_at = ? "
         "WHERE job_id = ? AND cancel_requested = 0 AND stage NOT IN (?, ?, ?) "
+        "AND (status IS NULL OR status NOT IN (?, ?, ?)) "
         "AND attempt_count < ?",
-        (datetime.now(UTC).isoformat(), job_id, *terminal_stages, MAX_TASK_ATTEMPTS),
+        (
+            datetime.now(UTC).isoformat(), job_id, *TERMINAL_STAGES,
+            *_NEW_TERMINAL_STATUSES, MAX_TASK_ATTEMPTS,
+        ),
     )
     await db.commit()
     return cursor.rowcount > 0
@@ -431,21 +435,30 @@ async def is_task_cancelled(job_id: str) -> bool:
 
 
 async def request_task_cancel(job_id: str, user_id: str | None = None) -> bool:
-    """Persist cancellation intent and terminal state atomically."""
+    """Persist cancellation intent and terminal state atomically.
+
+    Writes both the legacy ``stage`` column and the new ``status`` column
+    (NULL-tolerant guard so rows created by either chain are covered).
+    """
     db = await _get_db()
     query = (
-        "UPDATE tasks SET cancel_requested = 1, stage = ?, progress = 0, "
-        "message = ?, updated_at = ? WHERE job_id = ? AND cancel_requested = 0 "
-        "AND stage NOT IN (?, ?, ?)"
+        "UPDATE tasks SET cancel_requested = 1, stage = ?, status = 'cancelled', "
+        "phase = NULL, phase_progress = NULL, progress = 0, "
+        "message = ?, last_error_code = ?, updated_at = ? "
+        "WHERE job_id = ? AND cancel_requested = 0 "
+        "AND (stage IS NULL OR stage NOT IN (?, ?, ?)) "
+        "AND (status IS NULL OR status NOT IN (?, ?, ?))"
     )
     params: list[object] = [
         TaskStage.cancelled.value,
         "Cancelled",
+        "TASK_CANCELLED",
         datetime.now(UTC).isoformat(),
         job_id,
         TaskStage.complete.value,
         TaskStage.failed.value,
         TaskStage.cancelled.value,
+        *_NEW_TERMINAL_STATUSES,
     ]
     if user_id is not None:
         query += " AND user_id = ?"
@@ -481,7 +494,14 @@ async def get_user_tasks(
     """Get tasks for a user with pagination and optional filters, newest first."""
     db = await _get_db()
     query = (
-        "SELECT t.job_id, t.stage, t.progress, t.message, t.created_at, t.updated_at, "
+        # COALESCE: rows created by the new chain before their first
+        # status write (NULL) display via the backfilled legacy mapping.
+        "SELECT t.job_id, "
+        "CASE WHEN t.status IS NOT NULL THEN t.status "
+        "ELSE CASE WHEN t.stage IN ('complete', 'failed', 'cancelled') "
+        "THEN t.stage ELSE 'pending' END END AS status, "
+        "t.phase, t.phase_progress, t.message, "
+        "t.created_at, t.updated_at, "
         "t.video_url, t.file_name, t.platform, t.language, t.source_type, t.result_json, "
         "t.folder_id, t.is_favorite, t.favorited_at, t.thumbnail_url, t.title "
         "FROM tasks t"
@@ -1357,11 +1377,6 @@ async def delete_user_cookie(user_id: str, platform: str) -> bool:
 
 # --- Pipeline artifact / checkpoint operations (C1 contract baseline) ---
 
-# New-model terminal statuses (app.pipeline.state.TaskStatus), kept as plain
-# strings here to avoid importing the pipeline package into db.py (which the
-# legacy chain must not depend on).
-_NEW_TERMINAL_STATUSES = ("complete", "failed", "cancelled")
-
 
 def _artifact_json(content: object) -> str:
     """Serialize artifact content to JSON (pass through plain strings)."""
@@ -1377,6 +1392,127 @@ def _artifact_content(content_json: str) -> object:
         return data["text"]
     return data
 
+
+# New-model status/phase writes. The task table keeps the legacy stage/progress
+# columns (historical rows read them), so new writes maintain both dimensions.
+
+async def update_task_status(
+    job_id: str,
+    status: str,
+    *,
+    phase: str | None = None,
+    phase_progress: float | None = None,
+    message: str | None = None,
+    last_error_code: str | None = None,
+) -> bool:
+    """Conditionally update status/phase/progress on a non-terminal, non-cancelled task.
+
+    Terminal writes (complete/failed/cancelled) must use the dedicated
+    ``set_task_terminal`` instead — this function is for pending->running and
+    running-phase progress only. Returns True when the row was updated.
+    """
+    db = await _get_db()
+    now = datetime.now(UTC).isoformat()
+    sets = ["status = ?", "updated_at = ?"]
+    params: list[object] = [status, now]
+    if phase is not None:
+        sets.append("phase = ?")
+        params.append(phase)
+    if phase_progress is not None:
+        sets.append("phase_progress = ?")
+        params.append(phase_progress)
+    if message is not None:
+        sets.append("message = ?")
+        params.append(message)
+    if last_error_code is not None:
+        sets.append("last_error_code = ?")
+        params.append(last_error_code)
+    params.append(job_id)
+    cursor = await db.execute(
+        "UPDATE tasks SET " + ", ".join(sets) +
+        " WHERE job_id = ? AND cancel_requested = 0"
+        " AND (status IS NULL OR status NOT IN (?, ?, ?))"
+        " AND (stage IS NULL OR stage NOT IN (?, ?, ?))",
+        (*params, *_NEW_TERMINAL_STATUSES, *TERMINAL_STAGES),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+async def set_task_terminal(
+    job_id: str,
+    status: str,
+    *,
+    message: str | None = None,
+    last_error_code: str | None = None,
+    result_json: str | None = None,
+    title: str | None = None,
+    thumbnail_url: str | None = None,
+    phase_none: bool = True,
+) -> bool:
+    """Idempotently write a terminal status (complete/failed/cancelled).
+
+    The write is guarded so an already-terminal state always wins the race;
+    repeating a terminal write with the same status is a no-op. Legacy
+    ``stage`` is mirrored for list/cleanup queries; ``cancel_requested`` is
+    cleared so the terminal state (not the intent flag) carries the truth
+    (``request_task_cancel`` already wrote ``status='cancelled'`` and its own
+    guard tolerates that). Returns True when the row was updated.
+    """
+    db = await _get_db()
+    now = datetime.now(UTC).isoformat()
+    sets = ["status = ?", "stage = ?", "phase = NULL", "cancel_requested = 0", "updated_at = ?"]
+    params: list[object] = [status, status, now]
+    if status == "complete":
+        sets += ["phase_progress = 1.0", "progress = 1.0"]
+    else:
+        sets += ["phase_progress = NULL", "progress = 0.0"]
+    if message is not None:
+        sets.append("message = ?")
+        params.append(message)
+    if last_error_code is not None:
+        sets.append("last_error_code = ?")
+        params.append(last_error_code)
+    if result_json is not None:
+        sets.append("result_json = ?")
+        params.append(result_json)
+    if title is not None:
+        sets.append("title = ?")
+        params.append(title)
+    if thumbnail_url is not None:
+        sets.append("thumbnail_url = ?")
+        params.append(thumbnail_url)
+    params.append(job_id)
+    cursor = await db.execute(
+        "UPDATE tasks SET " + ", ".join(sets) +
+        " WHERE job_id = ?"
+        " AND (status IS NULL OR status NOT IN (?, ?, ?))"
+        " AND (stage IS NULL OR stage NOT IN (?, ?, ?))",
+        (*params, *_NEW_TERMINAL_STATUSES, *TERMINAL_STAGES),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+async def reset_task_for_retry(job_id: str) -> bool:
+    """Reset a failed/cancelled task for a checkpoint-resumed retry.
+
+    Clears the persisted cancellation intent and bumps the attempt counter.
+    Returns False when the task is missing or not in a retryable state.
+    """
+    db = await _get_db()
+    now = datetime.now(UTC).isoformat()
+    # Reset both dimension columns (legacy stage + new status) so every
+    # guarded write in the new chain accepts the task again.
+    cursor = await db.execute(
+        "UPDATE tasks SET cancel_requested = 0, status = 'pending', stage = 'pending', "
+        "phase = NULL, phase_progress = NULL, progress = 0.0, "
+        "attempt_count = attempt_count + 1, "
+        "message = 'Queued', updated_at = ? "
+        "WHERE job_id = ? "
+        "AND (status IN ('failed', 'cancelled') OR stage IN ('failed', 'cancelled'))",
+        (now, job_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
 
 async def save_artifact(job_id: str, kind: str, content: object) -> None:
     """UPSERT an intermediate artifact for a task (task_artifacts table)."""

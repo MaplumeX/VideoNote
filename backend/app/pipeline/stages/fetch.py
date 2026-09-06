@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 FETCH_TIMEOUT_SECONDS = 120.0
 THUMBNAIL_TIMEOUT_SECONDS = 15.0
 
+def _cookiefile(ctx: StageContext) -> str | None:
+    """The per-user cookie temp file injected by the orchestrator (if any)."""
+    path = ctx.extra.get("cookiefile")
+    return path if isinstance(path, str) and path else None
+
 
 @dataclass
 class VideoMeta:
@@ -71,7 +76,10 @@ class FetchStage:
         return url
 
     async def _dump_json(self, ctx: StageContext, url: str) -> dict:
-        argv = build_ytdlp_args(["--dump-json", "--no-download", url])
+        argv = build_ytdlp_args(
+            ["--dump-json", "--no-download", url],
+            cookiefile_path=_cookiefile(ctx),
+        )
         result = await run_managed_process(
             argv,
             register_cancel=ctx.register_cancel,

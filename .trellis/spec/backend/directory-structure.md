@@ -2,6 +2,14 @@
 
 > How backend code is organized in this project.
 
+> **Deprecated sections (C4)**: the `app/services/` pipeline modules
+> (`subtitle.py`, `audio.py`, `transcribe.py`, `note_gen.py`) and
+> `app/task_runner.py` were **deleted** in the C4 pipeline rewrite. The
+> "Directory Layout"/"Adding a New Service" sections below still describe
+> them for historical reference — they are **not** where pipeline code lives
+> anymore. Replacement: `app/pipeline/` (see "Pipeline Package" below and
+> `docs/pipeline-contract.md`).
+
 ---
 
 ## Directory Layout

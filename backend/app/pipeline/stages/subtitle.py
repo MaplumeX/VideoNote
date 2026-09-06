@@ -27,6 +27,11 @@ logger = logging.getLogger(__name__)
 
 SUBTITLE_TIMEOUT_SECONDS = 300.0
 
+def _cookiefile(ctx: StageContext) -> str | None:
+    """The per-user cookie temp file injected by the orchestrator (if any)."""
+    path = ctx.extra.get("cookiefile")
+    return path if isinstance(path, str) and path else None
+
 # Matches SRT (HH:MM:SS,mmm) and VTT (HH:MM:SS.mmm) timestamp ranges.
 _TIMESTAMP_RANGE_RE = re.compile(
     r"(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})"
@@ -162,7 +167,8 @@ class SubtitleStage:
                     "-o",
                     str(Path(tmpdir) / "%(id)s"),
                     url,
-                ]
+                ],
+                cookiefile_path=_cookiefile(ctx),
             )
             result = await run_managed_process(
                 argv,

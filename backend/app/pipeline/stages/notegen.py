@@ -13,13 +13,13 @@ import logging
 from typing import ClassVar
 
 from app.pipeline.errors import ErrorCode, PipelineError
+from app.pipeline.markdown import normalize_note_markdown
 from app.pipeline.stages.base import (
     ProviderEndpoint,
     StageContext,
     StageResult,
 )
 from app.pipeline.state import ArtifactKind, PipelinePhase
-from app.services.markdown import normalize_note_markdown
 
 logger = logging.getLogger(__name__)
 

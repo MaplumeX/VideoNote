@@ -108,7 +108,7 @@ Emitted on the task progress stream (event: `progress`):
 | `phase` | enum string \| null | `null` when `status` is `pending` or terminal |
 | `phase_progress` | number ∈ [0,1] | within-phase fraction; **not** global |
 | `message` | string | display text, or `SCREAMING_SNAKE_CASE` error code (optionally `"CODE: sanitized detail"`) |
-| `attempt` | integer | execution attempt count (0-based first run) |
+| `attempt` | integer | execution attempt count (1-based first run) |
 | `timestamp` | string | ISO 8601 UTC |
 
 ### 2.2 Monotonicity guard
@@ -131,6 +131,24 @@ async def publish(self, phase: PipelinePhase, fraction: float, message: str) -> 
 - `POST /tasks/{id}/retry` — semantics enhanced: resumes from the persisted checkpoint.
 - Other endpoint paths unchanged; response models switch to the new enums.
 - **No compatibility layer** — frontend and backend switch together (D2).
+
+### 2.4 REST response model changes (delivered in C4 — for C5)
+
+All endpoint paths are unchanged; only payload models moved to the new contract.
+
+| Endpoint | Model | Change |
+|----------|-------|--------|
+| `POST /api/tasks/{id}/retry` | `ProcessResponse` | `source_type` field added (`"url" | "upload"`); retry now resumes from `checkpoint_phase` (completed phases with durable artifacts are not re-executed) |
+| `GET /api/tasks/{id}/progress` (SSE) | `TaskProgress` (event: `progress`) | Replaced by the §2.1 `ProgressEvent` payload: `status` (new `TaskStatus`), `phase` (new `PipelinePhase`, nullable), `phase_progress` ∈ [0,1] within-phase (the global 0–1 `progress` value is abolished), `message`, `attempt`, `timestamp`. Terminal states additionally emit an `event: complete` with the raw `result_json` payload. Heartbeat: `event: ping` every 15 s; stream cap 30 min. |
+| `GET /api/tasks` / `GET /api/tasks/{id}` | `TaskListItem` | `stage` field replaced by `status` (`TaskStatus`) + `phase` (`TaskPhase`\|null) + `phase_progress`; legacy rows are displayed via the backfilled `status` (`COALESCE`-style: old rows read the backfilled value, new rows the new columns) |
+| `POST /api/process` | `ProcessResponse` | unchanged shape; `platform` validated before task creation |
+| `POST /api/upload` | `UploadResponse` | unchanged |
+| `GET /api/tasks/{id}/result` | `NoteResponse` | unchanged |
+| `POST /api/tasks/{id}/cancel` | — | durable cancel intent write; converges to `status=cancelled`, `last_error_code=TASK_CANCELLED` within ≤ 3 s |
+
+Migration note for the frontend (C5): the legacy `stage` enum
+(`downloading`/`extracting_subtitles`/`transcribing`/`generating_notes`) no longer appears
+in any API response; `phase` replaces it and is `null` unless `status=running`.
 
 ## 3. Intermediate Artifacts
 
@@ -209,7 +227,7 @@ class StageContext:
     artifacts: ArtifactStore            # get(kind) / put(kind, content), DB-backed
     progress: ProgressPublisher
     register_cancel: CancelHandleRegistrar  # register/unregister a kill/cancel handle
-    extra: dict[str, object]            # task-level inputs: "url", "input_path" (see below)
+    extra: dict[str, object]            # task-level inputs: "url", "input_path", "cookiefile"
 
 @dataclass
 class StageResult:
@@ -224,8 +242,11 @@ class Stage(Protocol):
 - `resume=True` tells the stage a checkpoint exists; it may skip work whose outputs are
   already in the artifact store.
 - `StageContext.extra` carries task-level inputs that are not artifacts: the source
-  `url` (fetch/subtitle/audio for URL tasks) and the uploaded `input_path` (audio for
-  file tasks), injected by the orchestrator from the task row.
+  `url` (fetch/subtitle/audio for URL tasks), the uploaded `input_path` (audio for
+  file tasks), and the per-user `cookiefile` temp path (URL tasks whose user has a
+  per-platform cookie; passed to every yt-dlp call of the run — fetch/subtitle/audio;
+  the orchestrator materializes and cleans up the file), injected by the orchestrator
+  from the task row.
 - `StageResult.extra` carries values that are not artifacts: C2's `audio_path` (path to
   the extracted audio for the next stage) and C3's `notes` (the final note text — the
   orchestrator writes it to `tasks.result_json`, matching the legacy chain; `notes` is
