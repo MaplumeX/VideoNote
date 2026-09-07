@@ -277,6 +277,18 @@ For DOM-based theme reactivity (when React doesn't control the DOM), use `Mutati
 
 ---
 
+## Settings / Provider Config Forms
+
+### Pattern: Empty-state preselects the first provider preset
+
+In `SettingsPage.tsx`, `buildConfigForm(saved, presets)` mirrors the BYOK convention used by LobeChat/Cherry Studio: when the user has no saved config (`saved == null`) and presets are non-empty, the form **preselects `presets[0]`** (provider + `api_base`), so the user only needs to enter an API key. When `saved` exists, echo-back (including the custom-provider fallback via `isCustom`) takes priority and must never be affected by preset order.
+
+Implications:
+
+- Backend preset order (`provider_routes.py`) carries semantic meaning: **first entry = recommended default**. Reordering presets changes what new users see preselected — treat order changes as user-facing behavior.
+- Model must NOT be preselected (only provider + api_base).
+- "User hasn't configured yet" (`null`) and "config incomplete" are distinct states; the preselect only applies to the former.
+
 ## Common Mistakes
 
 ### Don't: Call setState during render
