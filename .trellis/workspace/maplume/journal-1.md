@@ -384,3 +384,31 @@ Replaced the note detail page's fixed left sidebar with a sticky NoteDetailHeade
 ### Next Steps
 
 - None - task complete
+
+## Session 11: Settings: preselect first provider preset in empty state
+
+**Date**: 2026-09-07
+**Task**: Settings: preselect first provider preset in empty state
+**Branch**: `feat/settings-default-provider-preset`
+
+### Summary
+
+Researched BYOK provider-config UX patterns (LobeChat/Cherry Studio/Open WebUI/Warp); implemented first-preset preselection in SettingsPage buildConfigForm for unconfigured ASR/LLM (provider + api_base auto-filled, model left empty, saved-config echo unchanged). Added 4 unit tests, documented preset-order-as-recommended-default convention in frontend component guidelines, committed, checked, and archived task 09-07-default-provider-preset. Branch renamed to conventional feat/ naming; PR #51 created and conflict against main resolved (session journal renumbering).
+
+### Main Changes
+
+| Hash | Message |
+|------|---------|
+| `072706a` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

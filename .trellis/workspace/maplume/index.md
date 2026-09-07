@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~386 | Active |
+| `journal-1.md` | ~414 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 11 | 2026-09-07 | Settings: preselect first provider preset in empty state | `072706a` | `feat/settings-default-provider-preset` |
 | 10 | 2026-09-07 | Redesign note detail page layout and interactions | `46dc337`, `32825ca`, `6788989`, `10795bb`, `3e07e7b` | `emdash/wild-snakes-sneeze-uwuv8` |
 | 9 | 2026-09-06 | Parent task: live acceptance + integration fixes + wrap-up | `36b3997`, `27681a2`, `8f0074e` | `refactor/rewrite-core-pipeline` |
 | 8 | 2026-09-06 | C5 frontend contract adaptation | `ca7e7ec` | `refactor/rewrite-core-pipeline` |
