@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/09-07-redesign-note-detail/prd.md", "reason": "验收标准 AC1-AC10 逐条核对"}
+{"file": ".trellis/tasks/09-07-redesign-note-detail/implement.md", "reason": "Step 5 收尾清单与风险文件审查要点（NoteEditor/TableOfContents 应零改动）"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "检查代码是否符合 frontend spec（Tailwind only、shadcn 用法、命名导出）"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "质量门槛检查依据"}

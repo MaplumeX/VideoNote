@@ -349,21 +349,53 @@ Live acceptance of the rewritten pipeline against real Bilibili URLs surfaced an
 - None - task complete
 
 
-## Session 10: Settings: preselect first provider preset in empty state
+## Session 10: Redesign note detail page layout and interactions
 
 **Date**: 2026-09-07
-**Task**: Settings: preselect first provider preset in empty state
-**Branch**: `emdash/brown-garlics-fetch-usel8`
+**Task**: Redesign note detail page layout and interactions
+**Branch**: `emdash/wild-snakes-sneeze-uwuv8`
 
 ### Summary
 
-Researched BYOK provider-config UX patterns (LobeChat/Cherry Studio/Open WebUI/Warp); implemented first-preset preselection in SettingsPage buildConfigForm for unconfigured ASR/LLM (provider + api_base auto-filled, model left empty, saved-config echo unchanged). Added 4 unit tests, documented preset-order-as-recommended-default convention in frontend component guidelines, committed, checked, and archived task 09-07-default-provider-preset.
+Replaced the note detail page's fixed left sidebar with a sticky NoteDetailHeader (title, meta info, save status, compact actions) and a reading-focused centered body (max-w-3xl). Tags + folder management moved into a unified NoteMetaPopover (@base-ui Popover provides outside-click/Esc close). TOC docks on xl+ and collapses into a Sheet below xl. Processing failures now keep VideoInfoCard + retry via processError state instead of swapping to the bare error branch. Added 13 test cases (73 total green). Spec updated with shadcn popover install pitfalls and @base-ui jsdom testing patterns.
 
 ### Main Changes
 
 - Detailed change bullets were not supplied; see the summary above.
 
 ### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `46dc337` | (see git log) |
+| `32825ca` | (see git log) |
+| `6788989` | (see git log) |
+| `10795bb` | (see git log) |
+| `3e07e7b` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+## Session 11: Settings: preselect first provider preset in empty state
+
+**Date**: 2026-09-07
+**Task**: Settings: preselect first provider preset in empty state
+**Branch**: `feat/settings-default-provider-preset`
+
+### Summary
+
+Researched BYOK provider-config UX patterns (LobeChat/Cherry Studio/Open WebUI/Warp); implemented first-preset preselection in SettingsPage buildConfigForm for unconfigured ASR/LLM (provider + api_base auto-filled, model left empty, saved-config echo unchanged). Added 4 unit tests, documented preset-order-as-recommended-default convention in frontend component guidelines, committed, checked, and archived task 09-07-default-provider-preset. Branch renamed to conventional feat/ naming; PR #51 created and conflict against main resolved (session journal renumbering).
+
+### Main Changes
 
 | Hash | Message |
 |------|---------|
