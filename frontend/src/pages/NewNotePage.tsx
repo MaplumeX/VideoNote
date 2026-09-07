@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { useSSE } from "@/hooks/useSSE";
 import { useVideoUpload } from "@/hooks/useVideoUpload";
 import { submitUrl, cancelTask, retryTask, fetchTaskById, ApiError } from "@/api/client";
+import { URL_PATH } from "@/lib/phaseProgress";
 import { getAccessToken } from "@/auth/token";
-import type { TaskMeta } from "@/types";
+import type { TaskMeta, TaskPhase } from "@/types";
 
 export function NewNotePage() {
   const { t, i18n } = useTranslation();
@@ -29,32 +30,53 @@ export function NewNotePage() {
   const isTerminal = progress?.status === "failed" || progress?.status === "cancelled";
   const isFailed = progress?.status === "failed";
 
-  // Fetch task metadata (title/thumbnail) from the REST API once the SSE stage
-  // transitions from pending to an active stage, since the POST response may
-  // have empty title/thumbnail (they're populated by update_task_meta shortly
-  // after submission, before the first non-pending progress).
+  // Backfill task metadata (title/thumbnail) from the REST API. The backend
+  // orchestrator writes status=running + phase=fetching immediately after
+  // scheduling, but update_task_meta (title/thumbnail persistence) only runs
+  // once the fetching stage completes (yt-dlp dump-json + thumbnail download).
+  // So the initial backfill on the first non-pending progress still sees
+  // NULL title/thumbnail — we must refetch when the SSE phase advances beyond
+  // "fetching", at which point video_meta is guaranteed to be persisted.
   const metaFetchedFor = useRef<string | null>(null);
+  const metaFetchedAtPhase = useRef<TaskPhase | null>(null);
   useEffect(() => {
     if (!jobId || !progress) return;
     if (progress.status === "pending") return;
-    if (metaFetchedFor.current === jobId) return;
+    // Upload tasks never receive video_meta (no title/thumbnail) — nothing
+    // to backfill, and refetching on every phase change would be pointless.
+    if (taskMeta?.source_type === "upload") return;
+
+    const phase = progress.phase ?? null;
+    const phaseAdvancedPastFetching =
+      phase !== null && URL_PATH.indexOf(phase) > URL_PATH.indexOf("fetching");
+    const metaMissing = !taskMeta?.title || !taskMeta?.thumbnail_url;
+    const isFirstFetchForJob = metaFetchedFor.current !== jobId;
+    const phaseChangedSinceLastFetch = metaFetchedAtPhase.current !== phase;
+
+    // Fetch once per job (initial backfill), then refetch only when the phase
+    // has advanced past "fetching" while title/thumbnail are still missing.
+    if (!isFirstFetchForJob && !(metaMissing && phaseAdvancedPastFetching && phaseChangedSinceLastFetch)) {
+      return;
+    }
     metaFetchedFor.current = jobId;
+    metaFetchedAtPhase.current = phase;
     void (async () => {
       try {
         const task = await fetchTaskById(jobId);
-        if (task.title || task.thumbnail_url || task.platform) {
+        if (task.title || task.thumbnail_url || task.platform || task.source_type) {
           setTaskMeta((prev) => ({
             ...prev,
             title: task.title ?? prev?.title,
             thumbnail_url: task.thumbnail_url ?? prev?.thumbnail_url,
             platform: task.platform ?? prev?.platform,
+            source_type: task.source_type ?? prev?.source_type,
           }));
         }
       } catch {
-        // Non-fatal — metadata may still arrive later
+        // Non-fatal — metadata may still arrive on a later phase change
       }
     })();
-  }, [jobId, progress?.status]);
+  }, [jobId, progress, taskMeta]);
 
   useEffect(() => {
     if (result && jobId) {
@@ -141,6 +163,7 @@ export function NewNotePage() {
       const data = await retryTask(jobId);
       setJobId(data.job_id);
       metaFetchedFor.current = null;
+      metaFetchedAtPhase.current = null;
       setTaskMeta({
         title: data.title || undefined,
         thumbnail_url: data.thumbnail_url || undefined,
