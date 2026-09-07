@@ -81,3 +81,17 @@ values to the app contract (`"en"` or `"zh-CN"`).
 - React Testing Library for component tests
 - Test SSE hook with mock EventSource
 - Test upload hook with mock XHR
+
+### Testing @base-ui / floating-ui components (Popover, DropdownMenu, Tooltip)
+
+- **Stub ResizeObserver**: jsdom lacks it and floating-ui needs it. Stub in `beforeEach`:
+  ```ts
+  class ResizeObserverStub { observe() {} unobserve() {} disconnect() {} }
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+  ```
+- **Outside-click closes on `click`, not `pointerdown`**: @base-ui Popover uses intentional click mode. In jsdom, `fireEvent.click(document.body)` triggers outside-close; `fireEvent.pointerdown` does not.
+- **Mock i18n `t` with a stable module-level reference**: pages commonly put `t` in `useEffect` dependency arrays. If the mock returns a new arrow function each render, effects re-fire forever → infinite re-render (test OOM). Use `vi.hoisted` to create one stable `t`:
+  ```ts
+  const mocks = vi.hoisted(() => ({ t: (key: string) => key }));
+  vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: mocks.t }) }));
+  ```

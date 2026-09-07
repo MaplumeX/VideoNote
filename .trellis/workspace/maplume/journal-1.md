@@ -347,3 +347,40 @@ Live acceptance of the rewritten pipeline against real Bilibili URLs surfaced an
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: Redesign note detail page layout and interactions
+
+**Date**: 2026-09-07
+**Task**: Redesign note detail page layout and interactions
+**Branch**: `emdash/wild-snakes-sneeze-uwuv8`
+
+### Summary
+
+Replaced the note detail page's fixed left sidebar with a sticky NoteDetailHeader (title, meta info, save status, compact actions) and a reading-focused centered body (max-w-3xl). Tags + folder management moved into a unified NoteMetaPopover (@base-ui Popover provides outside-click/Esc close). TOC docks on xl+ and collapses into a Sheet below xl. Processing failures now keep VideoInfoCard + retry via processError state instead of swapping to the bare error branch. Added 13 test cases (73 total green). Spec updated with shadcn popover install pitfalls and @base-ui jsdom testing patterns.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `46dc337` | (see git log) |
+| `32825ca` | (see git log) |
+| `6788989` | (see git log) |
+| `10795bb` | (see git log) |
+| `3e07e7b` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
