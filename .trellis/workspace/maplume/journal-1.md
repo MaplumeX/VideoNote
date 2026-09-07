@@ -384,3 +384,36 @@ Replaced the note detail page's fixed left sidebar with a sticky NoteDetailHeade
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: Fix timestamp badge click in Milkdown editor
+
+**Date**: 2026-09-07
+**Task**: Fix timestamp badge click in Milkdown editor
+**Branch**: `emdash/stale-seas-help-h76gr`
+
+### Summary
+
+Diagnosed why timestamp badges in the note detail page showed clickable style but did nothing: ProseMirror intercepts click in the editable area, and NodeView snapshotted async hasVideo/handler state at construction. Fixed by switching to mousedown with preventDefault/stopPropagation, reading context at event time, and restyling active views via a Set on setTimestampContext. Added 8 unit tests; lint/tsc/vitest all green. Updated frontend component-guidelines spec with the NodeView mousedown pattern.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c0f4b37` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
