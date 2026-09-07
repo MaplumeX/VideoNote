@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      contents: write
+      contents: read
       packages: write
     steps:
       - name: Prepare image name (lowercase)
@@ -104,9 +104,17 @@ jobs:
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          docker buildx imagetools create $(printf -- '--tag ${{ steps.meta.outputs.tags }} ' | tr '\n' ' ') \
-            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+          TAGS=""
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && TAGS="$TAGS --tag $tag"
+          done <<< "$META_TAGS"
+          DIGESTS="$(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)"
+          echo "Tags: $TAGS"
+          echo "Digests: $DIGESTS"
+          docker buildx imagetools create $TAGS $DIGESTS
 
       - name: Inspect image
         run: |
