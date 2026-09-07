@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 9
-- **Last Active**: 2026-09-06
+- **Total Sessions**: 10
+- **Last Active**: 2026-09-07
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~349 | Active |
+| `journal-1.md` | ~382 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 10 | 2026-09-07 | Settings: preselect first provider preset in empty state | `072706a` | `emdash/brown-garlics-fetch-usel8` |
 | 9 | 2026-09-06 | Parent task: live acceptance + integration fixes + wrap-up | `36b3997`, `27681a2`, `8f0074e` | `refactor/rewrite-core-pipeline` |
 | 8 | 2026-09-06 | C5 frontend contract adaptation | `ca7e7ec` | `refactor/rewrite-core-pipeline` |
 | 7 | 2026-09-06 | C4 orchestrator & API layer switchover | `cdd1054` | `refactor/rewrite-core-pipeline` |

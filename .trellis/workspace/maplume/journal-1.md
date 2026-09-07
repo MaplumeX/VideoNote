@@ -347,3 +347,36 @@ Live acceptance of the rewritten pipeline against real Bilibili URLs surfaced an
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: Settings: preselect first provider preset in empty state
+
+**Date**: 2026-09-07
+**Task**: Settings: preselect first provider preset in empty state
+**Branch**: `emdash/brown-garlics-fetch-usel8`
+
+### Summary
+
+Researched BYOK provider-config UX patterns (LobeChat/Cherry Studio/Open WebUI/Warp); implemented first-preset preselection in SettingsPage buildConfigForm for unconfigured ASR/LLM (provider + api_base auto-filled, model left empty, saved-config echo unchanged). Added 4 unit tests, documented preset-order-as-recommended-default convention in frontend component guidelines, committed, checked, and archived task 09-07-default-provider-preset.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `072706a` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
