@@ -12,9 +12,13 @@ interface TableOfContentsProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** Pass a value that changes when the container's content changes (e.g. markdown string) */
   contentKey?: string;
+  /** Optional class override for the nav element (e.g. responsive visibility inside a drawer) */
+  className?: string;
+  /** Called when a TOC entry is clicked (e.g. to close a containing drawer) */
+  onNavigate?: () => void;
 }
 
-export function TableOfContents({ containerRef, contentKey }: TableOfContentsProps) {
+export function TableOfContents({ containerRef, contentKey, className, onNavigate }: TableOfContentsProps) {
   const { t } = useTranslation();
   const [headings, setHeadings] = useState<TOCItem[]>([]);
   const [activeId, setActiveId] = useState<string>("");
@@ -96,7 +100,7 @@ export function TableOfContents({ containerRef, contentKey }: TableOfContentsPro
   if (headings.length === 0) return null;
 
   return (
-    <nav className="sticky top-4 w-52 shrink-0 hidden lg:block">
+    <nav className={cn("sticky top-4 w-52 shrink-0 hidden lg:block", className)}>
       <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
         {t("toc.onThisPage")}
       </div>
@@ -104,7 +108,10 @@ export function TableOfContents({ containerRef, contentKey }: TableOfContentsPro
         {headings.map((heading) => (
           <li key={heading.id}>
             <button
-              onClick={() => scrollTo(heading.id)}
+              onClick={() => {
+                scrollTo(heading.id);
+                onNavigate?.();
+              }}
               className={cn(
                 "block text-left text-sm leading-snug transition-colors hover:text-foreground",
                 heading.level === 3 && "pl-3",

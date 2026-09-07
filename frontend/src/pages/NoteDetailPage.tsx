@@ -1,19 +1,21 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams, Link, useNavigate } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import {
-  Download,
-  ChevronRight,
-  Star,
-  Tag,
-  FolderOpen,
-  X,
-  Plus,
-  Play,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { fetchResult, fetchTags, fetchFolderTree, fetchTaskById, fetchNoteTags, addTagsToNote, removeTagFromNote, moveNoteToFolder, toggleFavorite, updateNoteContent, cancelTask, retryTask, ApiError } from "@/api/client";
+  fetchResult,
+  fetchTags,
+  fetchFolderTree,
+  fetchTaskById,
+  fetchNoteTags,
+  addTagsToNote,
+  removeTagFromNote,
+  moveNoteToFolder,
+  toggleFavorite,
+  updateNoteContent,
+  cancelTask,
+  retryTask,
+  ApiError,
+} from "@/api/client";
 import { useSSE } from "@/hooks/useSSE";
 import { useNoteAutoSave } from "@/hooks/useNoteAutoSave";
 import { StepIndicator } from "@/components/StepIndicator";
@@ -21,7 +23,15 @@ import { VideoInfoCard } from "@/components/VideoInfoCard";
 import { NoteEditor } from "@/components/NoteEditor";
 import { TableOfContents } from "@/components/TableOfContents";
 import { VideoPlayerFloat } from "@/components/VideoPlayerFloat";
+import { NoteDetailHeader } from "@/components/NoteDetailHeader";
 import type { VideoPlayerFloatHandle } from "@/components/VideoPlayerFloat";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type { NoteResult, Tag as TagType, TagWithCount, FolderTreeNode } from "@/types";
 
 export function NoteDetailPage() {
@@ -32,13 +42,10 @@ export function NoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [processError, setProcessError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [noteTags, setNoteTags] = useState<TagType[]>([]);
   const [folderId, setFolderId] = useState<string | null>(null);
-  const [folderName, setFolderName] = useState<string | null>(null);
-  const [tagInputOpen, setTagInputOpen] = useState(false);
-  const [tagInputValue, setTagInputValue] = useState("");
-  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [allTags, setAllTags] = useState<TagWithCount[]>([]);
   const [folderTree, setFolderTree] = useState<FolderTreeNode[]>([]);
 
@@ -49,9 +56,10 @@ export function NoteDetailPage() {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [taskTitle, setTaskTitle] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [createdAt, setCreatedAt] = useState<string | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
+  const [tocSheetOpen, setTocSheetOpen] = useState(false);
   const playerRef = useRef<VideoPlayerFloatHandle>(null);
-
   const previewRef = useRef<HTMLDivElement>(null);
 
   const { progress, result: sseResult, error: sseError } = useSSE(processing && jobId ? jobId : null);
@@ -89,6 +97,7 @@ export function NoteDetailPage() {
       .catch((err) => {
         if (err instanceof ApiError && err.code === "TASK_STILL_PROCESSING") {
           setProcessing(true);
+          setProcessError(null);
           setLoading(false);
         } else {
           setError(err.message || t("noteDetail.loadFailed"));
@@ -117,6 +126,7 @@ export function NoteDetailPage() {
         setThumbnailUrl(task.thumbnail_url);
         setTaskTitle(task.title);
         setFileName(task.file_name);
+        setCreatedAt(task.created_at);
       })
       .catch(() => {});
 
@@ -125,28 +135,12 @@ export function NoteDetailPage() {
   }, [jobId]);
 
   useEffect(() => {
-    if (!folderId) {
-      setFolderName(null);
-      return;
-    }
-    const findFolder = (nodes: FolderTreeNode[], id: string): string | null => {
-      for (const node of nodes) {
-        if (node.id === id) return node.name;
-        const found = findFolder(node.children, id);
-        if (found) return found;
-      }
-      return null;
-    };
-    setFolderName(findFolder(folderTree, folderId));
-  }, [folderId, folderTree]);
-
-  useEffect(() => {
     if (progress?.status === "failed" && processing) {
-      setError(progress.message || t("error.processingFailed"));
+      setProcessError(progress.message || t("error.processingFailed"));
       setProcessing(false);
     }
     if (progress?.status === "cancelled" && processing) {
-      setError(t("processing.cancelled"));
+      setProcessError(t("processing.cancelled"));
       setProcessing(false);
     }
   }, [progress?.status, processing, t]);
@@ -160,6 +154,7 @@ export function NoteDetailPage() {
           resetAutoSave(data.markdown);
           setEditorResetKey((k) => k + 1);
           setProcessing(false);
+          setProcessError(null);
         })
         .catch(() => {
           setError(t("noteDetail.loadFailed"));
@@ -170,7 +165,7 @@ export function NoteDetailPage() {
 
   useEffect(() => {
     if (sseError && processing) {
-      setError(sseError);
+      setProcessError(sseError);
       setProcessing(false);
     }
   }, [sseError, processing]);
@@ -201,13 +196,11 @@ export function NoteDetailPage() {
     }
   };
 
-  const handleAddTag = async () => {
-    if (!jobId || !tagInputValue.trim()) return;
+  const handleAddTag = async (name: string) => {
+    if (!jobId || !name.trim()) return;
     try {
-      const result = await addTagsToNote(jobId, { tag_names: [tagInputValue.trim()] });
+      const result = await addTagsToNote(jobId, { tag_names: [name.trim()] });
       setNoteTags(result.tags);
-      setTagInputValue("");
-      setTagInputOpen(false);
       fetchTags().then(setAllTags).catch(() => {});
     } catch {
       // silent
@@ -229,22 +222,10 @@ export function NoteDetailPage() {
     try {
       await moveNoteToFolder(jobId, { folder_id: newFolderId });
       setFolderId(newFolderId);
-      setFolderPickerOpen(false);
     } catch {
       // silent
     }
   };
-
-  const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleAddTag();
-    else if (e.key === "Escape") {
-      setTagInputOpen(false);
-      setTagInputValue("");
-    }
-  };
-
-  const existingTagIds = new Set(noteTags.map((tag) => tag.id));
-  const suggestedTags = allTags.filter((tag) => !existingTagIds.has(tag.id));
 
   const hasVideo = !!(videoUrl && platform && (platform === "youtube" || platform === "bilibili"));
 
@@ -254,6 +235,10 @@ export function NoteDetailPage() {
     // Defer seek so the player ref is available after render
     setTimeout(() => playerRef.current?.seekTo(seconds), 0);
   }, [hasVideo, playerOpen]);
+
+  const handleTocNavigate = useCallback(() => {
+    setTocSheetOpen(false);
+  }, []);
 
   if (loading) {
     return (
@@ -271,8 +256,8 @@ export function NoteDetailPage() {
     );
   }
 
-  if (processing) {
-    const isFailed = progress?.status === "failed" || progress?.status === "cancelled";
+  if (processing || processError) {
+    const isFailed = !!processError;
     const showCancelButton = !isFailed;
     const showRetryButton = isFailed;
 
@@ -281,10 +266,11 @@ export function NoteDetailPage() {
       if (!window.confirm(t("processing.cancelConfirm"))) return;
       try {
         await cancelTask(jobId);
-        setError(t("processing.cancelled"));
+        setProcessError(t("processing.cancelled"));
         setProcessing(false);
       } catch {
-        setError(t("history.cancelFailed"));
+        setProcessError(t("history.cancelFailed"));
+        setProcessing(false);
       }
     };
 
@@ -296,7 +282,8 @@ export function NoteDetailPage() {
         // Navigate to the new task so SSE tracks the correct job
         navigate(`/app/notes/${data.job_id}`);
       } catch {
-        setError(t("history.retryFailed"));
+        setProcessError(t("history.retryFailed"));
+        setProcessing(false);
       }
     };
 
@@ -318,6 +305,11 @@ export function NoteDetailPage() {
             failedPhase={progress?.phase ?? null}
           />
         </div>
+        {processError && (
+          <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+            {processError}
+          </div>
+        )}
         {(showCancelButton || showRetryButton) && (
           <div className="flex justify-center gap-3">
             {showCancelButton && (
@@ -339,187 +331,62 @@ export function NoteDetailPage() {
   if (!note) return null;
 
   return (
-    <div className="flex gap-6 h-full">
-      {/* Left sidebar — actions, tags, folder */}
-      <aside className="w-56 shrink-0 space-y-5 sticky top-0 self-start">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Link to="/app/history" className="hover:text-foreground transition-colors">
-            {t("sidebar.history")}
-          </Link>
-          <ChevronRight size={14} />
-          <span className="text-foreground truncate">{note.title || t("note.untitled")}</span>
-        </div>
-
-        {/* Actions */}
-        <div className="space-y-2">
-          <Button
-            variant="outline"
-            onClick={handleDownload}
-            className="w-full gap-2"
-          >
-            <Download size={16} />
-            {t("result.downloadMarkdown")}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleToggleFavorite}
-            className={cn("w-full gap-2", isFavorite && "text-yellow-500")}
-          >
-            <Star size={16} className={isFavorite ? "fill-current" : ""} />
-            {isFavorite ? t("noteDetail.unfavorite") : t("noteDetail.favorite")}
-          </Button>
-        </div>
-
-        {/* Save status */}
-        {saving && (
-          <p className="text-xs text-muted-foreground animate-pulse">{t("noteDetail.saving")}</p>
-        )}
-        {!saving && saveError && (
-          <p className="text-xs text-destructive">{t("noteDetail.saveFailed")}</p>
-        )}
-        {!saving && !saveError && !hasUnsavedChanges && (
-          <p className="text-xs text-muted-foreground">{t("noteDetail.saved")}</p>
-        )}
-
-        {/* Tags */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <Tag size={14} className="text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {t("noteDetail.tags")}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {noteTags.map((tag) => (
-              <span
-                key={tag.id}
-                className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-0.5 text-xs"
-              >
-                <span
-                  className="w-2 h-2 rounded-full shrink-0 bg-[var(--tag-color)]"
-                  style={{ "--tag-color": tag.color || "#6b7280" } as React.CSSProperties}
-                />
-                {tag.name}
-                <button
-                  onClick={() => handleRemoveTag(tag.id)}
-                  className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-destructive"
-                >
-                  <X size={10} />
-                </button>
-              </span>
-            ))}
-            {tagInputOpen ? (
-              <div className="relative">
-                <input
-                  type="text"
-                  value={tagInputValue}
-                  onChange={(e) => setTagInputValue(e.target.value)}
-                  onKeyDown={handleTagInputKeyDown}
-                  onBlur={() => {
-                    if (!tagInputValue) setTagInputOpen(false);
-                  }}
-                  placeholder={t("noteDetail.addTag")}
-                  className="rounded-full border border-border px-2.5 py-0.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary w-28"
-                  autoFocus
-                />
-                {tagInputValue && suggestedTags.length > 0 && (
-                  <div className="absolute top-full left-0 mt-1 z-10 w-40 rounded-lg border border-border bg-background shadow-lg py-1 max-h-32 overflow-y-auto">
-                    {suggestedTags
-                      .filter((tag) => tag.name.toLowerCase().includes(tagInputValue.toLowerCase()))
-                      .slice(0, 5)
-                      .map((tag) => (
-                        <button
-                          key={tag.id}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setTagInputValue(tag.name);
-                          }}
-                          className="w-full text-left flex items-center gap-2 px-2 py-1 text-xs hover:bg-muted"
-                        >
-                          <span
-                            className="w-2 h-2 rounded-full shrink-0 bg-[var(--tag-color)]"
-                            style={{ "--tag-color": tag.color || "#6b7280" } as React.CSSProperties}
-                          />
-                          {tag.name}
-                        </button>
-                      ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={() => setTagInputOpen(true)}
-                className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
-              >
-                <Plus size={10} />
-                {t("noteDetail.addTag")}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Folder */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <FolderOpen size={14} className="text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {t("noteDetail.folder")}
-            </span>
-          </div>
-          <div className="relative">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFolderPickerOpen(!folderPickerOpen)}
-              className={cn("w-full gap-1.5 justify-start", folderName ? "text-foreground" : "text-muted-foreground")}
-            >
-              <FolderOpen size={12} />
-              <span className="truncate">{folderName || t("history.noFolder")}</span>
-            </Button>
-            {folderPickerOpen && (
-              <div className="absolute top-full left-0 mt-1 z-10 w-full rounded-lg border border-border bg-background shadow-lg py-1 max-h-60 overflow-y-auto">
-                <button
-                  onClick={() => handleMoveToFolder(null)}
-                  className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted"
-                >
-                  <FolderOpen size={14} />
-                  {t("history.noFolder")}
-                </button>
-                {renderFolderNodes(folderTree, 0, handleMoveToFolder)}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Video play button */}
-        {hasVideo && (
-          <div className="space-y-1.5">
-            <Button
-              variant="outline"
-              onClick={() => setPlayerOpen(true)}
-              className="w-full gap-2"
-            >
-              <Play size={16} />
-              {t("noteDetail.playVideo")}
-            </Button>
-          </div>
-        )}
-      </aside>
-
-      {/* Center — Milkdown editor */}
-      <div className="flex-1 min-w-0" ref={previewRef}>
-        <NoteEditor
-          markdown={editMarkdown}
-          onChange={handleEditorChange}
-          onTimestampClick={hasVideo ? handleTimestampClick : undefined}
+    <div className="flex gap-6">
+      <div className="flex-1 min-w-0">
+        <NoteDetailHeader
+          title={taskTitle || note.title || ""}
+          platform={platform}
+          fileName={fileName}
+          createdAt={createdAt}
+          saving={saving}
+          saveError={saveError}
+          hasUnsavedChanges={hasUnsavedChanges}
+          isFavorite={isFavorite}
           hasVideo={hasVideo}
-          resetKey={editorResetKey}
+          noteTags={noteTags}
+          allTags={allTags}
+          folderTree={folderTree}
+          folderId={folderId}
+          onToggleFavorite={handleToggleFavorite}
+          onDownload={handleDownload}
+          onPlayVideo={() => setPlayerOpen(true)}
+          onAddTag={handleAddTag}
+          onRemoveTag={handleRemoveTag}
+          onMoveToFolder={handleMoveToFolder}
+          onOpenToc={() => setTocSheetOpen(true)}
         />
+        <div className="mx-auto w-full max-w-3xl" ref={previewRef}>
+          <NoteEditor
+            markdown={editMarkdown}
+            onChange={handleEditorChange}
+            onTimestampClick={hasVideo ? handleTimestampClick : undefined}
+            hasVideo={hasVideo}
+            resetKey={editorResetKey}
+          />
+        </div>
       </div>
 
-      {/* Right — TOC */}
-      <TableOfContents containerRef={previewRef} contentKey={editMarkdown} />
+      {/* Right — TOC on wide screens */}
+      <div className="hidden xl:block">
+        <TableOfContents containerRef={previewRef} contentKey={editMarkdown} />
+      </div>
+
+      {/* TOC drawer on narrow screens */}
+      <Sheet open={tocSheetOpen} onOpenChange={setTocSheetOpen}>
+        <SheetContent side="right" className="w-72">
+          <SheetHeader>
+            <SheetTitle>{t("toc.onThisPage")}</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            <TableOfContents
+              containerRef={previewRef}
+              contentKey={editMarkdown}
+              className="block static"
+              onNavigate={handleTocNavigate}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Floating video player */}
       {playerOpen && hasVideo && videoUrl && platform && (
@@ -532,24 +399,4 @@ export function NoteDetailPage() {
       )}
     </div>
   );
-}
-
-function renderFolderNodes(
-  nodes: FolderTreeNode[],
-  depth: number,
-  onPick: (id: string) => void,
-): React.ReactNode {
-  return nodes.map((node) => (
-    <div key={node.id}>
-      <button
-        onClick={() => onPick(node.id)}
-        className="w-full text-left flex items-center gap-2 py-1.5 text-sm hover:bg-muted pl-[var(--depth-pad)]"
-        style={{ "--depth-pad": `${depth * 16 + 12}px` } as React.CSSProperties}
-      >
-        <FolderOpen size={14} className="shrink-0" />
-        {node.name}
-      </button>
-      {node.children.length > 0 && renderFolderNodes(node.children, depth + 1, onPick)}
-    </div>
-  ));
 }
