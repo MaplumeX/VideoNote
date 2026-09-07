@@ -384,3 +384,36 @@ Replaced the note detail page's fixed left sidebar with a sticky NoteDetailHeade
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: Fix meta backfill race in NewNotePage execution view
+
+**Date**: 2026-09-07
+**Task**: Fix meta backfill race in NewNotePage execution view
+**Branch**: `emdash/curly-tables-invent-xeb3f`
+
+### Summary
+
+Diagnosed and fixed a frontend race in NewNotePage: the one-shot task-meta backfill fired on the first non-pending SSE progress, but the backend persists title/thumbnail (update_task_meta) only after the fetching stage completes, so the execution view showed no title/cover for the whole run. Fix: refetch fetchTaskById when the SSE phase advances past 'fetching' while title/thumbnail are missing; upload tasks bail out; retry resets the fetch refs. Added 3 tests covering phase-advance refetch, no redundant refetch, and upload no-loop. tsc/eslint/vitest all green (76 tests).
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6cde916` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
