@@ -235,6 +235,10 @@ The video timestamp `[HH:MM:SS](#t=SECONDS)` format is handled as a custom Prose
 
 This ensures WYSIWYG editing preserves timestamp links in standard Markdown format.
 
+> **Warning: Clickable NodeViews must use `mousedown`, not `click`.** ProseMirror intercepts mousedown/click inside the editable area for selection & cursor positioning, so a native `click` listener on NodeView DOM never fires. Listen on `mousedown`, call `event.preventDefault()` + `event.stopPropagation()` to stop the editor from taking over, then run the custom interaction.
+>
+> Also: NodeView constructors must not snapshot React-level state (e.g. `hasVideo`) at construction time — it may load asynchronously after the editor mounts. Keep a module-level context (set via a setter like `setTimestampContext`) and a `Set` of active views so setter updates can restyle already-rendered NodeViews; read handler/state at event time, not construction time.
+
 ---
 
 ## Table of Contents (TOC)
