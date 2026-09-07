@@ -45,11 +45,21 @@ const emptyConfig: ConfigFormState = {
   keyMasked: "",
 };
 
-function buildConfigForm(
+export function buildConfigForm(
   saved: SettingsResponse["asr"] | SettingsResponse["llm"],
   presets: ProviderPreset[]
 ): ConfigFormState {
-  if (!saved) return { ...emptyConfig };
+  // No saved config: preselect the first preset (if any) so the user only
+  // needs to fill in the API key. Model stays empty.
+  if (!saved) {
+    const first = presets[0];
+    if (!first) return { ...emptyConfig };
+    return {
+      ...emptyConfig,
+      provider: first.provider,
+      apiBase: first.api_base,
+    };
+  }
 
   const matched = presets.find((p) => p.provider === saved.provider);
   const isCustom = !matched;
