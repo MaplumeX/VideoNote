@@ -30,12 +30,20 @@ import "prismjs/themes/prism-tomorrow.css";
 let _timestampClickHandler: ((seconds: number) => void) | null = null;
 let _timestampHasVideo = false;
 
+// Active TimestampBadgeView instances, so that async context updates can
+// restyle already-rendered badges.
+const _activeTimestampBadgeViews = new Set<TimestampBadgeView>();
+
 export function setTimestampContext(opts: {
   onTimestampClick?: (seconds: number) => void;
   hasVideo?: boolean;
 }) {
   _timestampClickHandler = opts.onTimestampClick ?? null;
   _timestampHasVideo = opts.hasVideo ?? false;
+  // Refresh already-rendered badges so their style matches the new context.
+  for (const view of _activeTimestampBadgeViews) {
+    view.applyContextStyle();
+  }
 }
 
 const timestampBadge = $node("timestamp-badge", () => ({
@@ -71,35 +79,65 @@ const timestampBadge = $node("timestamp-badge", () => ({
 // Custom node view — renders the badge as a styled button
 // ---------------------------------------------------------------------------
 
-class TimestampBadgeView implements NodeView {
+const TIMESTAMP_BADGE_CLICKABLE_CLASS =
+  "inline-flex items-center rounded-md bg-accent px-1.5 py-0.5 text-xs font-mono text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer";
+const TIMESTAMP_BADGE_DISABLED_CLASS =
+  "inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground cursor-default opacity-60";
+
+// Exported for unit tests.
+export class TimestampBadgeView implements NodeView {
   dom: HTMLElement;
+  private seconds: number;
 
   constructor(node: ProseNode) {
-    const seconds: number = node.attrs.seconds;
+    this.seconds = node.attrs.seconds;
     const label: string = node.attrs.label;
     const btn = document.createElement("button");
     btn.contentEditable = "false";
 
-    if (_timestampHasVideo && _timestampClickHandler) {
-      btn.className =
-        "inline-flex items-center rounded-md bg-accent px-1.5 py-0.5 text-xs font-mono text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer";
-      btn.addEventListener("click", () => {
-        _timestampClickHandler?.(seconds);
-      });
-    } else {
-      btn.className =
-        "inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground cursor-default opacity-60";
-    }
+    // ProseMirror intercepts mousedown/click inside the editable area for
+    // selection & cursor positioning, so a plain `click` listener never fires.
+    // The ProseMirror-recommended approach: listen on `mousedown`, prevent
+    // default and stop propagation so the editor doesn't take over, then run
+    // our custom interaction.
+    btn.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      // Read the context at click time (not construction time) so async
+      // updates to hasVideo / handler are respected.
+      if (_timestampHasVideo && _timestampClickHandler) {
+        _timestampClickHandler(this.seconds);
+      }
+    });
 
-    btn.textContent = label || formatSeconds(seconds);
+    btn.textContent = label || formatSeconds(this.seconds);
     this.dom = btn;
+
+    this.applyContextStyle();
+    _activeTimestampBadgeViews.add(this);
+  }
+
+  /** Refresh the badge style based on the CURRENT timestamp context. */
+  applyContextStyle() {
+    const btn = this.dom;
+    if (_timestampHasVideo && _timestampClickHandler) {
+      btn.className = TIMESTAMP_BADGE_CLICKABLE_CLASS;
+    } else {
+      btn.className = TIMESTAMP_BADGE_DISABLED_CLASS;
+    }
   }
 
   update(node: ProseNode): boolean {
-    return node.type.name === "timestamp-badge";
+    if (node.type.name !== "timestamp-badge") return false;
+    // Node attrs (seconds/label) may have changed — keep them in sync.
+    this.seconds = node.attrs.seconds;
+    this.dom.textContent = node.attrs.label || formatSeconds(node.attrs.seconds);
+    this.applyContextStyle();
+    return true;
   }
 
   destroy() {
+    _activeTimestampBadgeViews.delete(this);
     this.dom.remove();
   }
 }
@@ -109,7 +147,8 @@ const timestampBadgeView = $view(
   () => (node: ProseNode) => new TimestampBadgeView(node),
 );
 
-function formatSeconds(seconds: number): string {
+// Exported for unit tests.
+export function formatSeconds(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
