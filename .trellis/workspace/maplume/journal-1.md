@@ -460,3 +460,36 @@ Diagnosed why timestamp badges in the note detail page showed clickable style bu
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: Fix retry restarting from scratch: checkpoint-resumed retries
+
+**Date**: 2026-09-09
+**Task**: Fix retry restarting from scratch: checkpoint-resumed retries
+**Branch**: `fix/retry-restart-from-scratch`
+
+### Summary
+
+Diagnosed why POST /tasks/{id}/retry always restarted the whole pipeline despite the checkpoint contract: (1) _finalize_failed deleted the per-job WAV and upload input at failure time, leaving nothing to resume from (upload retries failed outright); (2) on missing WAV the orchestrator rewound to path[0] and cleared the checkpoint/artifacts, discarding persisted video_meta/subtitle/transcript value. Fix (user-chosen option B): failed terminal state retains WAV + upload input (cancelled/complete still clean immediately); WAV-missing rewind targets only the audio phase while keeping resume semantics so fetch/subtitle short-circuit on stored artifacts; DELETE /tasks/{id} also removes the retained WAV; db.cleanup_failed_task_files (7d) now deletes the per-job WAV via local _wav_path_for (avoids db->pipeline import cycle). Added 9 tests (299 passed), ruff clean; updated docs/pipeline-contract.md and backend specs (quality/database guidelines) with the terminal-state file-retention contract.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9a31346` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

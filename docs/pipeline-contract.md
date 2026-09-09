@@ -138,7 +138,7 @@ All endpoint paths are unchanged; only payload models moved to the new contract.
 
 | Endpoint | Model | Change |
 |----------|-------|--------|
-| `POST /api/tasks/{id}/retry` | `ProcessResponse` | `source_type` field added (`"url" | "upload"`); retry now resumes from `checkpoint_phase` (completed phases with durable artifacts are not re-executed) |
+| `POST /api/tasks/{id}/retry` | `ProcessResponse` | `source_type` field added (`"url" | "upload"`); retry now resumes from `checkpoint_phase` (completed phases with durable artifacts are not re-executed; failed tasks retain their per-job WAV and upload input on disk to back this guarantee, removed only via task deletion or the 7-day delayed cleanup) |
 | `GET /api/tasks/{id}/progress` (SSE) | `TaskProgress` (event: `progress`) | Replaced by the §2.1 `ProgressEvent` payload: `status` (new `TaskStatus`), `phase` (new `PipelinePhase`, nullable), `phase_progress` ∈ [0,1] within-phase (the global 0–1 `progress` value is abolished), `message`, `attempt`, `timestamp`. Terminal states additionally emit an `event: complete` with the raw `result_json` payload. Heartbeat: `event: ping` every 15 s; stream cap 30 min. |
 | `GET /api/tasks` / `GET /api/tasks/{id}` | `TaskListItem` | `stage` field replaced by `status` (`TaskStatus`) + `phase` (`TaskPhase`\|null) + `phase_progress`; legacy rows are displayed via the backfilled `status` (`COALESCE`-style: old rows read the backfilled value, new rows the new columns) |
 | `POST /api/process` | `ProcessResponse` | unchanged shape; `platform` validated before task creation |
@@ -269,6 +269,12 @@ class Stage(Protocol):
   (pcm_s16le/16 kHz/mono); file (upload) tasks run ffmpeg only and failures are
   `AUDIO_EXTRACTION_FAILED` (never `VIDEO_FETCH_FAILED`). The WAV path is passed via
   `StageResult.extra["audio_path"]`; the orchestrator owns its cleanup after the run.
+  Cleanup is terminal-state dependent: `complete`/`cancelled` delete the per-job WAV
+  and the upload input immediately; `failed` **keeps both** on disk so a retry can
+  resume from the checkpoint (see §7); deleting the task removes them, and the
+  delayed housekeeping (`cleanup_failed_task_files`, 7 days) is the safety net.
+  When a retry resumes past `audio` but the WAV is gone, only the `audio` phase
+  re-runs — the checkpoint's artifacts stay, so fetch/subtitle remain skipped.
 - `transcribe`: Async [OI] ASR. Provider incomplete → `PROVIDER_NOT_CONFIGURED`.
   File ≤ 25 MB ([OI]-compatible) / 50 MB (SiliconFlow) → single call; over the limit →
   ffprobe duration probe + ffmpeg chunk split + per-chunk timestamp offsetting. Chunk

@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查实现是否符合后端代码标准与禁用模式"}
+{"file": ".trellis/tasks/09-09-fix-retry-rewind/prd.md", "reason": "验收标准（R1-R4 + Acceptance Criteria）是检查依据"}
+{"file": ".trellis/tasks/09-09-fix-retry-rewind/design.md", "reason": "检查实现与 D1-D4 设计及边界情况处理一致"}
