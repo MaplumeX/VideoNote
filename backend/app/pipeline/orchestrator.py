@@ -9,7 +9,8 @@ Responsibilities (single owner of DB writes for task state):
 - manage cancel handles: DB-persisted intent (``request_task_cancel``) plus
   the in-memory registry so the current stage's subprocess dies immediately;
 - clean up per-job temp files (WAV, per-user cookie temp file, uploads) at
-  terminal states;
+  the ``complete``/``cancelled`` terminal states — ``failed`` deliberately
+  retains them for checkpoint-resumed retries (delayed housekeeping cleans up);
 - restart recovery (``recover``) and checkpoint-resumed user retry.
 """
 
@@ -89,12 +90,11 @@ class Orchestrator:
                 # audio_path is a non-artifact extra that is not persisted by
                 # the checkpoint; the per-job WAV (C2 contract) restores it so
                 # a resumed transcribe phase has its input back. When the WAV
-                # is gone, rewind to re-run the audio phase from the task
-                # input (URL / upload file).
-                checkpoint = None
-                phase = plan.path[0]
-                was_resumed = False
-                artifacts = frozenset()
+                # is gone, rewind only to the audio phase: the checkpoint's
+                # artifacts and resume flag stay, so fetch/subtitle (and any
+                # other artifact-backed phase) keep their resume short-circuit
+                # and are not re-executed.
+                phase = PipelinePhase.audio
 
             while phase is not None:
                 # Durable cancel intent persisted while we were between phases.
@@ -223,8 +223,9 @@ class Orchestrator:
         there, so the transcribe stage's input can be restored without
         re-running audio. Returns True when the resume can proceed past the
         audio phase. When the WAV is gone (temp dir cleaned), the audio phase
-        must re-run: the caller rewinds the checkpoint so the run restarts at
-        audio from the still-available task input (URL or upload file).
+        must re-run: the caller rewinds only the phase pointer to audio,
+        keeping the checkpoint's artifacts so earlier artifact-backed phases
+        (fetch/subtitle) stay skipped.
         """
         wav = wav_path_for(job_id)
         if wav.is_file():
@@ -277,7 +278,12 @@ class Orchestrator:
             message=message,
             last_error_code=code.value,
         )
-        await self._cleanup_files(job_id)
+        # Files are deliberately NOT cleaned up on failure: the per-job WAV
+        # and the upload input are kept so a retry resumes from the
+        # checkpoint instead of restarting the whole pipeline. The delayed
+        # housekeeping (db.cleanup_failed_task_files, 7 days) is the safety
+        # net that eventually removes them.
+
 
     async def _finalize_cancelled(self, job_id: str) -> None:
         await db.set_task_terminal(

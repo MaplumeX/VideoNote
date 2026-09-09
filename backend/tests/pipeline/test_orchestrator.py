@@ -618,3 +618,259 @@ async def test_resume_past_audio_without_wav_rewinds_to_audio(
     task = await db.get_task("j15")
     assert task["status"] == TaskStatus.complete.value
     assert calls == [PipelinePhase.audio, PipelinePhase.transcribe, PipelinePhase.notegen]
+
+# --- Failed-state file retention + retry reuse (fix-retry-rewind) ------------------
+
+async def _run_and_join(orch: Orchestrator, *, retry: bool, job_id: str | None = None) -> None:
+    """Start a run (or retry) and wait for the runner's asyncio tasks."""
+    from app.pipeline.runner import pipeline_runner
+
+    if retry:
+        assert await orch.retry(job_id)  # type: ignore[arg-type]
+    else:
+        await orch.run(make_plan(job_id))  # type: ignore[arg-type]
+    await asyncio.gather(*pipeline_runner._tasks.values(), return_exceptions=True)
+
+def _recording(phase: PipelinePhase, calls: list[PipelinePhase], **kwargs):
+    """A fake stage that records its phase into ``calls``."""
+    return fake_stage(phase, on_run=lambda ctx, r: calls.append(phase), **kwargs)
+
+async def test_failed_state_retains_wav_and_upload_input(
+    isolated_db: Path, orch: Orchestrator
+) -> None:
+    """R1: the failed terminal state must NOT delete the per-job WAV or the
+    upload input — they are the retry-resume inputs (delayed housekeeping is
+    the eventual cleanup)."""
+    from app.pipeline.context import wav_path_for
+
+    upload = isolated_db / "j20_in.mp4"
+    upload.write_bytes(b"video")
+    await _create_task("j20", source_type="upload", language="en",
+                       file_name="in.mp4", input_file_path=str(upload))
+    wav = wav_path_for("j20")
+    wav.parent.mkdir(parents=True, exist_ok=True)
+    wav.write_bytes(b"RIFF....")
+
+    orch.stages[PipelinePhase.audio] = fake_stage(
+        PipelinePhase.audio, error=PipelineError(ErrorCode.AUDIO_EXTRACTION_FAILED)
+    )
+    await orch.run(make_plan("j20", source_type="upload", input_path=str(upload)))
+
+    task = await db.get_task("j20")
+    assert task["status"] == TaskStatus.failed.value
+    # Files retained for retry.
+    assert wav.is_file()
+    assert upload.is_file()
+    assert task["input_file_path"] == str(upload)
+
+    wav.unlink(missing_ok=True)
+
+async def test_failed_state_retains_wav_url_task(
+    isolated_db: Path, orch: Orchestrator
+) -> None:
+    """R1 (URL task): a transcribe failure keeps the per-job WAV on disk."""
+    from app.pipeline.context import wav_path_for
+
+    await _create_task("j21", video_url="https://www.youtube.com/watch?v=x",
+                       platform="youtube", language="en", source_type="url")
+    wav = wav_path_for("j21")
+    wav.parent.mkdir(parents=True, exist_ok=True)
+    wav.write_bytes(b"RIFF....")
+
+    orch.stages.update({
+        PipelinePhase.fetching: fake_stage(
+            PipelinePhase.fetching,
+            outputs={ArtifactKind.video_meta: {"title": None, "thumbnail": None}}),
+        PipelinePhase.subtitle: fake_stage(PipelinePhase.subtitle, outputs={}),
+        PipelinePhase.audio: fake_stage(
+            PipelinePhase.audio, extra={"audio_path": str(wav)}),
+        PipelinePhase.transcribe: fake_stage(
+            PipelinePhase.transcribe,
+            error=PipelineError(ErrorCode.TRANSCRIPTION_FAILED)),
+    })
+    await orch.run(make_plan("j21"))
+
+    assert (await db.get_task("j21"))["status"] == TaskStatus.failed.value
+    assert wav.is_file()
+    wav.unlink(missing_ok=True)
+
+async def test_retry_transcribe_failure_resumes_without_rerunning_earlier_phases(
+    isolated_db: Path, orch: Orchestrator
+) -> None:
+    """R4/R2 acceptance: URL task fails in transcribe (WAV on disk) -> retry
+    resumes directly at transcribe; fetching/subtitle/audio never re-run."""
+    from app.pipeline.context import wav_path_for
+
+    await _create_task("j22", video_url="https://www.youtube.com/watch?v=x",
+                       platform="youtube", language="en", source_type="url")
+    wav = wav_path_for("j22")
+    wav.parent.mkdir(parents=True, exist_ok=True)
+    wav.write_bytes(b"RIFF....")
+
+    calls: list[PipelinePhase] = []
+    orch.stages.update({
+        PipelinePhase.fetching: _recording(
+            PipelinePhase.fetching, calls,
+            outputs={ArtifactKind.video_meta: {"title": None, "thumbnail": None}}),
+        PipelinePhase.subtitle: _recording(PipelinePhase.subtitle, calls, outputs={}),
+        PipelinePhase.audio: _recording(
+            PipelinePhase.audio, calls, extra={"audio_path": str(wav)}),
+    })
+
+    # First run: transcribe fails.
+    orch.stages[PipelinePhase.transcribe] = fake_stage(
+        PipelinePhase.transcribe,
+        error=PipelineError(ErrorCode.TRANSCRIPTION_FAILED),
+        on_run=lambda ctx, r: calls.append(PipelinePhase.transcribe),
+    )
+    await orch.run(make_plan("j22"))
+    assert (await db.get_task("j22"))["status"] == TaskStatus.failed.value
+    assert calls == [PipelinePhase.fetching, PipelinePhase.subtitle,
+                     PipelinePhase.audio, PipelinePhase.transcribe]
+
+    # Retry: transcribe + notegen succeed.
+    orch.stages[PipelinePhase.transcribe] = fake_stage(
+        PipelinePhase.transcribe,
+        outputs={ArtifactKind.transcript: "tr"},
+        on_run=lambda ctx, r: calls.append(PipelinePhase.transcribe),
+    )
+    orch.stages[PipelinePhase.notegen] = fake_stage(
+        PipelinePhase.notegen, extra={"notes": "N"},
+        on_run=lambda ctx, r: calls.append(PipelinePhase.notegen),
+    )
+    await _run_and_join(orch, retry=True, job_id="j22")
+
+    task = await db.get_task("j22")
+    assert task["status"] == TaskStatus.complete.value
+    # WAV was restored: only transcribe + notegen ran on the retry.
+    assert calls == [PipelinePhase.fetching, PipelinePhase.subtitle,
+                     PipelinePhase.audio, PipelinePhase.transcribe,
+                     PipelinePhase.transcribe, PipelinePhase.notegen]
+
+    # complete terminal state cleaned the WAV.
+    assert not wav.exists()
+
+async def test_retry_with_missing_wav_reruns_only_audio_and_transcribe(
+    isolated_db: Path, orch: Orchestrator
+) -> None:
+    """R4/R2 acceptance: WAV externally removed -> retry rewinds ONLY to the
+    audio phase; fetching/subtitle stay skipped via their persisted artifacts."""
+    from app.pipeline.context import wav_path_for
+
+    await _create_task("j23", video_url="https://www.youtube.com/watch?v=x",
+                       platform="youtube", language="en", source_type="url")
+    wav = wav_path_for("j23")
+    wav.parent.mkdir(parents=True, exist_ok=True)
+    wav.write_bytes(b"RIFF....")
+
+    calls: list[PipelinePhase] = []
+    orch.stages.update({
+        PipelinePhase.fetching: _recording(
+            PipelinePhase.fetching, calls,
+            outputs={ArtifactKind.video_meta: {"title": None, "thumbnail": None}}),
+        PipelinePhase.subtitle: _recording(PipelinePhase.subtitle, calls, outputs={}),
+        PipelinePhase.audio: _recording(
+            PipelinePhase.audio, calls, extra={"audio_path": str(wav)}),
+    })
+    orch.stages[PipelinePhase.transcribe] = fake_stage(
+        PipelinePhase.transcribe,
+        error=PipelineError(ErrorCode.TRANSCRIPTION_FAILED),
+        on_run=lambda ctx, r: calls.append(PipelinePhase.transcribe),
+    )
+    await orch.run(make_plan("j23"))
+    assert (await db.get_task("j23"))["status"] == TaskStatus.failed.value
+
+    # The temp dir gets cleaned out (or the OS purges it) before the retry.
+    wav.unlink(missing_ok=True)
+
+    orch.stages[PipelinePhase.transcribe] = fake_stage(
+        PipelinePhase.transcribe,
+        outputs={ArtifactKind.transcript: "tr"},
+        on_run=lambda ctx, r: calls.append(PipelinePhase.transcribe),
+    )
+    orch.stages[PipelinePhase.notegen] = fake_stage(
+        PipelinePhase.notegen, extra={"notes": "N"},
+        on_run=lambda ctx, r: calls.append(PipelinePhase.notegen),
+    )
+    await _run_and_join(orch, retry=True, job_id="j23")
+
+    task = await db.get_task("j23")
+    assert task["status"] == TaskStatus.complete.value
+    # First run: fetch/subtitle/audio/transcribe(fail). Retry: audio (WAV
+    # re-derived) + transcribe + notegen — fetching/subtitle skipped.
+    assert calls == [PipelinePhase.fetching, PipelinePhase.subtitle,
+                     PipelinePhase.audio, PipelinePhase.transcribe,
+                     PipelinePhase.audio, PipelinePhase.transcribe,
+                     PipelinePhase.notegen]
+
+async def test_upload_task_failed_then_retry_succeeds(
+    isolated_db: Path, orch: Orchestrator
+) -> None:
+    """R4 acceptance: upload task fails in transcribe -> retry succeeds
+    (the input file survived the failed terminal state)."""
+    upload = isolated_db / "j24_in.mp4"
+    upload.write_bytes(b"video")
+    await _create_task("j24", source_type="upload", language="en",
+                       file_name="in.mp4", input_file_path=str(upload))
+
+    calls: list[PipelinePhase] = []
+    orch.stages[PipelinePhase.audio] = _recording(
+        PipelinePhase.audio, calls, extra={"audio_path": "/tmp/j24.wav"})
+
+    orch.stages[PipelinePhase.transcribe] = fake_stage(
+        PipelinePhase.transcribe,
+        error=PipelineError(ErrorCode.TRANSCRIPTION_FAILED),
+        on_run=lambda ctx, r: calls.append(PipelinePhase.transcribe),
+    )
+    await orch.run(make_plan("j24", source_type="upload", input_path=str(upload)))
+    task = await db.get_task("j24")
+    assert task["status"] == TaskStatus.failed.value
+    # Input file retained for the retry.
+    assert upload.is_file()
+
+    orch.stages[PipelinePhase.transcribe] = fake_stage(
+        PipelinePhase.transcribe,
+        outputs={ArtifactKind.transcript: "tr"},
+        on_run=lambda ctx, r: calls.append(PipelinePhase.transcribe),
+    )
+    orch.stages[PipelinePhase.notegen] = fake_stage(
+        PipelinePhase.notegen, extra={"notes": "N"},
+        on_run=lambda ctx, r: calls.append(PipelinePhase.notegen),
+    )
+    await _run_and_join(orch, retry=True, job_id="j24")
+
+    task = await db.get_task("j24")
+    assert task["status"] == TaskStatus.complete.value
+    assert json.loads(task["result_json"])["markdown"] == "N"
+    # complete terminal state cleaned the input file.
+    assert not upload.exists()
+    assert task["input_file_path"] is None
+
+async def test_cancelled_state_still_cleans_files(
+    isolated_db: Path, orch: Orchestrator
+) -> None:
+    """R1: cancelled terminal state keeps the immediate full cleanup
+    (user cancellation = abandoning the task and its temp files)."""
+    from app.pipeline.context import wav_path_for
+
+    upload = isolated_db / "j25_in.mp4"
+    upload.write_bytes(b"video")
+    await _create_task("j25", source_type="upload", language="en",
+                       file_name="in.mp4", input_file_path=str(upload))
+    wav = wav_path_for("j25")
+    wav.parent.mkdir(parents=True, exist_ok=True)
+    wav.write_bytes(b"RIFF....")
+
+    orch.stages[PipelinePhase.audio] = fake_stage(
+        PipelinePhase.audio,
+        on_run=lambda ctx, r: asyncio.get_running_loop().create_task(
+            db.request_task_cancel("j25", user_id="user-1")
+        ),
+    )
+    await orch.run(make_plan("j25", source_type="upload", input_path=str(upload)))
+
+    task = await db.get_task("j25")
+    assert task["status"] == TaskStatus.cancelled.value
+    assert not wav.exists()
+    assert not upload.exists()
+    assert task["input_file_path"] is None

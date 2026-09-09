@@ -74,6 +74,57 @@ async def test_cleanup_old_terminal_tasks_deletes_input_files(
     await db.cleanup_old_terminal_tasks(max_age_days=30)
     assert not input_file.exists()
 
+async def test_cleanup_failed_task_files_removes_input_and_wav(
+    isolated_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The delayed housekeeping removes both retained file classes of an
+    aged failed task: the upload input and the per-job WAV."""
+    input_file = isolated_db / "failed_in.mp4"
+    input_file.write_bytes(b"video")
+    await db.create_task(
+        "failed_task", user_id="user", source_type="upload",
+        input_file_path=str(input_file),
+    )
+    await _age_task("failed_task", status=TaskStatus.failed, days=8)
+
+    # The per-job WAV lives under tempfile.gettempdir(); point it at the
+    # test's tmp area so the test neither touches nor depends on the real
+    # temp dir (both db and the pipeline resolve the same base).
+    fake_tmp = tmp_path / "wavtmp"
+    fake_tmp.mkdir()
+    import tempfile
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(fake_tmp))
+    wav_dir = fake_tmp / "videonote_pipeline_audio"
+    wav_dir.mkdir()
+    wav = wav_dir / "failed_task.wav"
+    wav.write_bytes(b"RIFF....")
+
+    cleaned = await db.cleanup_failed_task_files(max_age_days=7)
+    assert cleaned == 1
+    assert not input_file.exists()
+    assert not wav.exists()
+    task = await db.get_task("failed_task")
+    assert task["input_file_path"] is None
+
+async def test_cleanup_failed_task_files_keeps_recent_failed_tasks(
+    isolated_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed task inside the retention window keeps its files — they are
+    the retry-resume inputs."""
+    input_file = isolated_db / "recent_in.mp4"
+    input_file.write_bytes(b"video")
+    await db.create_task(
+        "recent_failed", user_id="user", source_type="upload",
+        input_file_path=str(input_file),
+    )
+    await _age_task("recent_failed", status=TaskStatus.failed, days=1)
+
+    cleaned = await db.cleanup_failed_task_files(max_age_days=7)
+    assert cleaned == 0
+    assert input_file.exists()
+    task = await db.get_task("recent_failed")
+    assert task["input_file_path"] == str(input_file)
+
 
 async def test_get_user_tasks_exclude_cancelled(isolated_db: Path) -> None:
     await db.create_task("t1", user_id="user")

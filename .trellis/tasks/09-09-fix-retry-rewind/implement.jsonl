@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "重试/清理行为改动涉及 forbidden patterns 与代码标准约束"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "cleanup_failed_task_files 扩展涉及 SQLite/aiosqlite 模式约定"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "db.py 与 pipeline 层的 WAV 路径函数放置需符合模块分层约定"}
+{"file": ".trellis/tasks/09-09-fix-retry-rewind/design.md", "reason": "D1-D4 改动设计与边界情况（notegen resume、分层方向）"}

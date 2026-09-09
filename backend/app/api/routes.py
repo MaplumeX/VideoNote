@@ -34,6 +34,7 @@ from app.pipeline.context import (
     normalize_language,
     providers_configured,
     resolve_providers,
+    wav_path_for,
 )
 from app.pipeline.markdown import normalize_note_markdown
 from app.pipeline.orchestrator import orchestrator
@@ -411,6 +412,9 @@ async def cancel_or_delete_task(
 
     if input_path := _safe_upload_path(task.get("input_file_path")):
         input_path.unlink(missing_ok=True)
+    # Delete is terminal: the retained per-job WAV (kept on failure for
+    # checkpoint-resumed retries) must go away with the task row.
+    wav_path_for(job_id).unlink(missing_ok=True)
     deleted = await delete_task(job_id, user_id=user.user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=error_detail("TASK_NOT_FOUND"))

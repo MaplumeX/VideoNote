@@ -167,7 +167,10 @@ Use `TaskStage.downloading` for audio extraction of uploaded files (NOT `transcr
 
 ### File cleanup
 
-Temp files (downloaded videos, extracted audio) must be cleaned up after processing, even on error. Use `try/finally` or `tempfile.TemporaryDirectory`:
+Temp files (downloaded videos, extracted audio) must be cleaned up at terminal
+states — **but the terminal state decides what "cleaned up" means** (see the
+retry/resume contract below). Use `try/finally` or `tempfile.TemporaryDirectory`
+for in-stage scratch files:
 
 ```python
 with tempfile.TemporaryDirectory() as tmpdir:
@@ -176,7 +179,29 @@ with tempfile.TemporaryDirectory() as tmpdir:
 # tmpdir auto-cleaned on exit
 ```
 
-For uploaded files, delete in `finally`:
+#### Terminal-state file retention contract (failed tasks stay retryable)
+
+Per-job recovery files (the pipeline WAV at `tmp/videonote_pipeline_audio/{job_id}.wav`
+and upload inputs under `UPLOAD_DIR`) are retained or deleted by terminal state:
+
+| Terminal state | WAV | Upload input | Who cleans |
+|---|---|---|---|
+| `complete` | deleted | deleted + `input_file_path` NULL | `_finalize_complete` → `_cleanup_files` |
+| `cancelled` | deleted | deleted + `input_file_path` NULL | `_finalize_cancelled` / `_maybe_cancelled` → `_cleanup_files` |
+| `failed` | **retained** | **retained** (path stays in DB) | `db.cleanup_failed_task_files` after 7 days (also deletes the WAV) |
+| task deleted (DELETE) | deleted | deleted | `cancel_or_delete_task` route |
+
+Why: `POST /tasks/{id}/retry` resumes from the persisted checkpoint; deleting
+the WAV/upload input at failure time forces a full restart and makes upload
+retries fail outright (`neither url nor input_path in stage context`). When the
+WAV is missing at retry, the orchestrator rewinds **only to the audio phase**
+and keeps resume semantics, so fetching/subtitle still short-circuit on stored
+artifacts.
+
+Don't add file deletion to `_finalize_failed` — a future "cleanup" there
+silently reintroduces the retry-from-scratch bug.
+
+For uploaded files in non-pipeline code, delete in `finally`:
 
 ```python
 try:
@@ -229,6 +254,6 @@ path until C4 deletes it.
 - yt-dlp is invoked via CLI subprocess (`--dump-json` / `--no-download` / `--write-subs --write-auto-subs` / `-f bestaudio/best`); shared args are built centrally in `subprocess_util.build_ytdlp_args` (proxy/cookie priority: per-user cookiefile > browser cookies > config file). Never use the yt-dlp Python API in pipeline code (un-interruptible `extract_info` was a historical bug source).
 - yt-dlp error text is classified by `subprocess_util.classify_ytdlp_error(text) -> ErrorCode` (keyword table identical to the legacy one).
 - Stage outputs: DB-worthy data goes in `StageResult.outputs` (artifact kinds); ephemeral cross-stage data (e.g. `audio_path`, final `notes`) goes in `StageResult.extra`; stage inputs like `url`/`input_path` arrive via `StageContext.extra`. Stages never write SQLite directly.
-- WAV files produced by AudioStage live in `tmp/videonote_pipeline_audio/{job_id}.wav` (per-job names — a shared `audio.wav` name caused overwrites under concurrency); cleanup is the orchestrator's (C4) responsibility.
+- WAV files produced by AudioStage live in `tmp/videonote_pipeline_audio/{job_id}.wav` (per-job names — a shared `audio.wav` name caused overwrites under concurrency); cleanup is the orchestrator's (C4) responsibility, split by terminal state — see the terminal-state file retention contract above (failed retains the WAV for checkpoint-resumed retry; delayed cleanup after 7 days is `db.cleanup_failed_task_files`, which re-implements the WAV path rule locally as `_wav_path_for` to avoid a db → pipeline import cycle — keep the two rules in sync).
 - `except asyncio.CancelledError: raise` must precede `except Exception` in every stage/retry loop — swallowing CancelledError in a retry loop silently breaks cancellation.
 - Prompts in `stages/notegen.py` are character-for-character snapshots of the legacy `services/note_gen.py` prompts, locked by snapshot tests. Do not "improve" them without a task that explicitly changes note-generation behavior.

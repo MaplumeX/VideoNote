@@ -250,7 +250,7 @@ async def add_tags_to_note(job_id, user_id, tag_ids):
 
 ### Terminal Task Cleanup
 
-`cleanup_old_terminal_tasks(max_age_days=30)` deletes old terminal (complete/failed/cancelled) task rows at startup. Associated `note_tags` rows are removed via `ON DELETE CASCADE`. This complements `cleanup_failed_task_files` (which only nullifies `input_file_path` for 7-day-old failed tasks).
+`cleanup_old_terminal_tasks(max_age_days=30)` deletes old terminal (complete/failed/cancelled) task rows at startup. Associated `note_tags` rows are removed via `ON DELETE CASCADE`. This complements `cleanup_failed_task_files` (which deletes `input_file_path` files — and since the failed-state file-retention change, also the per-job WAV at `tmp/videonote_pipeline_audio/{job_id}.wav` via `_wav_path_for` — for 7-day-old failed tasks, then nullifies the path).
 
 ---
 
@@ -270,7 +270,8 @@ Use this contract whenever a route creates, retries, cancels, deletes, recovers,
 ### 3. Contracts
 
 - A non-terminal task must either be scheduled after startup or be moved to an explicit recoverability failure.
-- Upload source files remain on the persistent upload path until terminal completion, user cancellation, or terminal failure cleanup.
+- Upload source files remain on the persistent upload path until terminal completion or user cancellation; on terminal **failure** they are retained (path kept in `tasks.input_file_path`) so `POST /tasks/{id}/retry` can resume from the checkpoint — `db.cleanup_failed_task_files(max_age_days=7)` deletes them (and the per-job WAV) once the retry window has passed.
+- On retry, a missing per-job WAV rewinds only to the audio phase while keeping resume semantics (stored `video_meta`/`subtitle`/`transcript` artifacts still short-circuit their phases); it must NOT rewind to `path[0]` with a cleared checkpoint, which silently reintroduces full-restart retries.
 - User cancellation is durable before in-memory cancellation is requested.
 - Progress and success writes are conditional on `cancel_requested = 0` and a non-terminal current stage.
 - Shutdown cancellation preserves recoverable input and task state; user cancellation cleans input and keeps `cancelled`.

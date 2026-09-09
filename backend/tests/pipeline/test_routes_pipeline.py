@@ -347,6 +347,34 @@ async def test_retry_running_task_conflict(
     resp = client.post("/api/tasks/run-job/retry")
     assert resp.status_code == 409
 
+async def test_delete_task_removes_retained_wav_and_upload_input(
+    isolated_db: Path, client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deleting a task is terminal: the files a failed task retained for
+    retry-resume (per-job WAV + upload input) must be removed with it."""
+    from app.pipeline.context import wav_path_for
+
+    upload = isolated_db / "del_in.mp4"
+    upload.write_bytes(b"video")
+    await db.create_task("del-job", user_id="user-1", source_type="upload",
+                         file_name="in.mp4", input_file_path=str(upload))
+    await db.set_task_terminal(
+        "del-job", TaskStatus.failed.value, message="TRANSCRIPTION_FAILED",
+        last_error_code="TRANSCRIPTION_FAILED",
+    )
+    wav = wav_path_for("del-job")
+    wav.parent.mkdir(parents=True, exist_ok=True)
+    wav.write_bytes(b"RIFF....")
+    # routes.py binds config.UPLOAD_DIR at import time; point the module-level
+    # binding at the isolated upload dir like the upload-security tests do.
+    monkeypatch.setattr(routes, "UPLOAD_DIR", isolated_db)
+
+    resp = client.delete("/api/tasks/del-job")
+    assert resp.status_code == 200
+    assert not upload.exists()
+    assert not wav.exists()
+    assert await db.get_task("del-job") is None
+
 # --- auth scoping --------------------------------------------------------------------
 
 async def test_task_endpoints_scoped_to_owner(

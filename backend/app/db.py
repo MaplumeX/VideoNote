@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import tempfile
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -268,34 +269,56 @@ def _sqlite_utc_timestamp(dt: datetime) -> str:
     """
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
-async def cleanup_failed_task_files(max_age_days: int = 7) -> int:
-    """Delete input files for failed tasks older than ``max_age_days``.
+def _wav_path_for(job_id: str) -> Path:
+    """The per-job WAV location (mirrors pipeline.context.wav_path_for).
 
-    Only files residing under ``UPLOAD_DIR`` are deleted, and the corresponding
-    ``input_file_path`` column is nullified.  Returns the number of files
-    removed.
+    Duplicated here because ``app.pipeline.context`` imports this module —
+    importing it back would be circular. The path rule is a frozen contract
+    (``tmp/videonote_pipeline_audio/{job_id}.wav``, C2).
+    """
+    return (
+        Path(tempfile.gettempdir()) / "videonote_pipeline_audio" / f"{job_id}.wav"
+    )
+
+async def cleanup_failed_task_files(max_age_days: int = 7) -> int:
+    """Delete retained files for failed tasks older than ``max_age_days``.
+
+    Failed tasks keep their per-job WAV and upload input on disk so a retry
+    can resume from the checkpoint (retry contract); this housekeeping pass
+    is the eventual cleanup. Input files residing under ``UPLOAD_DIR`` are
+    deleted and the corresponding ``input_file_path`` column is nullified;
+    the per-job WAV is removed unconditionally. Returns the number of tasks
+    cleaned up.
     """
     cutoff = _sqlite_utc_timestamp(datetime.now(UTC) - timedelta(days=max_age_days))
     db = await _get_db()
     cursor = await db.execute(
         "SELECT job_id, input_file_path FROM tasks "
-        "WHERE stage = ? AND created_at < ? AND input_file_path IS NOT NULL",
+        "WHERE stage = ? AND created_at < ?",
         (TaskStage.failed.value, cutoff),
     )
     rows = await cursor.fetchall()
     upload_root = UPLOAD_DIR.resolve()
     count = 0
     for row in rows:
-        resolved = Path(row["input_file_path"]).resolve()
-        # Path safety: must be strictly inside UPLOAD_DIR.
-        if resolved == upload_root or upload_root not in resolved.parents:
-            continue
-        resolved.unlink(missing_ok=True)
-        await db.execute(
-            "UPDATE tasks SET input_file_path = NULL WHERE job_id = ?",
-            (row["job_id"],),
-        )
-        count += 1
+        cleaned = False
+        if row["input_file_path"]:
+            resolved = Path(row["input_file_path"]).resolve()
+            # Path safety: must be strictly inside UPLOAD_DIR.
+            if resolved != upload_root and upload_root in resolved.parents:
+                resolved.unlink(missing_ok=True)
+                await db.execute(
+                    "UPDATE tasks SET input_file_path = NULL WHERE job_id = ?",
+                    (row["job_id"],),
+                )
+                cleaned = True
+        # Retained per-job WAV (kept for checkpoint-resumed retries).
+        wav = _wav_path_for(row["job_id"])
+        if wav.is_file():
+            wav.unlink(missing_ok=True)
+            cleaned = True
+        if cleaned:
+            count += 1
     if count:
         await db.commit()
     return count
