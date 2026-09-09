@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
-- **Last Active**: 2026-09-07
+- **Total Sessions**: 12
+- **Last Active**: 2026-09-09
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~462 | Active |
+| `journal-1.md` | ~495 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-09-09 | Fix retry restarting from scratch: checkpoint-resumed retries | `9a31346` | `fix/retry-restart-from-scratch` |
 | 12 | 2026-09-07 | Fix timestamp badge click in Milkdown editor | `c0f4b37` | `fix/timestamp-badge-click` |
 | 11 | 2026-09-07 | Fix meta backfill race in NewNotePage execution view | `6cde916` | `fix/meta-backfill-race` |
 | 11 | 2026-09-07 | Settings: preselect first provider preset in empty state | `072706a` | `feat/settings-default-provider-preset` |
