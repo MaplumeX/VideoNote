@@ -81,7 +81,7 @@ export function TableOfContents({ containerRef, contentKey, className, onNavigat
           }
         }
       },
-      { rootMargin: "-80px 0px -80% 0px" },
+      { rootMargin: "-88px 0px -80% 0px" },
     );
 
     headingElements.forEach((el) => observer.observe(el));
