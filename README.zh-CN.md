@@ -26,7 +26,7 @@ VideoNote 接收视频链接（YouTube / Bilibili）或上传的本地视频文�
 
 | 层级   | 技术栈                                                                                          |
 | ------ | ----------------------------------------------------------------------------------------------- |
-| 后端   | Python 3.11 · FastAPI · asyncio · aiosqlite · yt-dlp · ffmpeg · OpenAI SDK · PyJWT · bcrypt     |
+| 后端   | Python 3.11 · FastAPI · asyncio · aiosqlite · yt-dlp · Deno · ffmpeg · OpenAI SDK · PyJWT · bcrypt     |
 | 前端   | React 19 · Vite · TypeScript · TailwindCSS v4 · shadcn/ui · Milkdown · i18next · React Router   |
 | 基础设施 | 多阶段构建的单 Docker 镜像，发布至 GHCR · docker-compose                                       |
 

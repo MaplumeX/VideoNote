@@ -6,7 +6,11 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
-    "yt-dlp>=2025.1.0",
+    # Extras are required for full YouTube support: "default" bundles the EJS
+    # challenge-solver scripts (yt-dlp-ejs) and "deno" provides a JavaScript
+    # runtime. Without both, yt-dlp cannot solve YouTube's JS challenges and
+    # intermittent "The page needs to be reloaded" extraction failures occur.
+    "yt-dlp[default,deno]>=2026.8.19",
     "openai>=1.60.0",
     "sse-starlette>=2.0.0",
     "python-dotenv>=1.0.0",
