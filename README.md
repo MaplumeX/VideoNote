@@ -26,7 +26,7 @@ VideoNote takes a video URL (YouTube / Bilibili) or an uploaded video file, extr
 
 | Layer    | Stack                                                                                          |
 | -------- | ---------------------------------------------------------------------------------------------- |
-| Backend  | Python 3.11 · FastAPI · asyncio · aiosqlite · yt-dlp · ffmpeg · OpenAI SDK · PyJWT · bcrypt    |
+| Backend  | Python 3.11 · FastAPI · asyncio · aiosqlite · yt-dlp · Deno · ffmpeg · OpenAI SDK · PyJWT · bcrypt    |
 | Frontend | React 19 · Vite · TypeScript · TailwindCSS v4 · shadcn/ui · Milkdown · i18next · React Router |
 | Infra    | Single multi-stage Docker image published to GHCR · docker-compose                             |
 
